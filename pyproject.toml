@@ -1,0 +1,4 @@
+[project]
+name = "AI-bench"
+dynamic = ["version"]
+requires-python = ">=3.10"
