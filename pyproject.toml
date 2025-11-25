@@ -2,3 +2,45 @@
 name = "AI-bench"
 dynamic = ["version"]
 requires-python = ">=3.10"
+
+[dependency-groups]
+dev = [
+  "ruff==0.14.5",
+  "pre-commit",
+]
+
+[tool.ruff]
+src = ["AI-bench"]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.format]
+docstring-code-format = true
+quote-style = "double"
+
+[tool.ruff.lint]
+select = [
+  "D419", # empty-docstring
+  "E", # Error
+  "F", # Pyflakes
+  "I", # isort
+  "PERF", # Perflint
+  "RUF022", # __all__ is not sorted
+  "RUF030", # print() call in assert
+  "RUF034", # useless if-else
+  "RUF047", # empty else
+  "RUF200", # invalid pyproject.toml
+  "W", # Warning
+]
+ignore = [
+    "E501", # line-too-long
+    "PERF203", # try-except-in-loop
+    "PERF401", # manual-list-comprehension
+]
+
+[tool.ruff.lint.isort]
+known-local-folder = ["AI-bench"]
+known-third-party = ["torch"]
+known-first-party = ["mlir"]
+force-single-line = true  # Improves merge conflicts
+force-sort-within-sections = true
