@@ -28,7 +28,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Setup environment
+      - name: Setup project
         run: |
           git submodule update --init
           uv sync --extra cpu
@@ -45,5 +45,5 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Intel Arc B580
-        run: "${{ env.SRUN }} --partition=b580 --time=0:10:00 -- \
+        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh'"
