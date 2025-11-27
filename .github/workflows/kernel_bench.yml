@@ -16,7 +16,7 @@ jobs:
       - name: Setup environment
         run: |
           git submodule update --init
-          uv sync --extra torch-cpu
+          uv sync --extra cpu
 
       - name: Run KernelBench
         run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py

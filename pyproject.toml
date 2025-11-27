@@ -18,16 +18,29 @@ dev = [
 ]
 
 [project.optional-dependencies]
-torch_cpu = [
-  "torch==2.9.1+cpu"
+cpu = [
+  "torch==2.9.1+cpu",
+]
+xpu = [
+  "torch==2.9.1+xpu",
+  "pytorch-triton-xpu",
+]
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "xpu" },
+  ],
 ]
 
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
+torch = { index = "pytorch" }
+pytorch-triton-xpu = { index = "pytorch" }
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch"
+url = "https://download.pytorch.org/whl"
 explicit = true
 
 [tool.setuptools.packages.find]
