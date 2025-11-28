@@ -81,7 +81,10 @@ class KernelBenchRunner:
                     fn = model.forward
                     args = ai_hc.get_inputs(variant, inputs, device=self.device)
                     if self.device.type == "cpu":
-                        meas = testing.time(fn, args, warmup=3, rep=10)
+                        meas = testing.time(fn, args, warmup=5, rep=20)
+                        print(f"time: {meas}us")
+                    if self.device.type == "xpu":
+                        meas = testing.time(fn, args, warmup=20, rep=100)
                         print(f"time: {meas}us")
                     else:
                         fn(*args)
