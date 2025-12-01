@@ -23,7 +23,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.RUN_CPU)
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -42,7 +42,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.RUN_XPU)
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
