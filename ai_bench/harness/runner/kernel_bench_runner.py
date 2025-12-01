@@ -102,5 +102,7 @@ class KernelBenchRunner:
                         continue
 
                     print(f"Benchmarking: {variant}")
-                    meas = testing.time(fn, args, warmup=self.warmup, rep=self.rep)
+                    meas = testing.time(
+                        fn, args, warmup=self.warmup, rep=self.rep, device=self.device
+                    )
                     print(f"time: {meas}us")
