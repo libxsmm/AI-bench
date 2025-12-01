@@ -34,7 +34,7 @@ jobs:
           uv sync --extra cpu
 
       - name: Run KernelBench
-        run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py
+        run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py --bench
 
   XPU:
     runs-on: pcl-tiergarten

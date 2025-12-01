@@ -21,4 +21,4 @@ ${AI_BENCH_UV} sync --extra xpu
 echo ""
 
 echo "--- Run KernelBench"
-${AI_BENCH_UV} run python ${SCRIPTS_DIR}/run_kernel_bench.py --xpu
+${AI_BENCH_UV} run python ${SCRIPTS_DIR}/run_kernel_bench.py --xpu --bench
