@@ -10,7 +10,7 @@ env:
   SRUN: ${HOME}/srun.sh
 
 jobs:
-  CPU:
+  Test CPU:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,5 +24,5 @@ jobs:
           git submodule update --init
           uv sync --extra cpu
 
-      - name: Run KernelBench
+      - name: Test KernelBench
         run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py
