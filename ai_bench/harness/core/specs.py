@@ -87,13 +87,21 @@ def get_inputs(
 
 
 def get_flop(variant: dict) -> float | None:
+    """Get number of floating-point operations for given specs' variant
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        Number of FLOP if available
+    """
     if VKey.FLOP not in variant:
         return None
 
+    # Return directly if it is a number.
     flop: str | float = variant[VKey.FLOP]
     if isinstance(flop, (int, float)):
         return flop
 
+    # In case of string equation, evaluate using variant's dimensions.
     dims = variant[VKey.DIMS]
     for dim, value in dims.items():
         flop = flop.replace(dim, str(value))

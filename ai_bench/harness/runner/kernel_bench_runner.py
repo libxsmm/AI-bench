@@ -95,7 +95,7 @@ class KernelBenchRunner:
                     fn = model.forward
                     args = ai_hc.get_inputs(variant, inputs, device=self.device)
 
-                    # Simple CI run to verify functionality
+                    # Simple CI run to verify functionality.
                     if self.spec_type == ai_hc.SpecKey.V_CI:
                         print(f"Validating: {variant}")
                         fn(*args)
