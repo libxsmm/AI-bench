@@ -10,14 +10,18 @@ bench-cpu:
   - params: [A, B]
     dims:
       N: 256
+    flop: "2*N*N*N"
 
 bench-gpu:
   - params: [A, B]
     dims:
       N: 1024
+    flop: "2*N*N*N"
   - params: [A, B]
     dims:
       N: 2048
+    flop: "2*N*N*N"
   - params: [A, B]
     dims:
       N: 4096
+    flop: "2*N*N*N"

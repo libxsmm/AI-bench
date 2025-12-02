@@ -3,6 +3,8 @@ from typing import Dict
 
 import torch
 
+from ai_bench import utils
+
 
 class SpecKey(StrEnum):
     """Keys for spec top-level categories."""
@@ -25,6 +27,7 @@ class VKey(StrEnum):
 
     PARAMS = "params"
     DIMS = "dims"
+    FLOP = "flop"
 
 
 def input_shape(input: dict, dims: Dict[str, int]) -> list[int]:
@@ -81,3 +84,17 @@ def get_inputs(
         tensor = torch.randn(shape, dtype=dtype, device=device)
         vals.append(tensor)
     return vals
+
+
+def get_flop(variant: dict) -> float | None:
+    if VKey.FLOP not in variant:
+        return None
+
+    flop: str | float = variant[VKey.FLOP]
+    if isinstance(flop, (int, float)):
+        return flop
+
+    dims = variant[VKey.DIMS]
+    for dim, value in dims.items():
+        flop = flop.replace(dim, str(value))
+    return utils.eval_eq(flop)

@@ -105,4 +105,12 @@ class KernelBenchRunner:
                     meas = testing.time(
                         fn, args, warmup=self.warmup, rep=self.rep, device=self.device
                     )
-                    print(f"time [us]: {meas}")
+                    print("time [us]: {:.6f}".format(meas), end=" ")
+                    flop = ai_hc.get_flop(variant)
+                    if flop:
+                        tflops = flop / meas / 1e6
+                        if tflops > 0.1:
+                            print(" - TFLOPS: {:.6f}".format(tflops), end=" ")
+                        else:
+                            print(" - GFLOPS: {:.6f}".format(tflops * 1000), end=" ")
+                    print("")
