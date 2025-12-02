@@ -1,0 +1,22 @@
+inputs:
+  X:
+    shape: [BATCH, IN_FEAT]
+    dtype: float32
+
+inits:
+  - dim: IN_FEAT
+  - dim: OUT_FEAT
+
+ci:
+  - params: [X]
+    dims:
+      BATCH: 32
+      IN_FEAT: 128
+      OUT_FEAT: 128
+
+bench-gpu:
+  - params: [X]
+    dims:
+      BATCH: 128
+      IN_FEAT: 2048
+      OUT_FEAT: 2048

@@ -10,6 +10,7 @@ class SpecKey(StrEnum):
     """Keys for spec top-level categories."""
 
     INS = "inputs"
+    INITS = "inits"
     V_CI = "ci"
     V_BENCH_CPU = "bench-cpu"
     V_BENCH_GPU = "bench-gpu"
@@ -20,6 +21,12 @@ class InKey(StrEnum):
 
     SHAPE = "shape"
     TYPE = "dtype"
+
+
+class InitKey(StrEnum):
+    """Keys for spec inits fields."""
+
+    DIM = "dim"
 
 
 class VKey(StrEnum):
@@ -54,7 +61,7 @@ def get_torch_dtype(dtype: str) -> torch.dtype:
 
 
 def input_torch_dtype(input: dict) -> torch.dtype:
-    """Get torch data type for an input
+    """Get torch data type for an input.
     Args:
         input: Specs' input entry
     Returns:
@@ -66,7 +73,7 @@ def input_torch_dtype(input: dict) -> torch.dtype:
 def get_inputs(
     variant: dict, inputs: dict, device: torch.device | None = None
 ) -> list[torch.Tensor]:
-    """Get torch tensors for given specs' config
+    """Get torch tensors for given specs' config.
     Args:
         variant: Specs' variant entry
         inputs: Specs' inputs entry
@@ -86,8 +93,26 @@ def get_inputs(
     return vals
 
 
+def get_inits(variant: dict, inits: list[dict]) -> list[object]:
+    """Get initialization values for given specs' config.
+    Args:
+        variant: Specs' variant entry
+        inits: Specs' inits entry
+    Returns:
+        list of initialization values
+    """
+    dims = variant[VKey.DIMS]
+    init_vals = []
+    for init in inits:
+        if InitKey.DIM in init:
+            init_vals.append(dims[init[InitKey.DIM]])
+        else:
+            raise ValueError("Unsupported init value")
+    return init_vals
+
+
 def get_flop(variant: dict) -> float | None:
-    """Get number of floating-point operations for given specs' variant
+    """Get number of floating-point operations for given specs' variant.
     Args:
         variant: Specs' variant entry
     Returns:

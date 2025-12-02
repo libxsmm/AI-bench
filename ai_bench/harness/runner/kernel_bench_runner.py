@@ -47,7 +47,7 @@ class KernelBenchRunner:
         Returns:
             Paths to spec directories
         """
-        return [Path(dir) for dir in os.scandir(self.specs) if dir.is_dir()]
+        return sorted([Path(dir) for dir in os.scandir(self.specs) if dir.is_dir()])
 
     def load_model(self, kernel_path: Path) -> types.ModuleType | None:
         """Load KernelBench model.
@@ -64,7 +64,7 @@ class KernelBenchRunner:
         mod = ai_utils.import_from_path("kernel_bench_model", kernel_path)
         if not hasattr(mod, "Model"):
             return None
-        return mod.Model()
+        return mod.Model
 
     def run_kernels(self):
         """Run all KernelBench kernels."""
@@ -79,19 +79,24 @@ class KernelBenchRunner:
                     continue
                 variants = spec[self.spec_type]
                 inputs = spec[ai_hc.SpecKey.INS]
+                inits = []
+                if ai_hc.SpecKey.INITS in spec:
+                    inits = spec[ai_hc.SpecKey.INITS]
 
                 # Import kernel file to access underlying Model and execution method.
                 # Spec and kernel file names are expected to be identical.
                 kernel_dir = self.kernels / spec_dir.name
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ".py"))
-                model = self.load_model(kernel_file)
-                if not model:
+                model_obj = self.load_model(kernel_file)
+                if not model_obj:
                     print(f"Missing kernel for: {file}", file=sys.stderr)
                     continue
 
                 # Run the kernel with provided input configurations.
-                print(f"Kernel: {file}")
+                print(f"Kernel: {spec_dir.name} / {file}")
                 for variant in variants:
+                    model_inits = ai_hc.get_inits(variant, inits)
+                    model = model_obj(*model_inits)
                     fn = model.forward
                     args = ai_hc.get_inputs(variant, inputs, device=self.device)
 
