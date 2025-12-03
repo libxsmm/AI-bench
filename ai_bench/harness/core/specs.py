@@ -33,6 +33,7 @@ class VKey(StrEnum):
     """Keys for spec variants fields."""
 
     PARAMS = "params"
+    TYPE = "dtype"
     DIMS = "dims"
     FLOP = "flop"
 
@@ -109,6 +110,18 @@ def get_inits(variant: dict, inits: list[dict]) -> list[object]:
         else:
             raise ValueError("Unsupported init value")
     return init_vals
+
+
+def get_variant_torch_dtype(variant: dict) -> torch.dtype | None:
+    """Get torch data type for given specs' variant.
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        torch data type if available
+    """
+    if VKey.TYPE not in variant:
+        return None
+    return get_torch_dtype(variant[VKey.TYPE])
 
 
 def get_flop(variant: dict) -> float | None:
