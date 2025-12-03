@@ -26,16 +26,20 @@ ci:
       HEIGHT: 224
       WIDTH: 224
 
-bench-gpu:
-  - params: [X]
-    dims:
-      IN_CHANNELS: 480
-      OUT_1x1: 192
-      REDUCE_3x3: 96
-      OUT_3x3: 208
-      REDUCE_5x5: 16
-      OUT_5x5: 48
-      POOL_PROJ: 64
-      BATCH: 10
-      HEIGHT: 224
-      WIDTH: 224
+# Disabled due to the error:
+# Condition append_res Failed on void ZeCollector::PostAppendKernelCommandCommon
+# TODO: Fix bench config
+#
+# bench-gpu:
+#   - params: [X]
+#     dims:
+#       IN_CHANNELS: 480
+#       OUT_1x1: 192
+#       REDUCE_3x3: 96
+#       OUT_3x3: 208
+#       REDUCE_5x5: 16
+#       OUT_5x5: 48
+#       POOL_PROJ: 64
+#       BATCH: 10
+#       HEIGHT: 224
+#       WIDTH: 224

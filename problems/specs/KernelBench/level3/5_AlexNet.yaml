@@ -18,8 +18,8 @@ ci:
 bench-gpu:
   - params: [X]
     dims:
-      BATCH: 1024
+      BATCH: 512
       IN_1: 3
       IN_2: 224
       IN_3: 224
-      NUM_CLASSES: 1000
+      NUM_CLASSES: 500
