@@ -1,0 +1,32 @@
+inputs:
+  X:
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
+    dtype: float32
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: OUT_CHANNELS
+  - dim: KERNEL_SIZE
+  - dim: BIAS_SHAPE
+
+ci:
+  - params: [X]
+    dims:
+      BATCH: 16
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
+      HEIGHT: 64
+      WIDTH: 64
+      KERNEL_SIZE: 3
+      BIAS_SHAPE: [64, 1, 1]
+
+bench-gpu:
+  - params: [X]
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 128
+      HEIGHT: 128
+      WIDTH: 128
+      KERNEL_SIZE: 3
+      BIAS_SHAPE: [128, 1, 1]

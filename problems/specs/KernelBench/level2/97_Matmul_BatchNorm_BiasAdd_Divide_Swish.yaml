@@ -6,6 +6,10 @@ inputs:
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
+  - dim: BN_EPS
+  - dim: BN_MOMENTUM
+  - dim: BIAS_SHAPE
+  - dim: DIV_VAL
 
 ci:
   - params: [X]
@@ -13,6 +17,10 @@ ci:
       BATCH: 32
       IN_FEAT: 128
       OUT_FEAT: 128
+      BN_EPS: 0.00001
+      BN_MOMENTUM: 0.1
+      BIAS_SHAPE: [1]
+      DIV_VAL: 1.0
 
 bench-gpu:
   - params: [X]
@@ -20,3 +28,7 @@ bench-gpu:
       BATCH: 1024
       IN_FEAT: 4096
       OUT_FEAT: 4096
+      BN_EPS: 0.00001
+      BN_MOMENTUM: 0.1
+      BIAS_SHAPE: [1]
+      DIV_VAL: 1.0
