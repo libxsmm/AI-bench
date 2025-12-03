@@ -1,0 +1,33 @@
+inputs:
+  X:
+    shape: [BATCH, SEQ_LEN, N_EMBD]
+    dtype: float32
+
+inits:
+  - dim: N_EMBD
+  - dim: N_HEAD
+  - dim: ATTN_PDROP
+  - dim: RESID_PDROP
+  - dim: MAX_SEQLEN
+
+ci:
+  - params: [X]
+    dims:
+      BATCH: 32
+      MAX_SEQLEN: 256
+      SEQ_LEN: 128
+      N_EMBD: 192
+      N_HEAD: 2
+      ATTN_PDROP: 0.0
+      RESID_PDROP: 0.0
+
+bench-gpu:
+  - params: [X]
+    dims:
+      BATCH: 128
+      MAX_SEQLEN: 1024
+      SEQ_LEN: 512
+      N_EMBD: 768
+      N_HEAD: 8
+      ATTN_PDROP: 0.0
+      RESID_PDROP: 0.0

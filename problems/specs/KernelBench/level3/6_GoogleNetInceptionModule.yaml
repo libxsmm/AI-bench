@@ -1,0 +1,41 @@
+inputs:
+  X:
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
+    dtype: float32
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: OUT_1x1
+  - dim: REDUCE_3x3
+  - dim: OUT_3x3
+  - dim: REDUCE_5x5
+  - dim: OUT_5x5
+  - dim: POOL_PROJ
+
+ci:
+  - params: [X]
+    dims:
+      IN_CHANNELS: 5
+      OUT_1x1: 64
+      REDUCE_3x3: 32
+      OUT_3x3: 70
+      REDUCE_5x5: 16
+      OUT_5x5: 48
+      POOL_PROJ: 64
+      BATCH: 2
+      HEIGHT: 224
+      WIDTH: 224
+
+bench-gpu:
+  - params: [X]
+    dims:
+      IN_CHANNELS: 480
+      OUT_1x1: 192
+      REDUCE_3x3: 96
+      OUT_3x3: 208
+      REDUCE_5x5: 16
+      OUT_5x5: 48
+      POOL_PROJ: 64
+      BATCH: 10
+      HEIGHT: 224
+      WIDTH: 224

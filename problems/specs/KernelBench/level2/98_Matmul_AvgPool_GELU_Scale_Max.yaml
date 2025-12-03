@@ -6,6 +6,8 @@ inputs:
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
+  - dim: POOL_KERNEL_SIZE
+  - dim: SCALE
 
 ci:
   - params: [X]
@@ -13,6 +15,8 @@ ci:
       BATCH: 32
       IN_FEAT: 128
       OUT_FEAT: 128
+      POOL_KERNEL_SIZE: 16
+      SCALE: 2.0
 
 bench-gpu:
   - params: [X]
@@ -20,3 +24,5 @@ bench-gpu:
       BATCH: 1024
       IN_FEAT: 4096
       OUT_FEAT: 4096
+      POOL_KERNEL_SIZE: 16
+      SCALE: 2.0

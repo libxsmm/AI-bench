@@ -6,6 +6,8 @@ inputs:
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
+  - dim: SUB_VAL
+  - dim: MUL_VAL
 
 ci:
   - params: [X]
@@ -13,6 +15,8 @@ ci:
       BATCH: 32
       IN_FEAT: 128
       OUT_FEAT: 128
+      SUB_VAL: 2.0
+      MUL_VAL: 1.5
 
 bench-gpu:
   - params: [X]
@@ -20,3 +24,5 @@ bench-gpu:
       BATCH: 1024
       IN_FEAT: 4096
       OUT_FEAT: 4096
+      SUB_VAL: 2.0
+      MUL_VAL: 1.5

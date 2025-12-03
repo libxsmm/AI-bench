@@ -1,0 +1,25 @@
+inputs:
+  X:
+    shape: [BATCH, IN_SIZE]
+    dtype: float32
+
+inits:
+  - dim: IN_SIZE
+  - dim: LAYER_SIZES
+  - dim: OUT_SIZE
+
+ci:
+  - params: [X]
+    dims:
+      BATCH: 32
+      IN_SIZE: 64
+      LAYER_SIZES: [128, 128]
+      OUT_SIZE: 64
+
+bench-gpu:
+  - params: [X]
+    dims:
+      BATCH: 128
+      IN_SIZE: 2048
+      LAYER_SIZES: [4096, 4096]
+      OUT_SIZE: 2048
