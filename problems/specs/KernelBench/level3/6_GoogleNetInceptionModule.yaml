@@ -1,7 +1,7 @@
 inputs:
   X:
     shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
-    dtype: float32
+    dtype: float16
 
 inits:
   - dim: IN_CHANNELS
@@ -14,17 +14,18 @@ inits:
 
 ci:
   - params: [X]
+    dtype: float16
     dims:
-      IN_CHANNELS: 5
-      OUT_1x1: 64
-      REDUCE_3x3: 32
-      OUT_3x3: 70
-      REDUCE_5x5: 16
-      OUT_5x5: 48
-      POOL_PROJ: 64
-      BATCH: 2
-      HEIGHT: 224
-      WIDTH: 224
+      IN_CHANNELS: 2
+      OUT_1x1: 16
+      REDUCE_3x3: 8
+      OUT_3x3: 35
+      REDUCE_5x5: 8
+      OUT_5x5: 24
+      POOL_PROJ: 32
+      BATCH: 1
+      HEIGHT: 112
+      WIDTH: 112
 
 # Disabled due to the error:
 # Condition append_res Failed on void ZeCollector::PostAppendKernelCommandCommon

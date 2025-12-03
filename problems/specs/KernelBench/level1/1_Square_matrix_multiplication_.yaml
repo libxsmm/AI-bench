@@ -6,6 +6,11 @@ inputs:
     shape: [N, N]
     dtype: float16
 
+ci:
+  - params: [A, B]
+    dims:
+      N: 128
+
 bench-cpu:
   - params: [A, B]
     dims:

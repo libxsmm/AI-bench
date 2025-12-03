@@ -1,13 +1,14 @@
 inputs:
   X:
     shape: [BATCH, IN_1, IN_2, IN_3]
-    dtype: float32
+    dtype: float16
 
 inits:
   - dim: NUM_CLASSES
 
 ci:
   - params: [X]
+    dtype: float16
     dims:
       BATCH: 32
       IN_1: 1
@@ -17,6 +18,7 @@ ci:
 
 bench-gpu:
   - params: [X]
+    dtype: float16
     dims:
       BATCH: 4096
       IN_1: 1

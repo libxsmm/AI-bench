@@ -1,7 +1,7 @@
 inputs:
   X:
     shape: [BATCH, SEQ_LEN, N_EMBD]
-    dtype: float32
+    dtype: float16
 
 inits:
   - dim: N_EMBD
@@ -12,17 +12,19 @@ inits:
 
 ci:
   - params: [X]
+    dtype: float16
     dims:
-      BATCH: 32
+      BATCH: 8
       MAX_SEQLEN: 256
       SEQ_LEN: 128
-      N_EMBD: 192
+      N_EMBD: 96
       N_HEAD: 2
       ATTN_PDROP: 0.0
       RESID_PDROP: 0.0
 
 bench-gpu:
   - params: [X]
+    dtype: float16
     dims:
       BATCH: 128
       MAX_SEQLEN: 1024
