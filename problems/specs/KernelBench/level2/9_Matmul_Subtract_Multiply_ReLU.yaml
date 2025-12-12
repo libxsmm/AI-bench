@@ -18,6 +18,7 @@ ci:
       OUT_FEAT: 128
       SUB_VAL: 2.0
       MUL_VAL: 1.5
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
 
 bench-gpu:
   - params: [X]
@@ -28,3 +29,4 @@ bench-gpu:
       OUT_FEAT: 4096
       SUB_VAL: 2.0
       MUL_VAL: 1.5
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"

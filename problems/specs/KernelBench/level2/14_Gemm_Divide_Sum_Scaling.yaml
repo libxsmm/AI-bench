@@ -16,6 +16,7 @@ ci:
       IN_SIZE: 128
       HIDDEN_SIZE: 128
       SCALE: 1.5
+    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
 
 bench-gpu:
   - params: [X]
@@ -25,3 +26,4 @@ bench-gpu:
       IN_SIZE: 4096
       HIDDEN_SIZE: 4096
       SCALE: 1.5
+    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
