@@ -38,6 +38,13 @@ class VKey(StrEnum):
     FLOP = "flop"
 
 
+class Backend(StrEnum):
+    """Supported backends for kernel execution."""
+
+    PYTORCH = "pytorch"
+    TRITON = "triton"
+
+
 def input_shape(input: dict, dims: Dict[str, int]) -> list[int]:
     """Return shape of an input.
     Args:
@@ -46,7 +53,6 @@ def input_shape(input: dict, dims: Dict[str, int]) -> list[int]:
     Returns:
         List of integers defining input's shape
     """
-    torch.randn
     return [dims[dim] for dim in input[InKey.SHAPE]]
 
 

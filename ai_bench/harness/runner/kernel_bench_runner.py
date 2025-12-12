@@ -18,17 +18,28 @@ class KernelBenchRunner:
     Args:
         spec_type: Type of problem spec to use
         device: Device to use
+        backend: Backend to use (pytorch or triton)
     """
 
     def __init__(
         self,
         spec_type: ai_hc.SpecKey = ai_hc.SpecKey.V_CI,
         device: torch.device | None = None,
+        backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
     ):
         self.specs = ai_utils.specs() / "KernelBench"
-        self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
+        self.backend = backend
+
+        # Set kernel directory based on backend.
+        if backend == ai_hc.Backend.PYTORCH:
+            self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
+        elif backend == ai_hc.Backend.TRITON:
+            self.kernels = ai_utils.triton_kernels_dir() / "KernelBench"
+        else:
+            raise ValueError(f"Unsupported backend: {backend}")
+
         if not os.path.isdir(self.kernels):
-            raise ValueError("Missing KernelBench kernels directory")
+            raise ValueError(f"Missing kernels directory for {backend}: {self.kernels}")
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
@@ -68,6 +79,10 @@ class KernelBenchRunner:
 
     def run_kernels(self):
         """Run all KernelBench kernels."""
+        print(f"Backend: {self.backend}, Device: {self.device}")
+        print(f"Kernels: {self.kernels}")
+        print("-" * 60)
+
         # Iterate over specs of kernel levels.
         for spec_dir in self.get_spec_dirs():
             # Iterate over specs - one per kernel.
@@ -93,7 +108,7 @@ class KernelBenchRunner:
                     continue
 
                 # Run the kernel with provided input configurations.
-                print(f"Kernel: {spec_dir.name} / {file}")
+                print(f"Kernel: {spec_dir.name} / {file} [{self.backend}]")
                 for variant in variants:
                     model_inits = ai_hc.get_inits(variant, inits)
                     model_dtype = ai_hc.get_variant_torch_dtype(variant)

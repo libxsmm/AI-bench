@@ -53,18 +53,18 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
 
     for _ in range(warmup):
         fn(*args)
-        torch.accelerator.synchronize()
+        torch.xpu.synchronize()
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.XPU]) as prof:
         for _ in range(rep):
             # Clear L2 cache.
             cache.zero_()
-            torch.accelerator.synchronize()
+            torch.xpu.synchronize()
 
             with record_function("profiled_fn"):
                 fn(*args)
         # Ensure all measurements are recorded.
-        torch.accelerator.synchronize()
+        torch.xpu.synchronize()
 
     def extract_kernels(funcs):
         """Traverse event tree recursively to extract device kernels."""
@@ -115,4 +115,4 @@ def time(
         return time_cpu(fn, args, warmup=warmup, rep=rep)
     if device.type == "xpu":
         return time_xpu(fn, args, warmup=warmup, rep=rep)
-    raise ValueError("Unsupported device for timing")
+    raise ValueError(f"Unsupported device for timing: {device.type}")

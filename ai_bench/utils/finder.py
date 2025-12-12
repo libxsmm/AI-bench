@@ -12,5 +12,10 @@ def specs() -> Path:
 
 
 def kernel_bench_dir() -> Path:
-    """Path to the KernelBench directory."""
+    """Path to the KernelBench directory (PyTorch kernels)."""
     return project_root() / "third_party" / "KernelBench"
+
+
+def triton_kernels_dir() -> Path:
+    """Path to the Triton kernels directory."""
+    return project_root() / "backends" / "triton"
