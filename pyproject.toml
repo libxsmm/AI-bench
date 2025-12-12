@@ -15,7 +15,13 @@ dependencies = [
 dev = [
   "ruff==0.14.5",
   "pre-commit",
+  "pytest",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
 
 [project.optional-dependencies]
 cpu = [

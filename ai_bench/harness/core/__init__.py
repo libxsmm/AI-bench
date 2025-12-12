@@ -1,6 +1,6 @@
 from .specs import Backend
-from .specs import InKey
 from .specs import InitKey
+from .specs import InKey
 from .specs import SpecKey
 from .specs import VKey
 from .specs import get_flop
