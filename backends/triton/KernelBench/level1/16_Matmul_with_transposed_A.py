@@ -157,9 +157,4 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
-        # In TRITON backend, inputs should already be on XPU
-        if hasattr(torch, "xpu") and A.device.type == "xpu":
-            return _kernel_function_xpu(A, B)
-
-        # Safety fallback if someone runs this file on CPU directly
-        return torch.matmul(A.T, B)
+        return _kernel_function_xpu(A, B)
