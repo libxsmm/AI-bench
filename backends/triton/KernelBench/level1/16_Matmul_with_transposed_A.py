@@ -1,0 +1,165 @@
+# ruff: noqa: E731
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+
+@triton.autotune(
+    configs=[
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=4, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=4, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=8, num_stages=4
+        ),
+    ],
+    key=["M", "N", "K"],  # autotune per problem size
+)
+@triton.jit
+def _matmul_at_kernel(
+    A_ptr,
+    B_ptr,
+    C_ptr,
+    M,
+    N,
+    K,
+    stride_A0,
+    stride_A1,
+    stride_B0,
+    stride_B1,
+    stride_C0,
+    stride_C1,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+):
+    """
+    C = A^T @ B
+    A: [K, M]
+    B: [K, N]
+    C: [M, N]
+    """
+    # Program IDs
+    pid_m = tl.program_id(0)
+    pid_n = tl.program_id(1)
+
+    # Offsets in output tile
+    offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)  # [BLOCK_M]
+    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)  # [BLOCK_N]
+
+    # Accumulator
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+
+    # Loop over K
+    for k_start in range(0, K, BLOCK_K):
+        offs_k = k_start + tl.arange(0, BLOCK_K)  # [BLOCK_K]
+
+        # Bounds masks
+        mask_k = offs_k < K
+        mask_m = offs_m < M
+        mask_n = offs_n < N
+
+        # A tile: [BLOCK_K, BLOCK_M]
+        ptrsA = A_ptr + offs_k[:, None] * stride_A0 + offs_m[None, :] * stride_A1
+        A_block = tl.load(ptrsA, mask=mask_k[:, None] & mask_m[None, :], other=0.0)
+
+        # Transpose to [BLOCK_M, BLOCK_K]
+        A_block = A_block.T
+
+        # B tile: [BLOCK_K, BLOCK_N]
+        ptrsB = B_ptr + offs_k[:, None] * stride_B0 + offs_n[None, :] * stride_B1
+        B_block = tl.load(ptrsB, mask=mask_k[:, None] & mask_n[None, :], other=0.0)
+
+        # Fused matmul
+        acc = tl.dot(A_block, B_block, acc)
+
+    # Store C
+    ptrsC = C_ptr + offs_m[:, None] * stride_C0 + offs_n[None, :] * stride_C1
+    mask_C = (offs_m[:, None] < M) & (offs_n[None, :] < N)
+    tl.store(ptrsC, acc, mask=mask_C)
+
+
+def _kernel_function_xpu(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+    """
+    A, B on XPU.
+    Supports fp32/fp16/bf16 by computing in fp32 and casting back.
+    A: [K, M], B: [K, N] -> C: [M, N]
+    """
+    assert isinstance(A, torch.Tensor) and isinstance(B, torch.Tensor)
+    assert hasattr(torch, "xpu"), "torch.xpu is required for this kernel"
+    assert A.device.type == "xpu" and B.device.type == "xpu", "A and B must be on XPU"
+    assert A.is_floating_point() and B.is_floating_point(), (
+        "A and B must be floating point tensors"
+    )
+    assert A.dtype == B.dtype, f"dtype mismatch: {A.dtype} vs {B.dtype}"
+
+    orig_dtype = A.dtype
+
+    # Compute in fp32
+    A32 = A.to(torch.float32).contiguous()
+    B32 = B.to(torch.float32).contiguous()
+
+    K, M = A32.shape
+    K2, N = B32.shape
+    assert K == K2, f"Incompatible K dimensions: {K} vs {K2}"
+
+    C32 = torch.empty((M, N), device=A32.device, dtype=torch.float32)
+
+    stride_A0, stride_A1 = A32.stride()
+    stride_B0, stride_B1 = B32.stride()
+    stride_C0, stride_C1 = C32.stride()
+
+    # Autotuned grid: depends on BLOCK_M/BLOCK_N chosen by config
+    grid = lambda META: (
+        triton.cdiv(M, META["BLOCK_M"]),
+        triton.cdiv(N, META["BLOCK_N"]),
+    )
+
+    _matmul_at_kernel[grid](
+        A32,
+        B32,
+        C32,
+        M,
+        N,
+        K,
+        stride_A0,
+        stride_A1,
+        stride_B0,
+        stride_B1,
+        stride_C0,
+        stride_C1,
+    )
+
+    torch.xpu.synchronize()
+    return C32.to(orig_dtype)
+
+
+class Model(nn.Module):
+    """
+    KernelBench-compatible wrapper:
+        C = A^T @ B
+    A: [K, M]
+    B: [K, N]
+    C: [M, N]
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Model, self).__init__()
+
+    def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
+        # In TRITON backend, inputs should already be on XPU
+        if hasattr(torch, "xpu") and A.device.type == "xpu":
+            return _kernel_function_xpu(A, B)
+
+        # Safety fallback if someone runs this file on CPU directly
+        return torch.matmul(A.T, B)
