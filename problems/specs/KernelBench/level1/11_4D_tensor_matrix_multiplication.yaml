@@ -14,6 +14,7 @@ ci:
       J: 64
       L: 32
       K: 24
+    flop: "2*B*I*J*K*L"
 
 bench-gpu:
   - params: [A, B]
@@ -23,3 +24,4 @@ bench-gpu:
       J: 512
       L: 256
       K: 768
+    flop: "2*B*I*J*K*L"

@@ -12,6 +12,7 @@ ci:
       M: 64
       N: 32
       UNIT: 1
+    flop: "M*N"
 
 bench-gpu:
   - params: [A, B]
@@ -19,3 +20,4 @@ bench-gpu:
       M: 16384
       N: 4096
       UNIT: 1
+    flop: "M*N"

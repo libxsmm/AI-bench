@@ -12,6 +12,7 @@ ci:
       M: 64
       N: 1
       K: 256
+    flop: "2*M*N*K"
 
 bench-gpu:
   - params: [A, B]
@@ -19,3 +20,4 @@ bench-gpu:
       M: 2048
       N: 1
       K: 16384
+    flop: "2*M*N*K"

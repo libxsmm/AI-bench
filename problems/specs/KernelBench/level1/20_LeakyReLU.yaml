@@ -8,9 +8,11 @@ ci:
     dims:
       BATCH: 128
       DIM: 512
+    flop: "2*BATCH*DIM"
 
 bench-gpu:
   - params: [X]
     dims:
       BATCH: 1024
       DIM: 16384
+    flop: "2*BATCH*DIM"

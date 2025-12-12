@@ -11,9 +11,11 @@ ci:
     dims:
       M: 128
       N: 128
+    flop: "2*M*N"
 
 bench-gpu:
   - params: [A, B]
     dims:
       M: 4096
       N: 4096
+    flop: "2*M*N"
