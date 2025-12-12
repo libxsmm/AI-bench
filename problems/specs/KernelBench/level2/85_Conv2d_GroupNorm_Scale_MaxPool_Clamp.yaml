@@ -28,6 +28,7 @@ ci:
       MAXPOOL_KERNEL_SIZE: 4
       CLAMP_MIN: 0.0
       CLAMP_MAX: 1.0
+    flop: "2*BATCH*OUT_CH*H*W*(IN_CH//NUM_GROUPS)*KERNEL_SIZE*KERNEL_SIZE"
 
 bench-gpu:
   - params: [X]
@@ -44,3 +45,4 @@ bench-gpu:
       MAXPOOL_KERNEL_SIZE: 4
       CLAMP_MIN: 0.0
       CLAMP_MAX: 1.0
+    flop: "2*BATCH*OUT_CH*H*W*(IN_CH//NUM_GROUPS)*KERNEL_SIZE*KERNEL_SIZE"
