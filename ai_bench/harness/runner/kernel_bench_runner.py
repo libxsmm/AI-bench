@@ -1,6 +1,6 @@
+import json
 import os
 from pathlib import Path
-import sys
 import types
 
 import torch
@@ -9,6 +9,8 @@ import yaml
 from ai_bench import utils as ai_utils
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness import testing
+from ai_bench.utils.csv_logger import CSVLogger
+from ai_bench.utils.logger import setup_logger
 
 
 class KernelBenchRunner:
@@ -19,6 +21,8 @@ class KernelBenchRunner:
         spec_type: Type of problem spec to use
         device: Device to use
         backend: Backend to use (pytorch or triton)
+        csv_path: Path to CSV file for logging (optional)
+        note: Optional note to include in CSV
     """
 
     def __init__(
@@ -26,9 +30,34 @@ class KernelBenchRunner:
         spec_type: ai_hc.SpecKey = ai_hc.SpecKey.V_CI,
         device: torch.device | None = None,
         backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
+        csv_path: str | None = None,
+        note: str = "",
     ):
         self.specs = ai_utils.specs() / "KernelBench"
         self.backend = backend
+        self.logger = setup_logger()
+        self.csv_path = csv_path
+        self.note = note
+        self.csv_fieldnames = [
+            "kernel_name",
+            "kernel_type",
+            "problem_level",
+            "flops",
+            "flops_val",
+            "flops_unit",
+            "time_us",
+            "input_values",
+            "note",
+        ]
+        aibench_env_keys = sorted(
+            [k for k in os.environ.keys() if k.startswith("AIBENCH_")]
+        )
+        self.csv_fieldnames.extend(aibench_env_keys)
+
+        if csv_path:
+            self.csv_logger = CSVLogger(csv_path, self.csv_fieldnames)
+        else:
+            self.csv_logger = None
 
         # Set kernel directory based on backend.
         if backend == ai_hc.Backend.PYTORCH:
@@ -79,9 +108,9 @@ class KernelBenchRunner:
 
     def run_kernels(self):
         """Run all KernelBench kernels."""
-        print(f"Backend: {self.backend}, Device: {self.device}")
-        print(f"Kernels: {self.kernels}")
-        print("-" * 60)
+        self.logger.info(f"Backend: {self.backend}, Device: {self.device}")
+        self.logger.info(f"Kernels: {self.kernels}")
+        self.logger.info("-" * 60)
 
         # Iterate over specs of kernel levels.
         for spec_dir in self.get_spec_dirs():
@@ -104,11 +133,10 @@ class KernelBenchRunner:
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ".py"))
                 model_obj = self.load_model(kernel_file)
                 if not model_obj:
-                    print(f"Missing kernel for: {file}", file=sys.stderr)
+                    self.logger.warning(f"Missing kernel for: {file}")
                     continue
-
                 # Run the kernel with provided input configurations.
-                print(f"Kernel: {spec_dir.name} / {file} [{self.backend}]")
+                self.logger.info(f"Kernel: {spec_dir.name} / {file} [{self.backend}]")
                 for variant in variants:
                     model_inits = ai_hc.get_inits(variant, inits)
                     model_dtype = ai_hc.get_variant_torch_dtype(variant)
@@ -118,20 +146,46 @@ class KernelBenchRunner:
 
                     # Simple CI run to verify functionality.
                     if self.spec_type == ai_hc.SpecKey.V_CI:
-                        print(f"Validating: {variant}")
+                        self.logger.info(f"Validating: {variant}")
                         fn(*args)
                         continue
 
-                    print(f"Benchmarking: {variant}")
+                    self.logger.info(f"Benchmarking: {variant}")
                     meas = testing.time(
                         fn, args, warmup=self.warmup, rep=self.rep, device=self.device
                     )
-                    print("time [us]: {:.6f}".format(meas), end=" ")
                     flop = ai_hc.get_flop(variant)
+                    flops_val = ""
+                    flops_unit = ""
                     if flop:
                         tflops = flop / meas / 1e6
                         if tflops >= 1.0:
-                            print(" - TFLOPS: {:.6f}".format(tflops), end=" ")
+                            flops_val = tflops
+                            flops_unit = "TFLOPS"
                         else:
-                            print(" - GFLOPS: {:.6f}".format(tflops * 1000), end=" ")
-                    print("")
+                            flops_val = tflops * 1000
+                            flops_unit = "GFLOPS"
+
+                    self.logger.info(f"time [us]: {meas:.6f} {flops_unit}: {flops_val}")
+
+                    if self.csv_logger:
+                        aibench_env = {
+                            k: v
+                            for k, v in os.environ.items()
+                            if k.startswith("AIBENCH_")
+                        }
+                        row = {
+                            "kernel_name": file,
+                            "kernel_type": str(self.backend),
+                            "problem_level": spec_dir.name,
+                            "flops": flop if flop is not None else "",
+                            "flops_val": flops_val,
+                            "flops_unit": flops_unit,
+                            "time_us": meas,
+                            "input_values": json.dumps(
+                                variant.get(ai_hc.VKey.DIMS, {})
+                            ),
+                            "note": self.note,
+                        }
+                        row.update(aibench_env)
+                        self.csv_logger.log(row)
