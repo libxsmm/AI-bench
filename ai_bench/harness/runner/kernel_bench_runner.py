@@ -20,9 +20,11 @@ class KernelBenchRunner:
     Args:
         spec_type: Type of problem spec to use
         device: Device to use
-        backend: Backend to use (pytorch or triton)
+        backend: Backend to use (pytorch, triton, or sycl)
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
+        compile_sycl: Whether to compile SYCL kernels (default: True)
+        sycl_verbose: Whether to print SYCL compilation commands
     """
 
     def __init__(
@@ -32,6 +34,8 @@ class KernelBenchRunner:
         backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
         csv_path: str | None = None,
         note: str = "",
+        compile_sycl: bool = True,
+        sycl_verbose: bool = False,
     ):
         self.specs = ai_utils.specs() / "KernelBench"
         self.backend = backend
@@ -64,6 +68,8 @@ class KernelBenchRunner:
             self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
         elif backend == ai_hc.Backend.TRITON:
             self.kernels = ai_utils.triton_kernels_dir() / "KernelBench"
+        elif backend == ai_hc.Backend.SYCL:
+            self.kernels = ai_utils.sycl_kernels_dir() / "KernelBench"
         else:
             raise ValueError(f"Unsupported backend: {backend}")
 
@@ -81,6 +87,14 @@ class KernelBenchRunner:
         else:
             self.warmup = 25
             self.rep = 100
+
+        # Initialize SYCL compiler if needed.
+        self._sycl_compiler = None
+        self._compile_sycl = compile_sycl
+        if backend == ai_hc.Backend.SYCL and compile_sycl:
+            from ai_bench.harness.sycl import SYCLCompiler
+
+            self._sycl_compiler = SYCLCompiler(verbose=sycl_verbose)
 
     def get_spec_dirs(self) -> list[Path]:
         """Get KernelBench level dirs.
@@ -104,6 +118,38 @@ class KernelBenchRunner:
         mod = ai_utils.import_from_path("kernel_bench_model", kernel_path)
         if not hasattr(mod, "Model"):
             return None
+        return mod.Model
+
+    def load_sycl_model(self, kernel_path: Path) -> types.ModuleType | None:
+        """Load SYCL KernelBench model.
+
+        Loads the Python wrapper and compiles the SYCL source if
+        SYCL_SOURCE is defined in the module.
+
+        Args:
+            kernel_path: Path to KernelBench module '.py' file
+
+        Returns:
+            Loaded KernelBench model if available
+        """
+        if not kernel_path.is_file():
+            return None
+
+        mod = ai_utils.import_from_path("kernel_bench_model", kernel_path)
+        if not hasattr(mod, "Model"):
+            return None
+
+        # Compile SYCL source if defined and compiler is available.
+        if hasattr(mod, "SYCL_SOURCE") and self._sycl_compiler:
+            sycl_source = kernel_path.parent / mod.SYCL_SOURCE
+            if sycl_source.exists():
+                lib_path = self._sycl_compiler.compile(sycl_source)
+                # Inject compiled library path into module.
+                mod.SYCL_LIB_PATH = lib_path
+                self.logger.debug(f"Injected SYCL_LIB_PATH: {lib_path}")
+            else:
+                self.logger.warning(f"SYCL source not found: {sycl_source}")
+
         return mod.Model
 
     def run_kernels(self):
@@ -131,10 +177,17 @@ class KernelBenchRunner:
                 # Spec and kernel file names are expected to be identical.
                 kernel_dir = self.kernels / spec_dir.name
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ".py"))
-                model_obj = self.load_model(kernel_file)
+
+                # Load model based on backend.
+                if self.backend == ai_hc.Backend.SYCL:
+                    model_obj = self.load_sycl_model(kernel_file)
+                else:
+                    model_obj = self.load_model(kernel_file)
+
                 if not model_obj:
                     self.logger.warning(f"Missing kernel for: {file}")
                     continue
+
                 # Run the kernel with provided input configurations.
                 self.logger.info(f"Kernel: {spec_dir.name} / {file} [{self.backend}]")
                 for variant in variants:

@@ -23,9 +23,10 @@ class TestBackendEnum:
     def test_backend_iteration(self):
         """Test that all backends can be iterated."""
         backends = list(ai_hc.Backend)
-        assert len(backends) == 2
+        assert len(backends) == 3
         assert ai_hc.Backend.PYTORCH in backends
         assert ai_hc.Backend.TRITON in backends
+        assert ai_hc.Backend.SYCL in backends
 
     def test_backend_from_string(self):
         """Test creating backend from string."""

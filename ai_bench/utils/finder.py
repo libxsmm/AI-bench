@@ -19,3 +19,8 @@ def kernel_bench_dir() -> Path:
 def triton_kernels_dir() -> Path:
     """Path to the Triton kernels directory."""
     return project_root() / "backends" / "triton"
+
+
+def sycl_kernels_dir() -> Path:
+    """Path to the SYCL kernels directory."""
+    return project_root() / "backends" / "sycl"

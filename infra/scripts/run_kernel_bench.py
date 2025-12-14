@@ -16,6 +16,8 @@ def main(args):
     # Determine backend.
     if args.triton:
         backend = core.Backend.TRITON
+    elif args.sycl:
+        backend = core.Backend.SYCL
     else:
         backend = core.Backend.PYTORCH
 
@@ -33,6 +35,8 @@ def main(args):
         backend=backend,
         csv_path=args.csv,
         note=args.note,
+        compile_sycl=not args.no_compile,
+        sycl_verbose=args.verbose,
     )
     kb_runner.run_kernels()
 
@@ -48,12 +52,19 @@ if __name__ == "__main__":
         help="Run on Intel GPU",
     )
 
-    # Backend options.
-    parser.add_argument(
+    # Backend options (mutually exclusive).
+    backend_group = parser.add_mutually_exclusive_group()
+    backend_group.add_argument(
         "--triton",
         action="store_true",
         default=False,
-        help="Use Triton backend (default: PyTorch)",
+        help="Use Triton backend",
+    )
+    backend_group.add_argument(
+        "--sycl",
+        action="store_true",
+        default=False,
+        help="Use SYCL backend",
     )
 
     # Run mode.
@@ -62,6 +73,20 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Benchmark execution (default: CI validation)",
+    )
+
+    # SYCL options.
+    parser.add_argument(
+        "--no-compile",
+        action="store_true",
+        default=False,
+        help="Skip SYCL compilation (use pre-compiled libraries)",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Print verbose output (e.g., compilation commands)",
     )
 
     # CSV logging options.

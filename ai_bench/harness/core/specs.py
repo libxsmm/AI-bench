@@ -43,6 +43,7 @@ class Backend(StrEnum):
 
     PYTORCH = "pytorch"
     TRITON = "triton"
+    SYCL = "sycl"
 
 
 def input_shape(input: dict, dims: Dict[str, int]) -> list[int]:
