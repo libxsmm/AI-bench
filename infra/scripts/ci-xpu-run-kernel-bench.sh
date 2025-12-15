@@ -17,7 +17,7 @@ git submodule update --init
 pip install --upgrade --user uv
 AI_BENCH_UV=${HOME}/.local/bin/uv
 
-${AI_BENCH_UV} sync --extra xpu
+${AI_BENCH_UV} sync --extra xpu --link-mode copy
 echo ""
 
 echo "--- Run KernelBench"
