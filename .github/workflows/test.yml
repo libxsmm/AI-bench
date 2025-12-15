@@ -24,5 +24,8 @@ jobs:
           git submodule update --init
           uv sync --extra cpu
 
-      - name: Test KernelBench
+      - name: Run tests
+        run: uv run pytest --timeout=60
+
+      - name: Test KernelBench (CI variant)
         run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py

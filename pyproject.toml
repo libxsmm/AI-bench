@@ -16,6 +16,7 @@ dev = [
   "ruff==0.14.5",
   "pre-commit",
   "pytest",
+  "pytest-timeout",
 ]
 
 [tool.pytest.ini_options]
