@@ -1,5 +1,6 @@
 from enum import StrEnum
 from typing import Dict
+import warnings
 
 import torch
 
@@ -89,12 +90,20 @@ def get_inputs(
         list of torch tensors
     """
     dims = variant[VKey.DIMS]
+    variant_dtype = get_variant_torch_dtype(variant)
     vals = []
     for param in variant[VKey.PARAMS]:
         input = inputs[param]
         assert "float" in input[InKey.TYPE], "Only floating type is supported now"
         shape = input_shape(input, dims)
         dtype = input_torch_dtype(input)
+        if variant_dtype is not None and dtype != variant_dtype:
+            warnings.warn(
+                f"Input '{param}' dtype ({dtype}) differs from variant dtype "
+                f"({variant_dtype}). This may cause type mismatches.",
+                UserWarning,
+                stacklevel=2,
+            )
         tensor = torch.randn(shape, dtype=dtype, device=device)
         vals.append(tensor)
     return vals
