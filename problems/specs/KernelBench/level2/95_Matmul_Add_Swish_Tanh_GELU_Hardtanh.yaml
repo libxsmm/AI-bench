@@ -1,0 +1,32 @@
+name: 95_Matmul_Add_Swish_Tanh_GELU_Hardtanh
+description: Matrix multiplication with bias, add value, followed by Swish, Tanh, GELU, and Hardtanh activations
+
+inputs:
+  X:
+    shape: [BATCH, IN_FEAT]
+    dtype: float16
+
+inits:
+  - dim: IN_FEAT
+  - dim: OUT_FEAT
+  - dim: ADD_VALUE_SHAPE
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 32
+      IN_FEAT: 128
+      OUT_FEAT: 128
+      ADD_VALUE_SHAPE: [128]
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
+
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 4096
+      OUT_FEAT: 4096
+      ADD_VALUE_SHAPE: [4096]
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
