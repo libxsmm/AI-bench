@@ -14,9 +14,11 @@ bench-cpu:
     dims:
       BATCH: 128
       DIM: 2048
+    flop: "BATCH*DIM"
 
 bench-gpu:
   - params: [X]
     dims:
       BATCH: 1024
       DIM: 16384
+    flop: "BATCH*DIM"
