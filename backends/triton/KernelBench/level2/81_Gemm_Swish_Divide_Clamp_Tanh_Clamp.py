@@ -51,7 +51,7 @@ def _linear_kernel(
     mask_n = offs_n < N
 
     # accumulator in fp64 (as in your original code)
-    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float64)
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
 
     for k_start in range(0, K, BLOCK_K):
         offs_k = k_start + tl.arange(0, BLOCK_K)
@@ -64,7 +64,7 @@ def _linear_kernel(
             mask=mask_m[:, None] & mask_k[None, :],
             other=0.0,
         )
-        a = a_fp32.to(tl.float64)
+        a = a_fp32.to(tl.float32)
 
         # W block (logical W^T): [BLOCK_K, BLOCK_N]
         wt_ptrs = wt_ptr + offs_n[:, None] * stride_w0 + offs_k[None, :] * stride_w1
@@ -73,7 +73,7 @@ def _linear_kernel(
             mask=mask_n[:, None] & mask_k[None, :],
             other=0.0,
         )
-        b = b_fp32.T.to(tl.float64)  # transpose to [BLOCK_K, BLOCK_N]
+        b = b_fp32.T.to(tl.float32)  # transpose to [BLOCK_K, BLOCK_N]
 
         acc = tl.dot(a, b, acc)
 
@@ -83,7 +83,7 @@ def _linear_kernel(
         mask=mask_n,
         other=0.0,
     )
-    bias64 = bias_fp32.to(tl.float64)
+    bias64 = bias_fp32.to(tl.float32)
     acc = acc + bias64[None, :]
 
     out_val = acc.to(tl.float32)
