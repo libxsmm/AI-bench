@@ -133,7 +133,7 @@ class KernelBenchRunner:
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ".py"))
                 model_obj = self.load_model(kernel_file)
                 if not model_obj:
-                    self.logger.warning(f"Missing kernel for: {file}")
+                    self.logger.debug(f"Missing kernel for: {file}")
                     continue
                 # Run the kernel with provided input configurations.
                 self.logger.info(f"Kernel: {spec_dir.name} / {file} [{self.backend}]")
