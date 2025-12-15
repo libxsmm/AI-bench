@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -6,6 +7,7 @@ import torch
 
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
+from ai_bench.utils.logger import setup_logger
 
 
 @pytest.fixture
@@ -86,3 +88,32 @@ class Model(torch.nn.Module):
     assert row.get("note") == "Unit test note"
     assert row.get("AIBENCH_CARD") == "D770"
     assert row.get("AIBENCH_SYSTEM") == "TestSystem"
+
+
+def test_env_var_log_levels(monkeypatch, caplog):
+    info_txt = "info msg"
+    debug_txt = "debug msg"
+
+    def print_log(logger):
+        caplog.clear()
+        logger.info(info_txt)
+        logger.debug(debug_txt)
+        return caplog.text
+
+    monkeypatch.delenv("AIBENCH_LOG", raising=False)
+    logger = setup_logger(level=logging.INFO)
+    out = print_log(logger)
+    assert info_txt in out
+    assert debug_txt not in out
+
+    monkeypatch.setenv("AIBENCH_LOG", "INFO")
+    logger = setup_logger()
+    out = print_log(logger)
+    assert info_txt in out
+    assert debug_txt not in out
+
+    monkeypatch.setenv("AIBENCH_LOG", "DEBUG")
+    logger = setup_logger()
+    out = print_log(logger)
+    assert info_txt in out
+    assert debug_txt in out

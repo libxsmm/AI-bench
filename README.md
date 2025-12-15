@@ -100,3 +100,7 @@ All checks can be run using:
 ```bash
 pre-commit run -a
 ```
+
+## Config variables
+Environment variables used for project configuration:
+* `AIBENCH_LOG=INFO|DEBUG|...` - globally overrides logging level, available levels directly correspond to Python's `logging` module
