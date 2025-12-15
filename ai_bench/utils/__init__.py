@@ -4,9 +4,11 @@ from .finder import kernel_bench_dir
 from .finder import project_root
 from .finder import specs
 from .finder import triton_kernels_dir
+from .flop_counter import count_torch_flop
 from .importer import import_from_path
 
 __all__ = [
+    "count_torch_flop",
     "eval_ast",
     "eval_eq",
     "import_from_path",

@@ -154,7 +154,11 @@ class KernelBenchRunner:
                     meas = testing.time(
                         fn, args, warmup=self.warmup, rep=self.rep, device=self.device
                     )
+
                     flop = ai_hc.get_flop(variant)
+                    if not flop and self.backend == ai_hc.Backend.PYTORCH:
+                        flop = ai_utils.count_torch_flop(fn, args)
+
                     flops_val = ""
                     flops_unit = ""
                     if flop:
