@@ -31,6 +31,8 @@ def main(args):
         spec_type=spec_type,
         device=device,
         backend=backend,
+        csv_path=args.csv,
+        note=args.note,
     )
     kb_runner.run_kernels()
 
@@ -60,6 +62,21 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Benchmark execution (default: CI validation)",
+    )
+
+    # CSV logging options.
+    parser.add_argument(
+        "--csv",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Path to CSV file for logging results",
+    )
+    parser.add_argument(
+        "--note",
+        type=str,
+        default="",
+        help="Optional note to include in CSV output",
     )
 
     args = parser.parse_args()

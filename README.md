@@ -43,6 +43,48 @@ python infra/scripts/run_kernel_bench.py --xpu --bench
 python infra/scripts/run_kernel_bench.py --xpu --triton --bench
 ```
 
+### CSV Logging
+
+Benchmark results can be logged to a CSV file using the `--csv` option:
+
+```bash
+# Log results to CSV
+python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv
+
+# Add a note to identify the run
+python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv --note "BMG card test"
+```
+
+The CSV file includes the following columns:
+- `kernel_name`: Name of the kernel
+- `kernel_type`: Backend used (pytorch/triton)
+- `problem_level`: KernelBench problem level
+- `flops`: Number of floating-point operations
+- `flops_val`: Computed FLOPS value
+- `flops_unit`: FLOPS unit (GFLOPS/TFLOPS)
+- `time_us`: Execution time in microseconds
+- `input_values`: Input dimensions as JSON
+- `note`: User-provided note
+
+Additionally, any environment variables prefixed with `AIBENCH_` are automatically captured and included in the CSV output. This is useful for recording system configuration:
+
+```bash
+# Set environment variables for tracking
+export AIBENCH_CARD="BMG"
+export AIBENCH_SYSTEM="TestRig1"
+python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv
+```
+
+### Command Line Options
+
+| Option | Description |
+|--------|-------------|
+| `--xpu` | Run on Intel XPU (default: CPU) |
+| `--triton` | Use Triton backend (default: PyTorch) |
+| `--bench` | Run benchmarks with timing (default: CI validation) |
+| `--csv PATH` | Log results to specified CSV file |
+| `--note TEXT` | Add a note to CSV output for identifying runs |
+
 ## Testing
 
 Run tests with pytest:
