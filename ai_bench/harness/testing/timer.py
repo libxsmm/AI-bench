@@ -71,14 +71,25 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
 
     # Benchmark loop.
     for i in range(rep):
-        cache.zero_()  # Flush L2 cache.
-        dummy_a @ dummy_b  # Fill GPU pipeline for short-lived kernels.
+        # Flush L2 cache.
+        cache.zero_()
+
+        # Fill GPU pipeline with a dummy untimed kernel.
+        #
+        # GPU kernels are dispatched asynchronously.
+        # Extra invocations fill up the stream and ensures that CPU has enough time
+        # to enqueue timer events before the benchmarked kernel finishes execution.
+        # It is particularly helpful to increase measurement accuracy of short-lived
+        # workloads e.g., GEMM with small dimensions.
+        torch.matmul(dummy_a, dummy_b)
         torch.xpu.synchronize()
 
+        # Time the main kernel.
         start_events[i].record()
         fn(*args)
         end_events[i].record()
 
+    # Ensure all measurements are recorded.
     torch.xpu.synchronize()
 
     # Collect times (elapsed_time returns ms, convert to μs).
