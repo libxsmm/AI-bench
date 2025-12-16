@@ -3,7 +3,6 @@
 # Source: LLM-generated candidate implementation
 # Status: Experimental / uncurated
 # Expectation: Correctness-first, performance not representative
-
 import math
 
 import torch
@@ -12,295 +11,259 @@ import triton
 import triton.language as tl
 
 
-# ---------------------------------------------------------------------
-# Triton kernel: GEMM + bias
-#   Y = X @ W^T + b
-#
-# X: [M, K]
-# W: [N, K]
-# b: [N]
-# Y: [M, N]
-# ---------------------------------------------------------------------
+def get_autotune_configs():
+    """Intel XPU optimized configs from gemm_benchmark."""
+    configs = (
+        [
+            triton.Config(
+                {
+                    "BLOCK_SIZE_M": 256,
+                    "BLOCK_SIZE_N": 256,
+                    "BLOCK_SIZE_K": 32,
+                    "GROUP_SIZE_M": 4,
+                    "grf_mode": "256",
+                },
+                num_stages=s,
+                num_warps=32,
+            )
+            for s in [1, 2, 3]
+        ]
+        + [
+            triton.Config(
+                {
+                    "BLOCK_SIZE_M": 256,
+                    "BLOCK_SIZE_N": 128,
+                    "BLOCK_SIZE_K": 32,
+                    "GROUP_SIZE_M": 4,
+                    "grf_mode": m,
+                },
+                num_stages=s,
+                num_warps=w,
+            )
+            for s in [2, 3, 4]
+            for (m, w) in [("256", 32), ("128", 64)]
+        ]
+        + [
+            triton.Config(
+                {
+                    "BLOCK_SIZE_M": 128,
+                    "BLOCK_SIZE_N": 256,
+                    "BLOCK_SIZE_K": 32,
+                    "GROUP_SIZE_M": 4,
+                    "grf_mode": "256",
+                },
+                num_stages=s,
+                num_warps=32,
+            )
+            for s in [2, 3]
+        ]
+        + [
+            triton.Config(
+                {
+                    "BLOCK_SIZE_M": 128,
+                    "BLOCK_SIZE_N": 128,
+                    "BLOCK_SIZE_K": 64,
+                    "GROUP_SIZE_M": 4,
+                    "grf_mode": "256",
+                },
+                num_stages=s,
+                num_warps=32,
+            )
+            for s in [2, 3]
+        ]
+        + [
+            triton.Config(
+                {
+                    "BLOCK_SIZE_M": 64,
+                    "BLOCK_SIZE_N": 128,
+                    "BLOCK_SIZE_K": 32,
+                    "GROUP_SIZE_M": 4,
+                    "grf_mode": "256",
+                },
+                num_stages=2,
+                num_warps=32,
+            )
+        ]
+    )
+    return configs
+
+
+@triton.autotune(
+    configs=get_autotune_configs(),
+    key=["M", "N", "K"],
+)
 @triton.jit
-def _linear_kernel(
-    in_ptr,
-    wt_ptr,
+def _fused_gemm_activation_kernel(
+    # Pointers
+    a_ptr,
+    b_ptr,
     bias_ptr,
-    out_ptr,
-    M,
-    N,
-    K,
-    stride_in0,
-    stride_in1,
-    stride_w0,
-    stride_w1,
-    stride_out0,
-    stride_out1,
-    stride_bias,
-    BLOCK_M: tl.constexpr,
-    BLOCK_N: tl.constexpr,
-    BLOCK_K: tl.constexpr,
+    c_ptr,
+    # Dimensions
+    M: tl.constexpr,
+    N: tl.constexpr,
+    K: tl.constexpr,
+    # Strides
+    stride_am: tl.constexpr,
+    stride_ak: tl.constexpr,
+    stride_bk: tl.constexpr,
+    stride_bn: tl.constexpr,
+    stride_cm: tl.constexpr,
+    stride_cn: tl.constexpr,
+    # Meta-parameters
+    BLOCK_SIZE_M: tl.constexpr,
+    BLOCK_SIZE_N: tl.constexpr,
+    BLOCK_SIZE_K: tl.constexpr,
+    GROUP_SIZE_M: tl.constexpr,
 ):
-    pid_m = tl.program_id(0)
-    pid_n = tl.program_id(1)
-
-    offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
-    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
-
-    mask_m = offs_m < M
-    mask_n = offs_n < N
-
-    # accumulator in fp64 (as in your original code)
-    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
-
-    for k_start in range(0, K, BLOCK_K):
-        offs_k = k_start + tl.arange(0, BLOCK_K)
-        mask_k = offs_k < K
-
-        # X block: [BLOCK_M, BLOCK_K]
-        in_ptrs = in_ptr + offs_m[:, None] * stride_in0 + offs_k[None, :] * stride_in1
-        a_fp32 = tl.load(
-            in_ptrs,
-            mask=mask_m[:, None] & mask_k[None, :],
-            other=0.0,
-        )
-        a = a_fp32.to(tl.float32)
-
-        # W block (logical W^T): [BLOCK_K, BLOCK_N]
-        wt_ptrs = wt_ptr + offs_n[:, None] * stride_w0 + offs_k[None, :] * stride_w1
-        b_fp32 = tl.load(
-            wt_ptrs,
-            mask=mask_n[:, None] & mask_k[None, :],
-            other=0.0,
-        )
-        b = b_fp32.T.to(tl.float32)  # transpose to [BLOCK_K, BLOCK_N]
-
-        acc = tl.dot(a, b, acc)
-
-    # Add bias (broadcast over rows)
-    bias_fp32 = tl.load(
-        bias_ptr + offs_n * stride_bias,
-        mask=mask_n,
-        other=0.0,
-    )
-    bias64 = bias_fp32.to(tl.float32)
-    acc = acc + bias64[None, :]
-
-    out_val = acc.to(tl.float32)
-    out_ptrs = out_ptr + offs_m[:, None] * stride_out0 + offs_n[None, :] * stride_out1
-    tl.store(out_ptrs, out_val, mask=mask_m[:, None] & mask_n[None, :])
-
-
-# ---------------------------------------------------------------------
-# Triton kernel: Swish → /2 → clamp → tanh → clamp
-#
-# Operates row-wise over Y (M rows, N columns)
-# ---------------------------------------------------------------------
-@triton.jit
-def _swish_div_clamp_tanh_kernel(
-    inp_ptr,
-    out_ptr,
-    M,
-    N,
-    stride_row,
-    stride_col,
-    BLOCK_SIZE: tl.constexpr,
-):
-    pid_col = tl.program_id(0)
-    pid_row = tl.program_id(1)
-
-    col_offsets = pid_col * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
-    mask = col_offsets < N
-
-    row_start = pid_row * stride_row
-
-    ptrs_in = inp_ptr + row_start + col_offsets * stride_col
-    ptrs_out = out_ptr + row_start + col_offsets * stride_col
-
-    x = tl.load(ptrs_in, mask=mask, other=0.0)
-
-    # swish: x * sigmoid(x)
-    exp_neg_x = tl.math.exp(-x)
-    sig = 1.0 / (1.0 + exp_neg_x)
-    swish = x * sig
-
-    # divide by 2
-    half = swish * 0.5
-
-    # clamp [-1, 1]
-    c1 = tl.maximum(half, -1.0)
-    c1 = tl.minimum(c1, 1.0)
-
-    # tanh
-    exp_p = tl.math.exp(c1)
-    exp_n = tl.math.exp(-c1)
-    t = (exp_p - exp_n) / (exp_p + exp_n)
-
-    # final clamp [-1, 1]
-    outv = tl.maximum(t, -1.0)
-    outv = tl.minimum(outv, 1.0)
-
-    tl.store(ptrs_out, outv, mask=mask)
-
-
-# ---------------------------------------------------------------------
-# Low-level fused Triton wrapper (XPU, dtype-flexible)
-# ---------------------------------------------------------------------
-def _gemm_swish_div_clamp_tanh_clamp_xpu(
-    x: torch.Tensor,
-    weight: torch.Tensor,
-    bias: torch.Tensor,
-) -> torch.Tensor:
     """
-    XPU-only fused pipeline:
+    Fused GEMM + activations using Intel XPU optimized patterns.
 
-        y = x @ W^T + b
-        y = y * sigmoid(y)     # Swish
-        y = y / 2
-        y = clamp(y, -1, 1)
-        y = tanh(y)
-        y = clamp(y, -1, 1)
-
-    Accepts any floating dtype (fp16/bf16/fp32),
-    computes in fp32, returns in x.dtype.
+    Y = X @ W + bias
+    Y = swish(Y) / 2
+    Y = clamp(tanh(clamp(Y)))
     """
-    if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
-        raise RuntimeError("XPU device is not available")
+    pid = tl.program_id(axis=0)
 
-    if x.device.type != "xpu":
-        raise RuntimeError(f"Expected x on 'xpu', got {x.device}")
-    if weight.device != x.device or bias.device != x.device:
-        raise RuntimeError("weight and bias must be on the same XPU as x")
+    # GROUP_SIZE_M swizzling for L2 cache optimization
+    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
+    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+    num_pid_in_group = GROUP_SIZE_M * num_pid_n
+    group_id = pid // num_pid_in_group
+    first_pid_m = group_id * GROUP_SIZE_M
+    group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+    pid_m = first_pid_m + ((pid % num_pid_in_group) % group_size_m)
+    pid_n = (pid % num_pid_in_group) // group_size_m
 
-    if not (
-        x.is_floating_point()
-        and weight.is_floating_point()
-        and bias.is_floating_point()
-    ):
-        raise TypeError("x, weight, and bias must be floating point tensors")
-
-    if x.ndim != 2:
-        raise ValueError(f"Expected x.ndim == 2, got {x.ndim}")
-    if weight.ndim != 2 or bias.ndim != 1:
-        raise ValueError("Expected weight.ndim == 2 and bias.ndim == 1")
-
-    M, K = x.shape
-    N, K2 = weight.shape
-    if K2 != K:
-        raise ValueError(f"Weight K dim {K2} != x K dim {K}")
-    if bias.numel() != N:
-        raise ValueError(f"Bias length {bias.numel()} != output dim {N}")
-
-    orig_dtype = x.dtype
-
-    # Work in fp32 for numerical stability
-    x32 = x.to(torch.float32).contiguous()
-    w32 = weight.to(torch.float32).contiguous()
-    b32 = bias.to(torch.float32).contiguous()
-
-    # GEMM + bias
-    linear_out = torch.empty((M, N), device=x.device, dtype=torch.float32)
-
-    stride_in0, stride_in1 = x32.stride()
-    stride_w0, stride_w1 = w32.stride()
-    stride_out0, stride_out1 = linear_out.stride()
-    stride_bias = b32.stride()[0]
-
-    BLOCK_M, BLOCK_N, BLOCK_K = 64, 64, 64
-    grid_lin = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
-
-    _linear_kernel[grid_lin](
-        x32,
-        w32,
-        b32,
-        linear_out,
-        M,
-        N,
-        K,
-        stride_in0,
-        stride_in1,
-        stride_w0,
-        stride_w1,
-        stride_out0,
-        stride_out1,
-        stride_bias,
-        BLOCK_M=BLOCK_M,
-        BLOCK_N=BLOCK_N,
-        BLOCK_K=BLOCK_K,
+    # Block pointers with boundary checking (Intel optimized)
+    a_block_ptr = tl.make_block_ptr(
+        base=a_ptr,
+        shape=(M, K),
+        strides=(stride_am, stride_ak),
+        offsets=(pid_m * BLOCK_SIZE_M, 0),
+        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
+        order=(1, 0),
+    )
+    b_block_ptr = tl.make_block_ptr(
+        base=b_ptr,
+        shape=(K, N),
+        strides=(stride_bk, stride_bn),
+        offsets=(0, pid_n * BLOCK_SIZE_N),
+        block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
+        order=(1, 0),
     )
 
-    # Swish → /2 → clamp → tanh → clamp
-    final_out = torch.empty_like(linear_out)
-    stride_row, stride_col = linear_out.stride()
-    BLOCK_SIZE = 256
-    grid_post = (triton.cdiv(N, BLOCK_SIZE), M)
+    # Accumulator
+    accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
 
-    _swish_div_clamp_tanh_kernel[grid_post](
-        linear_out,
-        final_out,
-        M,
-        N,
-        stride_row,
-        stride_col,
-        BLOCK_SIZE=BLOCK_SIZE,
+    # Main GEMM loop with block pointer advancement
+    for _ in range(0, K, BLOCK_SIZE_K):
+        a = tl.load(a_block_ptr, boundary_check=(0, 1))
+        b = tl.load(b_block_ptr, boundary_check=(0, 1))
+        accumulator += tl.dot(a, b)
+        a_block_ptr = tl.advance(a_block_ptr, (0, BLOCK_SIZE_K))
+        b_block_ptr = tl.advance(b_block_ptr, (BLOCK_SIZE_K, 0))
+
+    # Add bias
+    offs_n = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
+    bias = tl.load(bias_ptr + offs_n, mask=offs_n < N, other=0.0)
+    accumulator = accumulator + bias[None, :]
+
+    # ========== Fused Activations (all in registers) ==========
+
+    # Swish: x * sigmoid(x)
+    sigmoid = 1.0 / (1.0 + tl.exp(-accumulator))
+    accumulator = accumulator * sigmoid
+
+    # Divide by 2
+    accumulator = accumulator * 0.5
+
+    # Clamp [-1, 1]
+    accumulator = tl.maximum(accumulator, -1.0)
+    accumulator = tl.minimum(accumulator, 1.0)
+
+    # Tanh: (exp(2x) - 1) / (exp(2x) + 1)
+    exp_2x = tl.exp(2.0 * accumulator)
+    accumulator = (exp_2x - 1.0) / (exp_2x + 1.0)
+
+    # Final clamp [-1, 1]
+    accumulator = tl.maximum(accumulator, -1.0)
+    accumulator = tl.minimum(accumulator, 1.0)
+
+    # Store with block pointer
+    c = accumulator.to(tl.float16)
+    c_block_ptr = tl.make_block_ptr(
+        base=c_ptr,
+        shape=(M, N),
+        strides=(stride_cm, stride_cn),
+        offsets=(pid_m * BLOCK_SIZE_M, pid_n * BLOCK_SIZE_N),
+        block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_N),
+        order=(1, 0),
     )
+    tl.store(c_block_ptr, c, boundary_check=(0, 1))
 
-    return final_out.to(orig_dtype)
 
-
-# ---------------------------------------------------------------------
-# KernelBench-compatible Model wrapper
-#
-# Matches original PyTorch reference:
-#
-#   class Model(nn.Module):
-#       def __init__(self, in_features, out_features, bias=True):
-#           ...
-# ---------------------------------------------------------------------
 class Model(nn.Module):
     """
-    Fused Triton model for KernelBench:
-
-        y = x @ W^T + b
-        y = swish(y)
-        y = y / 2
-        y = clamp(y, -1, 1)
-        y = tanh(y)
-        y = clamp(y, -1, 1)
+    Fused GEMM + activations using Intel XPU optimized patterns.
     """
 
     def __init__(self, in_features: int, out_features: int, bias: bool = True):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.use_bias = bias
 
-        # Manual parameters instead of nn.Linear, but same initialization.
-        self.weight = nn.Parameter(torch.empty(out_features, in_features))
+        # Weight stored as [K, N] for B matrix (K x N layout)
+        self.weight = nn.Parameter(torch.empty(in_features, out_features))
+
         if bias:
             self.bias = nn.Parameter(torch.empty(out_features))
         else:
-            self.bias = None
+            self.register_buffer("bias", None)
 
-        # Kaiming uniform init, same as nn.Linear
-        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        self._init_weights()
+
+    def _init_weights(self):
+        # Kaiming init (weight.T is the logical [N, K] weight matrix)
+        nn.init.kaiming_uniform_(self.weight.T, a=math.sqrt(5))
         if self.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            fan_in = self.in_features
+            bound = 1.0 / math.sqrt(fan_in) if fan_in > 0 else 0
             nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: [BATCH, IN_FEAT]
-        returns: [BATCH, OUT_FEAT]
-        """
-        if x.device.type != "xpu":
-            raise RuntimeError(f"Expected x on 'xpu', got {x.device}")
+        if not x.is_contiguous():
+            x = x.contiguous()
+
+        M, K = x.shape
+        N = self.out_features
+
+        out = torch.empty((M, N), device=x.device, dtype=x.dtype)
 
         if self.bias is None:
-            # If bias=False, emulate zero bias
-            bias = torch.zeros(self.out_features, device=x.device, dtype=x.dtype)
+            bias = torch.zeros(N, device=x.device, dtype=x.dtype)
         else:
             bias = self.bias
 
-        return _gemm_swish_div_clamp_tanh_clamp_xpu(x, self.weight, bias)
+        # Grid: total tiles
+        grid = lambda meta: (
+            triton.cdiv(M, meta["BLOCK_SIZE_M"]) * triton.cdiv(N, meta["BLOCK_SIZE_N"]),
+        )
+
+        _fused_gemm_activation_kernel[grid](
+            x,
+            self.weight,
+            bias,
+            out,
+            M,
+            N,
+            K,
+            x.stride(0),
+            x.stride(1),
+            self.weight.stride(0),
+            self.weight.stride(1),
+            out.stride(0),
+            out.stride(1),
+        )
+
+        return out
