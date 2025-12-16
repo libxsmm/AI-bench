@@ -1,0 +1,35 @@
+inputs:
+  x:
+    shape: ["batch_size", "in_features"]
+    dtype: "float16"
+
+inits:
+  - dim: "in_features"
+  - dim: "out_features"
+
+ci:
+  - params: ["x"]
+    dims:
+      batch_size: 16
+      in_features: 64
+      out_features: 32
+    dtype: "float16"
+    flop: "2 * batch_size * in_features * out_features"
+
+bench-cpu:
+  - params: ["x"]
+    dims:
+      batch_size: 64
+      in_features: 256
+      out_features: 128
+    flop: "2 * batch_size * in_features * out_features"
+
+bench-gpu:
+  #  81_Gemm_Swish_Divide_Clamp_Tanh_Clamp
+  - params: ["x"]
+    dims:
+      batch_size: 1024
+      in_features: 4096
+      out_features: 4096
+    dtype: "float16"
+    flop: "2 * batch_size * in_features * out_features"
