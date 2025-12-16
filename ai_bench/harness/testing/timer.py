@@ -82,7 +82,6 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
         # It is particularly helpful to increase measurement accuracy of short-lived
         # workloads e.g., GEMM with small dimensions.
         torch.matmul(dummy_a, dummy_b)
-        torch.xpu.synchronize()
 
         # Time the main kernel.
         start_events[i].record()
