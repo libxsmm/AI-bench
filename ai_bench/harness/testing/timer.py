@@ -14,7 +14,7 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
         warmup: Warmup iterations
         rep: Measurement iterations
     Returns:
-        Median runtime in microseconds
+        Mean runtime in microseconds
     """
     for _ in range(warmup):
         fn(*args)
@@ -31,7 +31,7 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     if len(times) >= 10:
         times = torch.sort(times).values[1:-1]
 
-    return torch.median(times).item()
+    return torch.mean(times).item()
 
 
 def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> float:
@@ -46,7 +46,7 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
         warmup: Warmup iterations
         rep: Measurement iterations
     Returns:
-        Median runtime in microseconds
+        Mean runtime in microseconds
     """
     device = torch.device("xpu")
 
@@ -91,7 +91,7 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     if len(times) >= 10:
         times = torch.sort(times).values[1:-1]
 
-    return torch.median(times).item()
+    return torch.mean(times).item()
 
 
 def time(
@@ -109,7 +109,7 @@ def time(
         rep: Measurement iterations
         device: Device type to use
     Returns:
-        Median runtime in microseconds
+        Mean runtime in microseconds
     """
     if not device or device.type == "cpu":
         return time_cpu(fn, args, warmup=warmup, rep=rep)
