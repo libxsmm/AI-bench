@@ -195,7 +195,7 @@ class TestKernelBenchRunnerInit:
             backend=ai_hc.Backend.PYTORCH,
         )
 
-        assert kb_runner.warmup == 20
+        assert kb_runner.warmup == 200
         assert kb_runner.rep == 100
 
 
