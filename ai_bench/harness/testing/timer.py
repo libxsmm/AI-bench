@@ -1,5 +1,4 @@
 from collections.abc import Callable
-import itertools
 
 import torch
 from torch.profiler import ProfilerActivity
@@ -15,7 +14,7 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
         warmup: Warmup iterations
         rep: Measurement iterations
     Returns:
-        Mean runtime in microseconds
+        Median runtime in microseconds
     """
     for _ in range(warmup):
         fn(*args)
@@ -32,66 +31,67 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     if len(times) >= 10:
         times = torch.sort(times).values[1:-1]
 
-    return torch.mean(times).item()
+    return torch.median(times).item()
 
 
-# Based on Intel XPU Triton backend benchmarks.
 def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> float:
     """Measure execution time of the provided function on XPU.
+
+    Uses hardware events for accurate GPU-side timing, with L2 cache flushing
+    and a dummy matmul to improve accuracy for short-lived kernels.
+
     Args:
         fn: Function to measure
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
     Returns:
-        Mean runtime in microseconds
+        Median runtime in microseconds
     """
+    device = torch.device("xpu")
 
-    # A device buffer used to clear L2 cache between kernel runs.
+    # Buffer used to flush L2 cache between kernel runs.
     cache_size = 256 * 1024 * 1024
-    cache = torch.empty(cache_size, dtype=torch.int8, device=torch.device("xpu"))
+    cache = torch.empty(cache_size, dtype=torch.int8, device=device)
 
+    # Dummy matmul to fill GPU pipeline - helps with short-lived kernel timing.
+    # Without this, fast kernels may complete before the CPU can issue the end event.
+    dummy_a = torch.randn(1024, 1024, dtype=torch.float32, device=device)
+    dummy_b = torch.randn(1024, 1024, dtype=torch.float32, device=device)
+
+    # Warmup: load kernels and stabilize GPU state.
     for _ in range(warmup):
+        cache.zero_()
         fn(*args)
+    torch.xpu.synchronize()
+
+    # Pre-allocate events to reduce timing overhead.
+    start_events = [torch.xpu.Event(enable_timing=True) for _ in range(rep)]
+    end_events = [torch.xpu.Event(enable_timing=True) for _ in range(rep)]
+
+    # Benchmark loop.
+    for i in range(rep):
+        cache.zero_()  # Flush L2 cache.
+        dummy_a @ dummy_b  # Fill GPU pipeline for short-lived kernels.
         torch.xpu.synchronize()
 
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.XPU]) as prof:
-        for _ in range(rep):
-            # Clear L2 cache.
-            cache.zero_()
-            torch.xpu.synchronize()
+        start_events[i].record()
+        fn(*args)
+        end_events[i].record()
 
-            with record_function("profiled_fn"):
-                fn(*args)
-        # Ensure all measurements are recorded.
-        torch.xpu.synchronize()
+    torch.xpu.synchronize()
 
-    def extract_kernels(funcs):
-        """Traverse event tree recursively to extract device kernels."""
-        kernels = []
-        kernels += list(
-            itertools.chain.from_iterable(
-                map(lambda func: extract_kernels(func.cpu_children), funcs)
-            )
-        )
-        kernels += list(itertools.chain.from_iterable([func.kernels for func in funcs]))
-        return kernels
-
-    events = [e for e in prof.events() if e.name.startswith("profiled_fn")]
-    kernels = [extract_kernels(func.cpu_children) for func in events]
-    kernels = [kernel for kernel in kernels if kernel]
-    if len(kernels) != rep:
-        raise AssertionError("Unexpected number of profiled kernels")
-
+    # Collect times (elapsed_time returns ms, convert to μs).
     times = torch.tensor(
-        [sum([k.duration for k in kernel]) for kernel in kernels], dtype=torch.float
+        [s.elapsed_time(e) * 1e3 for s, e in zip(start_events, end_events)],
+        dtype=torch.float,
     )
 
     # Trim extremes if there are enough measurements.
     if len(times) >= 10:
         times = torch.sort(times).values[1:-1]
 
-    return torch.mean(times).item()
+    return torch.median(times).item()
 
 
 def time(
@@ -109,7 +109,7 @@ def time(
         rep: Measurement iterations
         device: Device type to use
     Returns:
-        Mean runtime in microseconds
+        Median runtime in microseconds
     """
     if not device or device.type == "cpu":
         return time_cpu(fn, args, warmup=warmup, rep=rep)
