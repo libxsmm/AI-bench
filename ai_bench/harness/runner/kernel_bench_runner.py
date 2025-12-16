@@ -76,7 +76,7 @@ class KernelBenchRunner:
             self.warmup = 5
             self.rep = 20
         elif self.device.type == "xpu":
-            self.warmup = 200
+            self.warmup = 500
             self.rep = 100
         else:
             self.warmup = 25
