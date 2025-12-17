@@ -17,7 +17,10 @@ def main(args):
     if args.triton:
         backend = core.Backend.TRITON
     else:
-        backend = core.Backend.PYTORCH
+        if args.torch_compile:
+            backend = core.Backend.PYTORCH_COMPILE
+        else:
+            backend = core.Backend.PYTORCH
 
     # Determine spec type.
     spec_type = core.SpecKey.V_CI
@@ -60,6 +63,12 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Use Triton backend (default: PyTorch)",
+    )
+    parser.add_argument(
+        "--torch-compile",
+        action="store_true",
+        default=False,
+        help="Use PyTorch compile mode (default: eager mode)",
     )
 
     # Run mode.

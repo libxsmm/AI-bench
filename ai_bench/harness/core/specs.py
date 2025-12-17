@@ -43,6 +43,7 @@ class Backend(StrEnum):
     """Supported backends for kernel execution."""
 
     PYTORCH = "pytorch"
+    PYTORCH_COMPILE = "pytorch-compile"
     TRITON = "triton"
 
 

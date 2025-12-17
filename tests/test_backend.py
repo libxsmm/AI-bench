@@ -18,18 +18,21 @@ class TestBackendEnum:
     def test_backend_values(self):
         """Test that backend enum has expected values."""
         assert ai_hc.Backend.PYTORCH == "pytorch"
+        assert ai_hc.Backend.PYTORCH_COMPILE == "pytorch-compile"
         assert ai_hc.Backend.TRITON == "triton"
 
     def test_backend_iteration(self):
         """Test that all backends can be iterated."""
         backends = list(ai_hc.Backend)
-        assert len(backends) == 2
+        assert len(backends) == 3
         assert ai_hc.Backend.PYTORCH in backends
+        assert ai_hc.Backend.PYTORCH_COMPILE in backends
         assert ai_hc.Backend.TRITON in backends
 
     def test_backend_from_string(self):
         """Test creating backend from string."""
         assert ai_hc.Backend("pytorch") == ai_hc.Backend.PYTORCH
+        assert ai_hc.Backend("pytorch-compile") == ai_hc.Backend.PYTORCH_COMPILE
         assert ai_hc.Backend("triton") == ai_hc.Backend.TRITON
 
     def test_backend_invalid_string(self):
@@ -145,6 +148,21 @@ class TestKernelBenchRunnerInit:
         )
 
         assert kb_runner.backend == ai_hc.Backend.PYTORCH
+        assert "KernelBench" in str(kb_runner.kernels)
+        assert "triton" not in str(kb_runner.kernels)
+
+    @mock.patch("os.path.isdir")
+    def test_init_pytorch_compile_backend(self, mock_isdir):
+        """Test runner initialization with PyTorch compile backend."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            spec_type=ai_hc.SpecKey.V_CI,
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.PYTORCH_COMPILE,
+        )
+
+        assert kb_runner.backend == ai_hc.Backend.PYTORCH_COMPILE
         assert "KernelBench" in str(kb_runner.kernels)
         assert "triton" not in str(kb_runner.kernels)
 
@@ -396,6 +414,14 @@ class Model(torch.nn.Module):
             assert pytorch_runner.backend == ai_hc.Backend.PYTORCH
 
             # Run with Triton backend.
+            pytorch_compile_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.PYTORCH_COMPILE,
+            )
+            assert pytorch_compile_runner.backend == ai_hc.Backend.PYTORCH_COMPILE
+
+            # Run with Triton backend.
             triton_runner = runner.KernelBenchRunner(
                 spec_type=ai_hc.SpecKey.V_CI,
                 device=torch.device("cpu"),
@@ -636,6 +662,18 @@ class Model(torch.nn.Module):
                 spec_type=ai_hc.SpecKey.V_CI,
                 device=torch.device("cpu"),
                 backend=ai_hc.Backend.PYTORCH,
+            )
+            kb_runner.run_kernels()
+
+    def test_full_ci_pipeline_pytorch_compile(self, integration_setup):
+        """Test complete CI pipeline with PyTorch compile backend."""
+        with mock.patch(
+            "ai_bench.utils.finder.project_root", return_value=integration_setup
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.PYTORCH_COMPILE,
             )
             kb_runner.run_kernels()
 

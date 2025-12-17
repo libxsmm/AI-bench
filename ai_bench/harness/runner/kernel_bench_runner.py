@@ -28,7 +28,7 @@ class KernelBenchRunner:
     Args:
         spec_type: Type of problem spec to use
         device: Device to use
-        backend: Backend to use (pytorch or triton)
+        backend: Backend to use
         flops_unit: FLOPS unit to use for reporting
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
@@ -71,15 +71,17 @@ class KernelBenchRunner:
             self.csv_logger = None
 
         # Set kernel directory based on backend.
-        if backend == ai_hc.Backend.PYTORCH:
+        if self.is_torch_backend():
             self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
-        elif backend == ai_hc.Backend.TRITON:
+        elif self.backend == ai_hc.Backend.TRITON:
             self.kernels = ai_utils.triton_kernels_dir() / "KernelBench"
         else:
-            raise ValueError(f"Unsupported backend: {backend}")
+            raise ValueError(f"Unsupported backend: {self.backend}")
 
         if not os.path.isdir(self.kernels):
-            raise ValueError(f"Missing kernels directory for {backend}: {self.kernels}")
+            raise ValueError(
+                f"Missing kernels directory for {self.backend}: {self.kernels}"
+            )
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
@@ -92,6 +94,16 @@ class KernelBenchRunner:
         else:
             self.warmup = 25
             self.rep = 100
+
+    def is_torch_backend(self) -> bool:
+        """Check if the backend is a torch variant.
+        Returns:
+            True if the current backend is torch-based.
+        """
+        return (
+            self.backend == ai_hc.Backend.PYTORCH
+            or self.backend == ai_hc.Backend.PYTORCH_COMPILE
+        )
 
     def get_spec_dirs(self) -> list[Path]:
         """Get KernelBench level dirs.
@@ -152,6 +164,10 @@ class KernelBenchRunner:
                     model_inits = ai_hc.get_inits(variant, inits)
                     model_dtype = ai_hc.get_variant_torch_dtype(variant)
                     model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
+
+                    if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
+                        model = torch.compile(model, dynamic=False)
+
                     fn = model.forward
                     args = ai_hc.get_inputs(variant, inputs, device=self.device)
 
@@ -167,7 +183,7 @@ class KernelBenchRunner:
                     )
 
                     flop = ai_hc.get_flop(variant)
-                    if not flop and self.backend == ai_hc.Backend.PYTORCH:
+                    if not flop and self.is_torch_backend():
                         flop = ai_utils.count_torch_flop(fn, args)
 
                     flops_val = ""
