@@ -413,7 +413,7 @@ class Model(torch.nn.Module):
             )
             assert pytorch_runner.backend == ai_hc.Backend.PYTORCH
 
-            # Run with Triton backend.
+            # Run with PyTorch compile backend.
             pytorch_compile_runner = runner.KernelBenchRunner(
                 spec_type=ai_hc.SpecKey.V_CI,
                 device=torch.device("cpu"),
