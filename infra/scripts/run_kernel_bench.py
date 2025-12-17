@@ -27,10 +27,16 @@ def main(args):
         else:
             spec_type = core.SpecKey.V_BENCH_CPU
 
+    if args.gflops:
+        flops_unit = runner.FlopsUnit.GFLOPS
+    else:
+        flops_unit = runner.FlopsUnit.TFLOPS
+
     kb_runner = runner.KernelBenchRunner(
         spec_type=spec_type,
         device=device,
         backend=backend,
+        flops_unit=flops_unit,
         csv_path=args.csv,
         note=args.note,
     )
@@ -62,6 +68,14 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Benchmark execution (default: CI validation)",
+    )
+
+    # Stats options.
+    parser.add_argument(
+        "--gflops",
+        action="store_true",
+        default=False,
+        help="Report GFLOPS (default: TFLOPS)",
     )
 
     # CSV logging options.
