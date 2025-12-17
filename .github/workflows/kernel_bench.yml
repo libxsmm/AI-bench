@@ -6,7 +6,7 @@ on:
       RUN_CPU:
         description: "Run on CPU"
         type: boolean
-        default: true
+        default: false
       RUN_XPU_TORCH:
         description: "Run on Intel GPU (PyTorch)"
         type: boolean
@@ -14,7 +14,7 @@ on:
       RUN_XPU_TRITON:
         description: "Run on Intel GPU (Triton)"
         type: boolean
-        default: true
+        default: false
 
 env:
   NPROCS_LIMIT_LINK: 8
