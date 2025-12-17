@@ -33,6 +33,9 @@ python infra/scripts/run_kernel_bench.py
 # PyTorch on XPU
 python infra/scripts/run_kernel_bench.py --xpu
 
+# PyTorch compile on XPU
+python infra/scripts/run_kernel_bench.py --xpu --torch-compile
+
 # Triton on XPU
 python infra/scripts/run_kernel_bench.py --xpu --triton
 
