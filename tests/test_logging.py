@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from ai_bench.harness import core as ai_hc
-from ai_bench.harness.runner import KernelBenchRunner
+from ai_bench.harness import runner as ai_hr
 from ai_bench.utils.logger import setup_logger
 
 
@@ -67,10 +67,11 @@ class Model(torch.nn.Module):
     monkeypatch.setenv("AIBENCH_CARD", "D770")
     monkeypatch.setenv("AIBENCH_SYSTEM", "TestSystem")
 
-    runner = KernelBenchRunner(
+    runner = ai_hr.KernelBenchRunner(
         spec_type=ai_hc.SpecKey.V_BENCH_CPU,
         device=torch.device("cpu"),
         backend=ai_hc.Backend.PYTORCH,
+        flops_unit=ai_hr.FlopsUnit.TFLOPS,
         csv_path=temp_csv_file,
         note="Unit test note",
     )
@@ -85,6 +86,7 @@ class Model(torch.nn.Module):
         rows = list(reader)
     assert len(rows) > 0, "No rows were logged to the CSV file"
     row = rows[0]
+    assert row.get("flops_unit") == "TFLOPS"
     assert row.get("note") == "Unit test note"
     assert row.get("AIBENCH_CARD") == "D770"
     assert row.get("AIBENCH_SYSTEM") == "TestSystem"

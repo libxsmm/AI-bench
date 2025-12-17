@@ -1,3 +1,4 @@
+from enum import StrEnum
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,13 @@ from ai_bench.utils.csv_logger import CSVLogger
 from ai_bench.utils.logger import setup_logger
 
 
+class FlopsUnit(StrEnum):
+    """Control FLOPS measurement unit."""
+
+    TFLOPS = "TFLOPS"
+    GFLOPS = "GFLOPS"
+
+
 class KernelBenchRunner:
     """
     Run KernelBench problems.
@@ -21,6 +29,7 @@ class KernelBenchRunner:
         spec_type: Type of problem spec to use
         device: Device to use
         backend: Backend to use (pytorch or triton)
+        flops_unit: FLOPS unit to use for reporting
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
     """
@@ -30,12 +39,14 @@ class KernelBenchRunner:
         spec_type: ai_hc.SpecKey = ai_hc.SpecKey.V_CI,
         device: torch.device | None = None,
         backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
+        flops_unit: FlopsUnit = FlopsUnit.TFLOPS,
         csv_path: str | None = None,
         note: str = "",
     ):
         self.specs = ai_utils.specs() / "KernelBench"
         self.backend = backend
         self.logger = setup_logger()
+        self.flops_unit = flops_unit
         self.csv_path = csv_path
         self.note = note
         self.csv_fieldnames = [
@@ -163,12 +174,16 @@ class KernelBenchRunner:
                     flops_unit = ""
                     if flop:
                         tflops = flop / meas / 1e6
-                        if tflops >= 1.0:
-                            flops_val = tflops
-                            flops_unit = "TFLOPS"
-                        else:
-                            flops_val = tflops * 1000
-                            flops_unit = "GFLOPS"
+                        match self.flops_unit:
+                            case FlopsUnit.TFLOPS:
+                                flops_val = tflops
+                            case FlopsUnit.GFLOPS:
+                                flops_val = tflops * 1000
+                            case _:
+                                raise ValueError(
+                                    f"Invalid FLOPS unit: {self.flops_unit}"
+                                )
+                        flops_unit = str(self.flops_unit)
 
                     self.logger.info(f"time [us]: {meas:.6f} {flops_unit}: {flops_val}")
 
