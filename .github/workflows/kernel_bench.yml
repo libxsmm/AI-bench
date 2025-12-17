@@ -7,8 +7,12 @@ on:
         description: "Run on CPU"
         type: boolean
         default: true
-      RUN_XPU:
-        description: "Run on Intel GPU"
+      RUN_XPU_TORCH:
+        description: "Run on Intel GPU (PyTorch)"
+        type: boolean
+        default: true
+      RUN_XPU_TRITON:
+        description: "Run on Intel GPU (Triton)"
         type: boolean
         default: true
 
@@ -33,17 +37,29 @@ jobs:
           git submodule update --init
           uv sync --extra cpu
 
-      - name: Run KernelBench
+      - name: Run KernelBench (PyTorch)
         run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py --bench --gflops
 
-  XPU:
+  XPU-PyTorch:
     runs-on: pcl-tiergarten
     if: |
-      (github.event_name == 'workflow_dispatch' && inputs.RUN_XPU)
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_XPU_TORCH)
 
     steps:
       - uses: actions/checkout@v5
 
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh'"
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b torch'"
+
+  XPU-Triton:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_XPU_TRITON)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Arc B580
+        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b triton'"
