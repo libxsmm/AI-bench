@@ -100,10 +100,7 @@ class KernelBenchRunner:
         Returns:
             True if the current backend is torch-based.
         """
-        return (
-            self.backend == ai_hc.Backend.PYTORCH
-            or self.backend == ai_hc.Backend.PYTORCH_COMPILE
-        )
+        return self.backend in [ai_hc.Backend.PYTORCH, ai_hc.Backend.PYTORCH_COMPILE]
 
     def get_spec_dirs(self) -> list[Path]:
         """Get KernelBench level dirs.
