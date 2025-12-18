@@ -76,6 +76,7 @@ class KernelBenchRunner:
             "mem_bytes",
             "mem_bw_val",
             "mem_bw_unit",
+            "mem_note",
             "time_us",
             "input_values",
             "note",
@@ -191,7 +192,10 @@ class KernelBenchRunner:
                 for variant in variants:
                     model_inits = ai_hc.get_inits(variant, inits)
                     model_dtype = ai_hc.get_variant_torch_dtype(variant)
-                    model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
+                    base_model = model_obj(*model_inits).to(
+                        self.device, dtype=model_dtype
+                    )
+                    model = base_model
 
                     if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
                         model = torch.compile(model, dynamic=False)
@@ -241,9 +245,14 @@ class KernelBenchRunner:
 
                     # Statistics - memory bandwidth.
                     mem_bytes = ai_hc.get_mem_bytes(variant)
+                    mem_is_estimate = False
+                    if not mem_bytes and self.is_torch_backend():
+                        mem_bytes = ai_utils.count_torch_memory_bytes(base_model, args)
+                        mem_is_estimate = True
 
                     mem_bw_val = ""
                     mem_bw_unit = ""
+                    mem_note = ""
                     if mem_bytes:
                         gbs = mem_bytes / meas_us / 1e3
                         match self.mem_bw_unit:
@@ -255,10 +264,11 @@ class KernelBenchRunner:
                                 raise ValueError(
                                     f"Invalid memory bandwidth unit: {self.mem_bw_unit}"
                                 )
-
                         mem_bw_unit = str(self.mem_bw_unit)
+                        if mem_is_estimate:
+                            mem_note = NotesSymbols.ESTIMATE
 
-                        self.logger.info(f"  {mem_bw_unit}: {mem_bw_val}")
+                        self.logger.info(f"  {mem_bw_unit}: {mem_bw_val} {mem_note}")
 
                     if self.csv_logger:
                         aibench_env = {
@@ -277,6 +287,7 @@ class KernelBenchRunner:
                             "mem_bytes": mem_bytes if mem_bytes is not None else "",
                             "mem_bw_val": mem_bw_val,
                             "mem_bw_unit": mem_bw_unit,
+                            "mem_note": mem_note,
                             "time_us": meas_us,
                             "input_values": json.dumps(
                                 variant.get(ai_hc.VKey.DIMS, {})

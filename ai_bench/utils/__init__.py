@@ -9,11 +9,15 @@ from .finder import specs
 from .finder import triton_kernels_dir
 from .flop_counter import count_torch_flop
 from .importer import import_from_path
+from .memory_counter import MemoryCounter
+from .memory_counter import count_torch_memory_bytes
 
 __all__ = [
     "ConfigurationError",
+    "MemoryCounter",
     "configure",
     "count_torch_flop",
+    "count_torch_memory_bytes",
     "eval_ast",
     "eval_eq",
     "import_from_path",
