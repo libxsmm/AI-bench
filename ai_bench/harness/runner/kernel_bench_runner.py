@@ -174,7 +174,10 @@ class KernelBenchRunner:
                 for variant in variants:
                     model_inits = ai_hc.get_inits(variant, inits)
                     model_dtype = ai_hc.get_variant_torch_dtype(variant)
-                    model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
+                    base_model = model_obj(*model_inits).to(
+                        self.device, dtype=model_dtype
+                    )
+                    model = base_model
 
                     if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
                         model = torch.compile(model, dynamic=False)
@@ -219,6 +222,8 @@ class KernelBenchRunner:
 
                     # Statistics - memory bandwidth.
                     mem_bytes = ai_hc.get_mem_bytes(variant)
+                    if not mem_bytes and self.is_torch_backend():
+                        mem_bytes = ai_utils.count_torch_memory_bytes(base_model, args)
 
                     mem_bw_val = ""
                     mem_bw_unit = ""
