@@ -66,6 +66,9 @@ The CSV file includes the following columns:
 - `flops`: Number of floating-point operations
 - `flops_val`: Computed FLOPS value
 - `flops_unit`: FLOPS unit (GFLOPS/TFLOPS)
+- `bytes`: Number of bytes transfered - input reads + output writes
+- `mem_bw_val`: Computed memory bandwidth value
+- `mem_bw_unit`: Memory bandwidth unit (MB/s or GB/s)
 - `time_us`: Execution time in microseconds
 - `input_values`: Input dimensions as JSON
 - `note`: User-provided note
