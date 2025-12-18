@@ -8,9 +8,13 @@ on:
         type: boolean
         default: false
       RUN_XPU_TORCH:
-        description: "Run on Intel GPU (PyTorch)"
+        description: "Run on Intel GPU (PyTorch eager)"
         type: boolean
         default: true
+      RUN_XPU_TORCH_COMPILE:
+        description: "Run on Intel GPU (PyTorch compile)"
+        type: boolean
+        default: false
       RUN_XPU_TRITON:
         description: "Run on Intel GPU (Triton)"
         type: boolean
@@ -51,6 +55,18 @@ jobs:
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b torch'"
+
+  XPU-PyTorch-Compile:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_XPU_TORCH_COMPILE)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Arc B580
+        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b torch-compile'"
 
   XPU-Triton:
     runs-on: pcl-tiergarten
