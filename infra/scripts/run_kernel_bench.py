@@ -58,17 +58,18 @@ if __name__ == "__main__":
     )
 
     # Backend options.
-    parser.add_argument(
+    backend_group = parser.add_mutually_exclusive_group()
+    backend_group.add_argument(
         "--triton",
         action="store_true",
         default=False,
-        help="Use Triton backend (default: PyTorch)",
+        help="Use Triton backend",
     )
-    parser.add_argument(
+    backend_group.add_argument(
         "--torch-compile",
         action="store_true",
         default=False,
-        help="Use PyTorch compile mode (default: eager mode)",
+        help="Use PyTorch compile mode",
     )
 
     # Run mode.
