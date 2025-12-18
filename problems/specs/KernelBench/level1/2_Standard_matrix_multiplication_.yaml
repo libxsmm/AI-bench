@@ -20,6 +20,7 @@ bench-cpu:
       N: 256
       K: 512
     flop: "2*M*N*K"
+    bytes: "(M*K + K*N + M*N) * 2"
 
 bench-gpu:
   - params: [A, B]
@@ -28,3 +29,4 @@ bench-gpu:
       N: 3072
       K: 4096
     flop: "2*M*N*K"
+    bytes: "(M*K + K*N + M*N) * 2"

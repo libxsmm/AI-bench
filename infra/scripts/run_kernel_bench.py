@@ -35,11 +35,17 @@ def main(args):
     else:
         flops_unit = runner.FlopsUnit.TFLOPS
 
+    if args.mbs:
+        mem_bw_unit = runner.MemBwUnit.MBS
+    else:
+        mem_bw_unit = runner.MemBwUnit.GBS
+
     kb_runner = runner.KernelBenchRunner(
         spec_type=spec_type,
         device=device,
         backend=backend,
         flops_unit=flops_unit,
+        mem_bw_unit=mem_bw_unit,
         csv_path=args.csv,
         note=args.note,
     )
@@ -86,6 +92,12 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Report GFLOPS (default: TFLOPS)",
+    )
+    parser.add_argument(
+        "--mbs",
+        action="store_true",
+        default=False,
+        help="Report MB/s (default: GB/s)",
     )
 
     # CSV logging options.

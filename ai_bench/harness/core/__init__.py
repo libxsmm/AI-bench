@@ -3,6 +3,7 @@ from .specs import InitKey
 from .specs import InKey
 from .specs import SpecKey
 from .specs import VKey
+from .specs import get_bytes
 from .specs import get_flop
 from .specs import get_inits
 from .specs import get_inputs
@@ -17,6 +18,7 @@ __all__ = [
     "InitKey",
     "SpecKey",
     "VKey",
+    "get_bytes",
     "get_flop",
     "get_inits",
     "get_inputs",

@@ -21,6 +21,13 @@ class FlopsUnit(StrEnum):
     GFLOPS = "GFLOPS"
 
 
+class MemBwUnit(StrEnum):
+    """Control memory bandwidth unit."""
+
+    GBS = "GB/s"
+    MBS = "MB/s"
+
+
 class KernelBenchRunner:
     """
     Run KernelBench problems.
@@ -40,6 +47,7 @@ class KernelBenchRunner:
         device: torch.device | None = None,
         backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
         flops_unit: FlopsUnit = FlopsUnit.TFLOPS,
+        mem_bw_unit: MemBwUnit = MemBwUnit.GBS,
         csv_path: str | None = None,
         note: str = "",
     ):
@@ -47,6 +55,7 @@ class KernelBenchRunner:
         self.backend = backend
         self.logger = setup_logger()
         self.flops_unit = flops_unit
+        self.mem_bw_unit = mem_bw_unit
         self.csv_path = csv_path
         self.note = note
         self.csv_fieldnames = [
@@ -56,6 +65,9 @@ class KernelBenchRunner:
             "flops",
             "flops_val",
             "flops_unit",
+            "bytes",
+            "mem_bw_val",
+            "mem_bw_unit",
             "time_us",
             "input_values",
             "note",
@@ -181,6 +193,7 @@ class KernelBenchRunner:
                         fn, args, warmup=self.warmup, rep=self.rep, device=self.device
                     )
 
+                    # Statistics - FLOPs.
                     flop = ai_hc.get_flop(variant)
                     if not flop and self.is_torch_backend():
                         flop = ai_utils.count_torch_flop(fn, args)
@@ -200,7 +213,30 @@ class KernelBenchRunner:
                                 )
                         flops_unit = str(self.flops_unit)
 
-                    self.logger.info(f"time [us]: {meas:.6f} {flops_unit}: {flops_val}")
+                    self.logger.info(
+                        f"  time [us]: {meas:.6f} {flops_unit}: {flops_val}"
+                    )
+
+                    # Statistics - memory bandwidth.
+                    bytes = ai_hc.get_bytes(variant)
+
+                    mem_bw_val = ""
+                    mem_bw_unit = ""
+                    if bytes:
+                        gbs = bytes / meas / 1e9
+                        match self.mem_bw_unit:
+                            case MemBwUnit.GBS:
+                                mem_bw_val = gbs
+                            case MemBwUnit.MBS:
+                                mem_bw_val = gbs * 1000
+                            case _:
+                                raise ValueError(
+                                    f"Invalid memory bandwidth unit: {self.mem_bw_unit}"
+                                )
+
+                        mem_bw_unit = str(self.mem_bw_unit)
+
+                        self.logger.info(f"  {mem_bw_unit}: {mem_bw_val}")
 
                     if self.csv_logger:
                         aibench_env = {
@@ -215,6 +251,9 @@ class KernelBenchRunner:
                             "flops": flop if flop is not None else "",
                             "flops_val": flops_val,
                             "flops_unit": flops_unit,
+                            "bytes": bytes if bytes is not None else "",
+                            "mem_bw_val": mem_bw_val,
+                            "mem_bw_unit": mem_bw_unit,
                             "time_us": meas,
                             "input_values": json.dumps(
                                 variant.get(ai_hc.VKey.DIMS, {})
