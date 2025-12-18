@@ -189,7 +189,7 @@ class KernelBenchRunner:
                         continue
 
                     self.logger.info(f"Benchmarking: {variant}")
-                    meas = testing.time(
+                    meas_us = testing.time(
                         fn, args, warmup=self.warmup, rep=self.rep, device=self.device
                     )
 
@@ -201,7 +201,7 @@ class KernelBenchRunner:
                     flops_val = ""
                     flops_unit = ""
                     if flop:
-                        tflops = flop / meas / 1e6
+                        tflops = flop / meas_us / 1e6
                         match self.flops_unit:
                             case FlopsUnit.TFLOPS:
                                 flops_val = tflops
@@ -214,7 +214,7 @@ class KernelBenchRunner:
                         flops_unit = str(self.flops_unit)
 
                     self.logger.info(
-                        f"  time [us]: {meas:.6f} {flops_unit}: {flops_val}"
+                        f"  time [us]: {meas_us:.6f} {flops_unit}: {flops_val}"
                     )
 
                     # Statistics - memory bandwidth.
@@ -223,7 +223,7 @@ class KernelBenchRunner:
                     mem_bw_val = ""
                     mem_bw_unit = ""
                     if bytes:
-                        gbs = bytes / meas / 1e9
+                        gbs = bytes / meas_us / 1e3
                         match self.mem_bw_unit:
                             case MemBwUnit.GBS:
                                 mem_bw_val = gbs
@@ -254,7 +254,7 @@ class KernelBenchRunner:
                             "bytes": bytes if bytes is not None else "",
                             "mem_bw_val": mem_bw_val,
                             "mem_bw_unit": mem_bw_unit,
-                            "time_us": meas,
+                            "time_us": meas_us,
                             "input_values": json.dumps(
                                 variant.get(ai_hc.VKey.DIMS, {})
                             ),
