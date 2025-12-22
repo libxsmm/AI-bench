@@ -141,6 +141,29 @@ def get_variant_torch_dtype(variant: dict) -> torch.dtype | None:
     return get_torch_dtype(variant[VKey.TYPE])
 
 
+def _eval_variant_formula(variant: dict, key: VKey) -> float | None:
+    """Evaluate a numeric or formula-based variant field.
+    Args:
+        variant: Specs' variant entry
+        key: Specs' variant key
+    Returns:
+        Value if available
+    """
+    if key not in variant:
+        return None
+
+    # Return directly if it is a number.
+    value: str | float = variant[key]
+    if isinstance(value, (int, float)):
+        return value
+
+    # In case of string equation, evaluate using variant's dimensions.
+    dims = variant[VKey.DIMS]
+    for dim, dim_val in dims.items():
+        value = value.replace(dim, str(dim_val))
+    return utils.eval_eq(value)
+
+
 def get_flop(variant: dict) -> float | None:
     """Get number of floating-point operations for given specs' variant.
     Args:
@@ -148,19 +171,7 @@ def get_flop(variant: dict) -> float | None:
     Returns:
         Number of FLOP if available
     """
-    if VKey.FLOP not in variant:
-        return None
-
-    # Return directly if it is a number.
-    flop: str | float = variant[VKey.FLOP]
-    if isinstance(flop, (int, float)):
-        return flop
-
-    # In case of string equation, evaluate using variant's dimensions.
-    dims = variant[VKey.DIMS]
-    for dim, value in dims.items():
-        flop = flop.replace(dim, str(value))
-    return utils.eval_eq(flop)
+    return _eval_variant_formula(variant, VKey.FLOP)
 
 
 def get_mem_bytes(variant: dict) -> float | None:
@@ -170,16 +181,4 @@ def get_mem_bytes(variant: dict) -> float | None:
     Returns:
         Number of bytes if available
     """
-    if VKey.MEM_BYTES not in variant:
-        return None
-
-    # Return directly if it is a number.
-    mem_bytes: str | float = variant[VKey.MEM_BYTES]
-    if isinstance(mem_bytes, (int, float)):
-        return mem_bytes
-
-    # In case of string equation, evaluate using variant's dimensions.
-    dims = variant[VKey.DIMS]
-    for dim, value in dims.items():
-        mem_bytes = mem_bytes.replace(dim, str(value))
-    return utils.eval_eq(mem_bytes)
+    return _eval_variant_formula(variant, VKey.MEM_BYTES)
