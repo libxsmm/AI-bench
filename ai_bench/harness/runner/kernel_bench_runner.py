@@ -107,7 +107,9 @@ class KernelBenchRunner:
         Returns:
             Paths to spec directories
         """
-        return sorted([Path(dir) for dir in os.scandir(self.specs) if dir.is_dir()])
+        return sorted(
+            [Path(entry) for entry in os.scandir(self.specs) if entry.is_dir()]
+        )
 
     def load_model(self, kernel_path: Path) -> types.ModuleType | None:
         """Load KernelBench model.

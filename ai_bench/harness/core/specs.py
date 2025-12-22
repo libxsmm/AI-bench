@@ -47,15 +47,15 @@ class Backend(StrEnum):
     TRITON = "triton"
 
 
-def input_shape(input: dict, dims: Dict[str, int]) -> list[int]:
+def input_shape(input_entry: dict, dims: Dict[str, int]) -> list[int]:
     """Return shape of an input.
     Args:
-        input: Specs' input entry
+        input_entry: Specs' input entry
         dims: Specs' dimensions and their sizes
     Returns:
         List of integers defining input's shape
     """
-    return [dims[dim] for dim in input[InKey.SHAPE]]
+    return [dims[dim] for dim in input_entry[InKey.SHAPE]]
 
 
 def get_torch_dtype(dtype: str) -> torch.dtype:
@@ -69,14 +69,14 @@ def get_torch_dtype(dtype: str) -> torch.dtype:
     return dtp
 
 
-def input_torch_dtype(input: dict) -> torch.dtype:
+def input_torch_dtype(input_entry: dict) -> torch.dtype:
     """Get torch data type for an input.
     Args:
-        input: Specs' input entry
+        input_entry: Specs' input entry
     Returns:
         torch data type
     """
-    return get_torch_dtype(input[InKey.TYPE])
+    return get_torch_dtype(input_entry[InKey.TYPE])
 
 
 def get_inputs(
@@ -94,10 +94,10 @@ def get_inputs(
     variant_dtype = get_variant_torch_dtype(variant)
     vals = []
     for param in variant[VKey.PARAMS]:
-        input = inputs[param]
-        assert "float" in input[InKey.TYPE], "Only floating type is supported now"
-        shape = input_shape(input, dims)
-        dtype = input_torch_dtype(input)
+        input_entry = inputs[param]
+        assert "float" in input_entry[InKey.TYPE], "Only floating type is supported now"
+        shape = input_shape(input_entry, dims)
+        dtype = input_torch_dtype(input_entry)
         if variant_dtype is not None and dtype != variant_dtype:
             warnings.warn(
                 f"Input '{param}' dtype ({dtype}) differs from variant dtype "

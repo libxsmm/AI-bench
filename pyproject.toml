@@ -69,6 +69,7 @@ quote-style = "double"
 [tool.ruff.lint]
 preview = true
 select = [
+  "A", # builtin shadowing
   "D419", # empty-docstring
   "E", # Error
   "F", # Pyflakes
