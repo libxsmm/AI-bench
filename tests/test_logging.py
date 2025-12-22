@@ -48,7 +48,7 @@ bench-cpu:
     dims:
       N: 4
     flop: 8*N
-    bytes: N + N
+    mem_bytes: (N + N) * 4 # f32
 """
     kernel_content = """
 import torch

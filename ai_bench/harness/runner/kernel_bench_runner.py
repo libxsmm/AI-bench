@@ -65,7 +65,7 @@ class KernelBenchRunner:
             "flops",
             "flops_val",
             "flops_unit",
-            "bytes",
+            "mem_bytes",
             "mem_bw_val",
             "mem_bw_unit",
             "time_us",
@@ -218,12 +218,12 @@ class KernelBenchRunner:
                     )
 
                     # Statistics - memory bandwidth.
-                    bytes = ai_hc.get_bytes(variant)
+                    mem_bytes = ai_hc.get_mem_bytes(variant)
 
                     mem_bw_val = ""
                     mem_bw_unit = ""
-                    if bytes:
-                        gbs = bytes / meas_us / 1e3
+                    if mem_bytes:
+                        gbs = mem_bytes / meas_us / 1e3
                         match self.mem_bw_unit:
                             case MemBwUnit.GBS:
                                 mem_bw_val = gbs
@@ -251,7 +251,7 @@ class KernelBenchRunner:
                             "flops": flop if flop is not None else "",
                             "flops_val": flops_val,
                             "flops_unit": flops_unit,
-                            "bytes": bytes if bytes is not None else "",
+                            "mem_bytes": mem_bytes if mem_bytes is not None else "",
                             "mem_bw_val": mem_bw_val,
                             "mem_bw_unit": mem_bw_unit,
                             "time_us": meas_us,

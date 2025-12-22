@@ -132,28 +132,28 @@ class TestSpecFunctions:
 
         assert ai_hc.get_flop(variant) is None
 
-    def test_get_bytes_numeric(self):
-        """Test bytes extraction with numeric value."""
-        variant = {ai_hc.VKey.BYTES: 16384}
+    def test_get_mem_bytes_numeric(self):
+        """Test memory bytes extraction with numeric value."""
+        variant = {ai_hc.VKey.MEM_BYTES: 16384}
 
-        assert ai_hc.get_bytes(variant) == 16384
+        assert ai_hc.get_mem_bytes(variant) == 16384
 
-    def test_get_bytes_formula(self):
-        """Test bytes extraction with formula."""
+    def test_get_mem_bytes_formula(self):
+        """Test memory bytes extraction with formula."""
         variant = {
             ai_hc.VKey.DIMS: {"M": 16, "N": 32, "K": 64},
-            ai_hc.VKey.BYTES: "(M*K + K*N + M*N) * 2",
+            ai_hc.VKey.MEM_BYTES: "(M*K + K*N + M*N) * 2",
         }
 
-        bytes = ai_hc.get_bytes(variant)
+        mem_bytes = ai_hc.get_mem_bytes(variant)
 
-        assert bytes == (16 * 64 + 64 * 32 + 16 * 32) * 2
+        assert mem_bytes == (16 * 64 + 64 * 32 + 16 * 32) * 2
 
-    def test_get_bytes_missing(self):
-        """Test bytes extraction when missing."""
+    def test_get_mem_bytes_missing(self):
+        """Test memory bytes extraction when missing."""
         variant = {ai_hc.VKey.DIMS: {"N": 64}}
 
-        assert ai_hc.get_bytes(variant) is None
+        assert ai_hc.get_mem_bytes(variant) is None
 
 
 class TestKernelBenchRunnerInit:
@@ -643,7 +643,7 @@ bench-cpu:
       K: 32
       N: 32
     flop: 2*M*N*K
-    bytes: "(M*K + K*N + M*N) * 4"
+    mem_bytes: "(M*K + K*N + M*N) * 4"
 """
             (specs_dir / "matmul.yaml").write_text(spec)
 

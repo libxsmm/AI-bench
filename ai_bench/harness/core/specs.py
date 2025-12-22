@@ -37,7 +37,7 @@ class VKey(StrEnum):
     TYPE = "dtype"
     DIMS = "dims"
     FLOP = "flop"
-    BYTES = "bytes"
+    MEM_BYTES = "mem_bytes"
 
 
 class Backend(StrEnum):
@@ -163,23 +163,23 @@ def get_flop(variant: dict) -> float | None:
     return utils.eval_eq(flop)
 
 
-def get_bytes(variant: dict) -> float | None:
+def get_mem_bytes(variant: dict) -> float | None:
     """Get number of memory access bytes for given specs' variant.
     Args:
         variant: Specs' variant entry
     Returns:
         Number of bytes if available
     """
-    if VKey.BYTES not in variant:
+    if VKey.MEM_BYTES not in variant:
         return None
 
     # Return directly if it is a number.
-    bytes: str | float = variant[VKey.BYTES]
-    if isinstance(bytes, (int, float)):
-        return bytes
+    mem_bytes: str | float = variant[VKey.MEM_BYTES]
+    if isinstance(mem_bytes, (int, float)):
+        return mem_bytes
 
     # In case of string equation, evaluate using variant's dimensions.
     dims = variant[VKey.DIMS]
     for dim, value in dims.items():
-        bytes = bytes.replace(dim, str(value))
-    return utils.eval_eq(bytes)
+        mem_bytes = mem_bytes.replace(dim, str(value))
+    return utils.eval_eq(mem_bytes)
