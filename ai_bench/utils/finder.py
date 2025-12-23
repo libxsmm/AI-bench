@@ -8,16 +8,74 @@ import os
 from pathlib import Path
 from typing import Callable
 
+from dotenv import load_dotenv
+
 # Global path configuration
 _specs_dir: Path | None = None
 _kernels_dir: Path | None = None
 _triton_kernels_dir: Path | None = None
+_env_loaded: bool = False
 
 
 class ConfigurationError(Exception):
     """Raised when required paths are not configured."""
 
     pass
+
+
+def load_env(env_path: Path | str | None = None, override: bool = False) -> bool:
+    """Load configuration from .env file.
+
+    Searches for .env file in the following order:
+    1. Explicit path if provided
+    2. Current working directory
+    3. Project root directory
+
+    Args:
+        env_path: Explicit path to .env file (optional)
+        override: If True, override existing environment variables
+
+    Returns:
+        True if .env file was loaded, False otherwise
+
+    Example:
+        >>> import ai_bench
+        >>> ai_bench.load_env()  # Auto-find .env
+        >>> ai_bench.load_env("/path/to/.env")  # Explicit path
+        >>> ai_bench.load_env(override=True)  # Override existing vars
+    """
+    global _env_loaded
+
+    if env_path is not None:
+        path = Path(env_path)
+        if path.is_file():
+            load_dotenv(path, override=override)
+            _env_loaded = True
+            return True
+        return False
+
+    # Search order: CWD, then project root
+    search_paths = [
+        Path.cwd() / ".env",
+        project_root() / ".env",
+    ]
+
+    for path in search_paths:
+        if path.is_file():
+            load_dotenv(path, override=override)
+            _env_loaded = True
+            return True
+
+    return False
+
+
+def is_env_loaded() -> bool:
+    """Check if .env file has been loaded.
+
+    Returns:
+        True if load_env() successfully loaded a .env file
+    """
+    return _env_loaded
 
 
 def configure(
@@ -56,10 +114,11 @@ def reset_configuration() -> None:
 
     Useful for testing or reconfiguring.
     """
-    global _specs_dir, _kernels_dir, _triton_kernels_dir
+    global _specs_dir, _kernels_dir, _triton_kernels_dir, _env_loaded
     _specs_dir = None
     _kernels_dir = None
     _triton_kernels_dir = None
+    _env_loaded = False
 
 
 def _get_path(

@@ -37,6 +37,18 @@ Examples:
 
   # Use custom paths (for library-style usage)
   ai-bench --specs-dir /path/to/specs --kernels-dir /path/to/kernels
+
+  # Use specific .env file
+  ai-bench --env-file /path/to/.env --xpu --bench
+
+  # Disable .env loading
+  ai-bench --no-env --xpu --bench
+
+Environment file (.env) example:
+  AIBENCH_SPECS_DIR=/path/to/specs
+  AIBENCH_KERNELS_DIR=/path/to/kernels
+  AIBENCH_CARD=BMG
+  AIBENCH_SYSTEM=TestRig1
         """,
     )
 
@@ -44,6 +56,23 @@ Examples:
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
+    )
+
+    # Environment file options
+    env_group = parser.add_argument_group("environment file options")
+    env_exclusive = env_group.add_mutually_exclusive_group()
+    env_exclusive.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to .env file (default: auto-detect in cwd or project root)",
+    )
+    env_exclusive.add_argument(
+        "--no-env",
+        action="store_true",
+        default=False,
+        help="Disable loading .env file",
     )
 
     # Path configuration
@@ -152,6 +181,14 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = create_parser()
     args = parser.parse_args(argv)
+
+    # Load .env file (unless disabled)
+    if not args.no_env:
+        if args.env_file:
+            if not finder.load_env(args.env_file):
+                print(f"Warning: .env file not found: {args.env_file}", file=sys.stderr)
+        else:
+            finder.load_env()  # Auto-detect
 
     # Configure paths if provided
     if args.specs_dir or args.kernels_dir or args.triton_kernels_dir:

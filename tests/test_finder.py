@@ -168,6 +168,106 @@ class TestEnvironmentVariables:
         assert finder.specs() == config_dir
 
 
+class TestDotEnvLoading:
+    """Tests for .env file loading."""
+
+    def setup_method(self):
+        """Reset configuration and save env vars."""
+        finder.reset_configuration()
+        self._saved_env = {}
+        for key in ["AIBENCH_SPECS_DIR", "AIBENCH_KERNELS_DIR", "AIBENCH_CARD"]:
+            self._saved_env[key] = os.environ.get(key)
+            os.environ.pop(key, None)
+
+    def teardown_method(self):
+        """Reset configuration and restore env vars."""
+        finder.reset_configuration()
+        for key, value in self._saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_load_env_explicit_path(self, tmp_path):
+        """Test loading .env from explicit path."""
+        specs_dir = tmp_path / "specs"
+        specs_dir.mkdir()
+
+        env_file = tmp_path / ".env"
+        env_file.write_text(f"AIBENCH_SPECS_DIR={specs_dir}\n")
+
+        result = finder.load_env(env_file)
+
+        assert result is True
+        assert finder.is_env_loaded() is True
+        assert os.environ.get("AIBENCH_SPECS_DIR") == str(specs_dir)
+
+    def test_load_env_nonexistent_returns_false(self, tmp_path):
+        """Test loading nonexistent .env returns False."""
+        result = finder.load_env(tmp_path / "nonexistent.env")
+
+        assert result is False
+        assert finder.is_env_loaded() is False
+
+    def test_load_env_multiple_variables(self, tmp_path):
+        """Test loading multiple variables from .env."""
+        specs_dir = tmp_path / "specs"
+        kernels_dir = tmp_path / "kernels"
+        specs_dir.mkdir()
+        kernels_dir.mkdir()
+
+        env_content = f"""
+AIBENCH_SPECS_DIR={specs_dir}
+AIBENCH_KERNELS_DIR={kernels_dir}
+AIBENCH_CARD=BMG
+"""
+        env_file = tmp_path / ".env"
+        env_file.write_text(env_content)
+
+        finder.load_env(env_file)
+
+        assert os.environ.get("AIBENCH_SPECS_DIR") == str(specs_dir)
+        assert os.environ.get("AIBENCH_KERNELS_DIR") == str(kernels_dir)
+        assert os.environ.get("AIBENCH_CARD") == "BMG"
+
+    def test_load_env_no_override_by_default(self, tmp_path):
+        """Test that existing env vars are not overridden by default."""
+        os.environ["AIBENCH_CARD"] = "existing"
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("AIBENCH_CARD=from_file\n")
+
+        finder.load_env(env_file, override=False)
+
+        assert os.environ.get("AIBENCH_CARD") == "existing"
+
+    def test_load_env_with_override(self, tmp_path):
+        """Test that override=True overrides existing env vars."""
+        os.environ["AIBENCH_CARD"] = "existing"
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("AIBENCH_CARD=from_file\n")
+
+        finder.load_env(env_file, override=True)
+
+        assert os.environ.get("AIBENCH_CARD") == "from_file"
+
+    def test_is_env_loaded_false_initially(self):
+        """Test is_env_loaded returns False initially."""
+        assert finder.is_env_loaded() is False
+
+    def test_reset_clears_env_loaded(self, tmp_path):
+        """Test that reset_configuration clears env_loaded flag."""
+        env_file = tmp_path / ".env"
+        env_file.write_text("AIBENCH_CARD=test\n")
+
+        finder.load_env(env_file)
+        assert finder.is_env_loaded() is True
+
+        finder.reset_configuration()
+        assert finder.is_env_loaded() is False
+
+
 class TestDefaultPaths:
     """Tests for default path resolution."""
 

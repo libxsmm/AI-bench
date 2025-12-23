@@ -4,7 +4,10 @@ Example usage as library:
     >>> import ai_bench
     >>> import torch
     >>>
-    >>> # Configure paths (required when used as library)
+    >>> # Load configuration from .env file (optional)
+    >>> ai_bench.load_env()
+    >>>
+    >>> # Or configure paths explicitly
     >>> ai_bench.configure(
     ...     specs_dir="/path/to/specs",
     ...     kernels_dir="/path/to/kernels",
@@ -20,9 +23,14 @@ Example usage as library:
 
 Example usage as CLI:
     $ ai-bench --xpu --bench --csv results.csv
+
+Example .env file:
+    AIBENCH_SPECS_DIR=/path/to/specs
+    AIBENCH_KERNELS_DIR=/path/to/kernels
+    AIBENCH_CARD=BMG
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.0b1"
 
 # Core types and enums
 from ai_bench.harness.core import Backend
@@ -53,6 +61,8 @@ from ai_bench.harness.testing import time_cpu
 # Configuration
 from ai_bench.utils.finder import ConfigurationError
 from ai_bench.utils.finder import configure
+from ai_bench.utils.finder import is_env_loaded
+from ai_bench.utils.finder import load_env
 from ai_bench.utils.finder import reset_configuration
 
 __all__ = [
@@ -75,6 +85,8 @@ __all__ = [
     "get_variant_torch_dtype",
     "input_shape",
     "input_torch_dtype",
+    "is_env_loaded",
+    "load_env",
     "reset_configuration",
     "time",
     "time_cpu",
