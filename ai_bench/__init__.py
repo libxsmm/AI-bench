@@ -1,4 +1,4 @@
-"""AI kernel benchmarking harness for PyTorch and Triton.
+"""AI kernel benchmarking harness.
 
 Example usage as library:
     >>> import ai_bench
@@ -57,6 +57,7 @@ from ai_bench.harness.runner import MemBwUnit
 # Timing utilities
 from ai_bench.harness.testing import time
 from ai_bench.harness.testing import time_cpu
+from ai_bench.harness.testing import time_xpu
 
 # Configuration
 from ai_bench.utils.finder import ConfigurationError
@@ -90,4 +91,5 @@ __all__ = [
     "reset_configuration",
     "time",
     "time_cpu",
+    "time_xpu",
 ]

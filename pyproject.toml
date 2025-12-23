@@ -6,13 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "AI-bench"
 dynamic = ["version"]
 requires-python = ">=3.10"
-description = "AI kernel benchmarking harness for PyTorch and Triton"
+description = "AI kernel benchmarking harness"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "Adam Siemieniuk", email = "adam.siemieniuk@intel.com"},
     {name = "Marcin Spoczynski", email = "marcin@spoczynski.com"}
-
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
