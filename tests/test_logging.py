@@ -48,6 +48,7 @@ bench-cpu:
     dims:
       N: 4
     flop: 8*N
+    mem_bytes: (N + N) * 4 # f32
 """
     kernel_content = """
 import torch
@@ -72,6 +73,7 @@ class Model(torch.nn.Module):
         device=torch.device("cpu"),
         backend=ai_hc.Backend.PYTORCH,
         flops_unit=ai_hr.FlopsUnit.TFLOPS,
+        mem_bw_unit=ai_hr.MemBwUnit.GBS,
         csv_path=temp_csv_file,
         note="Unit test note",
     )
@@ -87,6 +89,7 @@ class Model(torch.nn.Module):
     assert len(rows) > 0, "No rows were logged to the CSV file"
     row = rows[0]
     assert row.get("flops_unit") == "TFLOPS"
+    assert row.get("mem_bw_unit") == "GB/s"
     assert row.get("note") == "Unit test note"
     assert row.get("AIBENCH_CARD") == "D770"
     assert row.get("AIBENCH_SYSTEM") == "TestSystem"

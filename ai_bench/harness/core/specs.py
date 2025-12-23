@@ -37,6 +37,7 @@ class VKey(StrEnum):
     TYPE = "dtype"
     DIMS = "dims"
     FLOP = "flop"
+    MEM_BYTES = "mem_bytes"
 
 
 class Backend(StrEnum):
@@ -140,6 +141,29 @@ def get_variant_torch_dtype(variant: dict) -> torch.dtype | None:
     return get_torch_dtype(variant[VKey.TYPE])
 
 
+def _eval_variant_formula(variant: dict, key: VKey) -> float | None:
+    """Evaluate a numeric or formula-based variant field.
+    Args:
+        variant: Specs' variant entry
+        key: Specs' variant key
+    Returns:
+        Value if available
+    """
+    if key not in variant:
+        return None
+
+    # Return directly if it is a number.
+    value: str | float = variant[key]
+    if isinstance(value, (int, float)):
+        return value
+
+    # In case of string equation, evaluate using variant's dimensions.
+    dims = variant[VKey.DIMS]
+    for dim, dim_val in dims.items():
+        value = value.replace(dim, str(dim_val))
+    return utils.eval_eq(value)
+
+
 def get_flop(variant: dict) -> float | None:
     """Get number of floating-point operations for given specs' variant.
     Args:
@@ -147,16 +171,14 @@ def get_flop(variant: dict) -> float | None:
     Returns:
         Number of FLOP if available
     """
-    if VKey.FLOP not in variant:
-        return None
+    return _eval_variant_formula(variant, VKey.FLOP)
 
-    # Return directly if it is a number.
-    flop: str | float = variant[VKey.FLOP]
-    if isinstance(flop, (int, float)):
-        return flop
 
-    # In case of string equation, evaluate using variant's dimensions.
-    dims = variant[VKey.DIMS]
-    for dim, value in dims.items():
-        flop = flop.replace(dim, str(value))
-    return utils.eval_eq(flop)
+def get_mem_bytes(variant: dict) -> float | None:
+    """Get number of memory access bytes for given specs' variant.
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        Number of bytes if available
+    """
+    return _eval_variant_formula(variant, VKey.MEM_BYTES)

@@ -15,6 +15,7 @@ bench-cpu:
       BATCH: 128
       DIM: 2048
     flop: "BATCH*DIM"
+    mem_bytes: "(2*BATCH*DIM) * 2" # f16
 
 bench-gpu:
   - params: [X]
@@ -22,3 +23,4 @@ bench-gpu:
       BATCH: 1024
       DIM: 16384
     flop: "BATCH*DIM"
+    mem_bytes: "(2*BATCH*DIM) * 2" # f16
