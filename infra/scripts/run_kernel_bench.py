@@ -1,4 +1,8 @@
+#!/usr/bin/env python
+"""Run KernelBench problems."""
+
 import argparse
+from pathlib import Path
 
 import torch
 
@@ -48,6 +52,7 @@ def main(args):
         mem_bw_unit=mem_bw_unit,
         csv_path=args.csv,
         note=args.note,
+        sweep_config_path=args.sweep,
     )
     kb_runner.run_kernels()
 
@@ -98,6 +103,15 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Report MB/s (default: GB/s)",
+    )
+
+    # Sweep config.
+    parser.add_argument(
+        "--sweep",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to sweep config YAML for parameter sweeps",
     )
 
     # CSV logging options.

@@ -152,8 +152,62 @@ python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.cs
 | `--mbs` | Report MB/s (default: GB/s) |
 | `--csv PATH` | Log results to specified CSV file |
 | `--note TEXT` | Add a note to CSV output for identifying runs |
+| `--sweep PATH` | Use sweep config for parameter sweeps |
 | `--specs-dir PATH` | Path to specs directory (CLI only) |
 | `--kernels-dir PATH` | Path to kernels directory (CLI only) |
+
+## Parameter Sweeps
+
+For benchmarking across multiple input shapes, use sweep configs:
+
+```bash
+# Run with parameter sweep
+ai-bench --xpu --bench --sweep sweeps/level1.yaml --csv results.csv
+```
+
+### Sweep Config Format
+
+```yaml
+# sweeps/level1.yaml
+19_ReLU:
+  batch_size: [1024, 2048, 4096]
+  dim: [49152, 98304, 196608, 294912]
+  # Generates: 3 × 4 = 12 variants
+
+1_Conv2D_ReLU_BiasAdd:
+  batch_size: [64, 128, 256]
+  in_channels: [32, 64]
+  height: [64, 128]
+  _linked:
+    width: height    # Square images (width = height)
+  # Generates: 3 × 2 × 2 = 12 variants
+
+2_Standard_matrix_multiplication_:
+  m: [1024, 2048, 4096]
+  k: [4096, 8192, 12288]
+  _fixed:
+    n: 3072          # Fixed parameter
+```
+
+### Special Keys
+
+| Key | Description |
+|-----|-------------|
+| `_linked` | Set parameter equal to another (e.g., `width: height`) |
+| `_fixed` | Set constant value (not swept) |
+
+### Preview Sweep Config
+
+```bash
+# Show summary
+python -m ai_bench.utils.sweep_preview sweeps/level1.yaml
+
+# Show specific kernel variants
+python -m ai_bench.utils.sweep_preview sweeps/level1.yaml --kernel 19_ReLU
+
+# Export all variants to YAML
+python -m ai_bench.utils.sweep_preview sweeps/level1.yaml --output expanded.yaml
+```
 
 ## Testing
 

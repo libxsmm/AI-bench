@@ -44,11 +44,24 @@ Examples:
   # Disable .env loading
   ai-bench --no-env --xpu --bench
 
+  # Run with parameter sweep (multiple shapes per kernel)
+  ai-bench --xpu --bench --sweep sweeps/level1.yaml --csv results.csv
+
 Environment file (.env) example:
   AIBENCH_SPECS_DIR=/path/to/specs
   AIBENCH_KERNELS_DIR=/path/to/kernels
   AIBENCH_CARD=BMG
   AIBENCH_SYSTEM=TestRig1
+
+Sweep config example (sweeps/level1.yaml):
+  19_ReLU:
+    batch_size: [1024, 2048, 4096]
+    dim: [49152, 98304, 196608]
+  1_Conv2D_ReLU_BiasAdd:
+    batch_size: [64, 128]
+    height: [64, 128]
+    _linked:
+      width: height  # Square images
         """,
     )
 
@@ -167,6 +180,16 @@ Environment file (.env) example:
         help="Note to include in CSV output",
     )
 
+    # Sweep configuration
+    sweep_group = parser.add_argument_group("sweep configuration")
+    sweep_group.add_argument(
+        "--sweep",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to sweep config YAML file for parameter sweeps",
+    )
+
     return parser
 
 
@@ -236,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             mem_bw_unit=mem_bw_unit,
             csv_path=args.csv,
             note=args.note,
+            sweep_config_path=args.sweep,
         )
         kb_runner.run_kernels()
         return 0

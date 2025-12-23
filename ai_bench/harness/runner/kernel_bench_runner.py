@@ -12,6 +12,8 @@ from ai_bench.harness import core as ai_hc
 from ai_bench.harness import testing
 from ai_bench.utils.csv_logger import CSVLogger
 from ai_bench.utils.logger import setup_logger
+from ai_bench.utils.sweep import generate_variants
+from ai_bench.utils.sweep import load_sweep_config
 
 
 class FlopsUnit(StrEnum):
@@ -37,8 +39,10 @@ class KernelBenchRunner:
         device: Device to use
         backend: Backend to use
         flops_unit: FLOPS unit to use for reporting
+        mem_bw_unit: Memory bandwidth unit to use for reporting
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
+        sweep_config_path: Path to sweep config YAML for parameter sweeps (optional)
     """
 
     def __init__(
@@ -50,6 +54,7 @@ class KernelBenchRunner:
         mem_bw_unit: MemBwUnit = MemBwUnit.GBS,
         csv_path: str | None = None,
         note: str = "",
+        sweep_config_path: str | Path | None = None,
     ):
         self.specs = ai_utils.specs() / "KernelBench"
         self.backend = backend
@@ -58,6 +63,13 @@ class KernelBenchRunner:
         self.mem_bw_unit = mem_bw_unit
         self.csv_path = csv_path
         self.note = note
+
+        # Load sweep config if provided
+        self.sweep_config = None
+        if sweep_config_path:
+            self.sweep_config = load_sweep_config(sweep_config_path)
+            self.logger.info(f"Loaded sweep config: {sweep_config_path}")
+
         self.csv_fieldnames = [
             "kernel_name",
             "kernel_type",
@@ -140,10 +152,65 @@ class KernelBenchRunner:
             return None
         return mod.Model
 
+    def get_variants(self, spec: dict, kernel_name: str) -> list[dict]:
+        """Get variants for a kernel, using sweep config if available.
+
+        Args:
+            spec: The kernel spec dict
+            kernel_name: Name of the kernel (filename without .yaml)
+
+        Returns:
+            List of variant dicts to benchmark
+        """
+        # If sweep config provided and has this kernel, use it
+        if self.sweep_config and kernel_name in self.sweep_config:
+            # Get base variant from spec for params, dtype, flop formula etc.
+            # Try spec_type first, then fall back to other types
+            base_variant = None
+            fallback_order = [
+                self.spec_type,
+                ai_hc.SpecKey.V_BENCH_GPU,
+                ai_hc.SpecKey.V_BENCH_CPU,
+                ai_hc.SpecKey.V_CI,
+            ]
+            for spec_key in fallback_order:
+                if spec_key in spec and spec[spec_key]:
+                    base_variant = spec[spec_key][0].copy()
+                    # Keep dims - sweep will merge/override only specified dims
+                    break
+
+            if base_variant is None:
+                self.logger.warning(
+                    f"No base variant found for {kernel_name}, skipping"
+                )
+                return []
+
+            sweep_variants = generate_variants(
+                kernel_name,
+                self.sweep_config.copy(),
+                base_variant=base_variant,
+            )
+
+            if sweep_variants:
+                self.logger.info(
+                    f"Using {len(sweep_variants)} sweep variants for {kernel_name}"
+                )
+                return sweep_variants
+
+        # Fall back to spec's variants
+        if self.spec_type in spec:
+            return spec[self.spec_type]
+
+        return []
+
     def run_kernels(self):
         """Run all KernelBench kernels."""
         self.logger.info(f"Backend: {self.backend}, Device: {self.device}")
         self.logger.info(f"Kernels: {self.kernels}")
+        if self.sweep_config:
+            self.logger.info(
+                f"Sweep config loaded with {len(self.sweep_config)} kernels"
+            )
         self.logger.info("-" * 60)
 
         # Iterate over specs of kernel levels.
@@ -152,10 +219,14 @@ class KernelBenchRunner:
             for file in sorted(os.listdir(spec_dir)):
                 with open(spec_dir / file) as f:
                     spec = yaml.safe_load(f)
-                # Skip if desired configuration is not available.
-                if self.spec_type not in spec:
+
+                kernel_name = file.replace(".yaml", "")
+
+                # Get variants (from sweep config or spec)
+                variants = self.get_variants(spec, kernel_name)
+                if not variants:
                     continue
-                variants = spec[self.spec_type]
+
                 inputs = spec[ai_hc.SpecKey.INS]
                 inits = []
                 if ai_hc.SpecKey.INITS in spec:
