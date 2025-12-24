@@ -1,5 +1,5 @@
 # Sweep configuration for KernelBench Level 1
-# 
+#
 # Format:
 #   kernel_name:
 #     param1: [val1, val2, ...]    # swept parameters (cross-product)
