@@ -1,0 +1,236 @@
+# Sweep configuration for KernelBench Level 2
+
+1_Conv2D_ReLU_BiasAdd:
+  batch: [64, 128, 256]
+  in_channels: [32, 64]
+  height: [64, 128]
+  _linked:
+    width: height
+
+2_ConvTranspose2d_BiasAdd_Clamp_Scaling_Clamp_Divide:
+  batch: [32, 64, 128]
+  in_channels: [32, 64]
+  height: [64, 128]
+  _linked:
+    width: height
+
+3_ConvTranspose3d_Sum_LayerNorm_AvgPool_GELU:
+  batch: [16, 32, 48]
+  in_channels: [16, 24, 32, 48]
+
+4_Conv2d_Mish_Mish:
+  batch: [16, 32, 64]
+  in_channels: [32, 48, 64, 96]
+
+5_ConvTranspose2d_Subtract_Tanh:
+  batch: [16, 32, 48]
+  in_channels: [32, 48, 64, 96]
+
+6_Conv3d_Softmax_MaxPool_MaxPool:
+  batch: [64, 128, 192]
+  in_channels: [3, 6]
+  height: [16, 32]
+  _linked:
+    width: height
+
+7_Conv3d_ReLU_LeakyReLU_GELU_Sigmoid_BiasAdd:
+  batch: [32, 64, 96]
+  in_channels: [4, 6, 8, 12]
+
+8_Conv3d_Divide_Max_GlobalAvgPool_BiasAdd_Sum:
+  batch: [64, 128, 192]
+  in_channels: [4, 6, 8, 12]
+
+9_Matmul_Subtract_Multiply_ReLU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+10_ConvTranspose2d_MaxPool_Hardtanh_Mean_Tanh:
+  batch: [32, 64, 128]
+  in_channels: [16, 32, 48, 64]
+
+11_ConvTranspose2d_BatchNorm_Tanh_MaxPool_GroupNorm:
+  batch: [256, 512, 768]
+  in_channels: [32, 48, 64, 96]
+
+12_Gemm_Multiply_LeakyReLU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+13_ConvTranspose3d_Mean_Add_Softmax_Tanh_Scaling:
+  batch: [4, 8, 16]
+  in_channels: [8, 12, 16, 24]
+
+14_Gemm_Divide_Sum_Scaling:
+  batch: [512, 1024, 2048]
+  input_size: [4096, 6144, 8192, 12288]
+
+15_ConvTranspose3d_BatchNorm_Subtract:
+  batch: [8, 16, 24]
+  in_channels: [8, 12, 16, 24]
+
+16_ConvTranspose2d_Mish_Add_Hardtanh_Scaling:
+  batch: [64, 128, 192]
+  in_channels: [32, 48, 64, 96]
+
+17_Conv2d_InstanceNorm_Divide:
+  batch: [64, 128, 192]
+  in_channels: [32, 48, 64, 96]
+
+18_Matmul_Sum_Max_AvgPool_LogSumExp_LogSumExp:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+19_ConvTranspose2d_GELU_GroupNorm:
+  batch: [32, 64, 128]
+  in_channels: [16, 32, 48, 64]
+
+20_ConvTranspose3d_Sum_ResidualAdd_Multiply_ResidualAdd:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+21_Conv2d_Add_Scale_Sigmoid_GroupNorm:
+  batch: [64, 128, 192]
+  in_channels: [4, 6, 8, 12]
+
+22_Matmul_Scale_ResidualAdd_Clamp_LogSumExp_Mish:
+  batch: [512, 1024, 2048]
+  input_size: [4096, 6144, 8192, 12288]
+
+23_Conv3d_GroupNorm_Mean:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+24_Conv3d_Min_Softmax:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+25_Conv2d_Min_Tanh_Tanh:
+  batch: [32, 64, 128]
+  in_channels: [16, 32, 48, 64]
+
+26_ConvTranspose3d_Add_HardSwish:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+27_Conv3d_HardSwish_GroupNorm_Mean:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+28_BMM_InstanceNorm_Sum_ResidualAdd_Multiply:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+29_Matmul_Mish_Mish:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+30_Gemm_GroupNorm_Hardtanh:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+31_Conv2d_Min_Add_Multiply:
+  batch: [64, 128, 192]
+  in_channels: [32, 48, 64, 96]
+
+32_Conv2d_Scaling_Min:
+  batch: [16, 32, 64]
+  in_channels: [16, 32, 48, 64]
+
+33_Gemm_Scale_BatchNorm:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+34_ConvTranspose3d_LayerNorm_GELU_Scaling:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+35_Conv2d_Subtract_HardSwish_MaxPool_Mish:
+  batch: [64, 128, 192]
+  in_channels: [32, 48, 64, 96]
+
+36_ConvTranspose2d_Min_Sum_GELU_Add:
+  batch: [32, 64, 128]
+  in_channels: [32, 48, 64, 96]
+
+37_Matmul_Swish_Sum_GroupNorm:
+  batch: [16384, 32768, 49152]
+  in_features: [512, 768, 1024, 1536]
+
+38_ConvTranspose3d_AvgPool_Clamp_Softmax_Multiply:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+39_Gemm_Scale_BatchNorm:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+40_Matmul_Scaling_ResidualAdd:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+# Continue with remaining kernels...
+# Matmul-based (LLM-relevant)
+41_Gemm_BatchNorm_GELU_ReLU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+45_Gemm_Sigmoid_LogSumExp:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+53_Gemm_Scaling_Hardtanh_GELU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+59_Matmul_Swish_Scaling:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+62_Matmul_GroupNorm_LeakyReLU_Sum:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+63_Gemm_ReLU_Divide:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+66_Matmul_Dropout_Softmax:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+68_Matmul_Min_Subtract:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+76_Gemm_Add_ReLU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+80_Gemm_Max_Subtract_GELU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+81_Gemm_Swish_Divide_Clamp_Tanh_Clamp:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+86_Matmul_Divide_GELU:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+95_Matmul_Add_Swish_Tanh_GELU_Hardtanh:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+97_Matmul_BatchNorm_BiasAdd_Divide_Swish:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+98_Matmul_AvgPool_GELU_Scale_Max:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]
+
+99_Matmul_GELU_Softmax:
+  batch: [512, 1024, 2048]
+  in_features: [4096, 6144, 8192, 12288]

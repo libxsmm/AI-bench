@@ -1,0 +1,334 @@
+# Sweep configuration for KernelBench Level 1
+#
+# Format:
+#   kernel_name:
+#     param1: [val1, val2, ...]    # swept parameters (cross-product)
+#     param2: [val1, val2, ...]
+#     _linked:                      # linked parameters (set equal to another)
+#       target_param: source_param
+#     _fixed:                       # fixed parameters (constant)
+#       param: value
+#
+#
+1_Square_matrix_multiplication_:
+  n: [1024, 1536, 2048, 2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192, 10240]
+
+2_Standard_matrix_multiplication_:
+  m: [1024, 2048, 4096]
+  k: [4096, 8192, 12288, 16384]
+  _fixed:
+    n: 3072
+
+3_Batched_matrix_multiplication:
+  batch: [32, 64, 128]
+  m: [256, 512]
+  k: [512, 1024]
+  _fixed:
+    n: 512
+
+4_Matrix_vector_multiplication_:
+  m: [512, 1024, 2048]
+  k: [349525, 524288, 786432, 1048576]
+
+5_Matrix_scalar_multiplication:
+  m: [16384, 32768, 65536]
+  n: [4096, 8192, 12288, 16384]
+
+6_Matmul_with_large_K_dimension_:
+  m: [128, 256, 512]
+  k: [131072, 196608, 262144, 393216]
+  _fixed:
+    n: 512
+
+7_Matmul_with_small_K_dimension_:
+  m: [16384, 32768, 49152]
+  k: [32, 48, 64, 96]
+  _fixed:
+    n: 4096
+
+8_Matmul_with_irregular_shapes_:
+  m: [4096, 8205, 12288]
+  k: [1474, 2212, 2949, 4424]
+  _fixed:
+    n: 2048
+
+9_Tall_skinny_matrix_multiplication_:
+  m: [8192, 16384, 32768]
+  n: [16, 24, 32, 48]
+  _fixed:
+    k: 4096
+
+10_3D_tensor_matrix_multiplication:
+  n: [8, 16, 32]
+  m: [512, 768, 1024, 1536]
+  _fixed:
+    k: 1024
+    p: 256
+
+11_4D_tensor_matrix_multiplication:
+  b: [4, 8, 16]
+  i: [64, 128, 192, 256]
+  _fixed:
+    j: 128
+    l: 256
+    k: 512
+
+12_Matmul_with_diagonal_matrices_:
+  n: [2048, 4096, 8192]
+  m: [2048, 3072, 4096, 6144]
+
+13_Matmul_for_symmetric_matrices:
+  n: [1024, 1536, 2048, 2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192, 10240]
+
+14_Matmul_for_upper_triangular_matrices:
+  n: [1024, 1536, 2048, 2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192, 10240]
+
+15_Matmul_for_lower_triangular_matrices:
+  m: [1024, 1536, 2048, 2560, 3072, 3584, 4096, 5120, 6144, 7168, 8192, 10240]
+
+16_Matmul_with_transposed_A:
+  m: [1024, 2048, 4096]
+  k: [4096, 6144, 8192, 12288]
+  _fixed:
+    n: 3072
+
+17_Matmul_with_transposed_B:
+  m: [1024, 2048, 4096]
+  k: [4096, 6144, 8192, 12288]
+  _fixed:
+    n: 3072
+
+18_Matmul_with_transposed_both:
+  m: [1024, 2048, 4096]
+  k: [4096, 6144, 8192, 12288]
+  _fixed:
+    n: 3072
+
+19_ReLU:
+  batch: [1024, 2048, 4096]
+  dim: [49152, 98304, 196608, 294912]
+
+20_LeakyReLU:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+21_Sigmoid:
+  batch: [512, 1024, 2048]
+  dim: [49152, 98304, 196608, 294912]
+
+22_Tanh:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+23_Softmax:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+24_LogSoftmax:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+25_Swish:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+26_GELU_:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+27_SELU_:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+28_HardSigmoid:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+29_Softplus:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+30_Softsign:
+  batch: [512, 1024, 2048]
+  dim: [12288, 24576, 49152, 98304]
+
+31_ELU:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+32_HardTanh:
+  batch: [512, 1024, 2048]
+  dim: [24576, 49152, 98304, 196608]
+
+33_BatchNorm:
+  batch: [16, 32, 64]
+  features: [32, 64]
+  dim1: [128, 256]
+  _linked:
+    dim2: dim1
+
+34_InstanceNorm:
+  batch: [28, 56, 76]
+  features: [32, 64]
+  dim1: [128, 256]
+  _linked:
+    dim2: dim1
+
+35_GroupNorm_:
+  batch: [28, 56, 76]
+  features: [32, 64]
+  dim1: [128, 256]
+  _linked:
+    dim2: dim1
+
+36_RMSNorm_:
+  batch: [28, 56, 76]
+  features: [32, 64]
+  dim1: [128, 256]
+  _linked:
+    dim2: dim1
+
+37_FrobeniusNorm_:
+  batch: [28, 56, 76]
+  features: [32, 64]
+  dim1: [128, 256]
+  _linked:
+    dim2: dim1
+
+38_L1Norm_:
+  batch: [2048, 4096, 8192]
+  dim: [32768, 49152, 65535, 81920]
+
+39_L2Norm_:
+  batch: [2048, 4096, 8192]
+  dim: [32768, 49152, 65535, 81920]
+
+40_LayerNorm:
+  batch: [8, 16, 32]
+  features: [32, 48, 64, 96]
+
+41_Max_Pooling_1D:
+  batch: [16, 32, 48]
+  features: [32, 64, 96, 128]
+
+42_Max_Pooling_2D:
+  batch: [16, 32, 48]
+  channels: [8, 16, 32, 48]
+
+43_Max_Pooling_3D:
+  batch: [8, 16, 24]
+  channels: [8, 16, 24, 32]
+
+44_Average_Pooling_1D:
+  batch: [32, 64, 96]
+  in_channels: [64, 96, 128, 192]
+
+45_Average_Pooling_2D:
+  batch: [8, 12, 16]
+  channels: [16, 20, 24, 32]
+
+46_Average_Pooling_3D:
+  batch: [8, 16, 24]
+  channels: [8, 16, 18, 20]
+
+47_Sum_reduction_over_a_dimension:
+  batch: [16, 24, 48]
+  dim1: [128, 256, 512, 1024]
+
+48_Mean_reduction_over_a_dimension:
+  batch: [16, 32, 48]
+  dim1: [512, 1024, 1536, 2048]
+
+49_Max_reduction_over_a_dimension:
+  batch: [16, 32, 48]
+  dim1: [512, 1024, 1536, 2048]
+
+50_conv_standard_2D__square_input__square_kernel:
+  batch: [64, 96, 128, 160, 192, 224, 256, 320, 384, 448, 512, 640]
+
+51_Argmax_over_a_dimension:
+  batch: [32, 48, 64]
+  dim1: [1024, 1536, 2048, 2560]
+
+52_Argmin_over_a_dimension:
+  batch: [32, 48, 64]
+  dim1: [1024, 1536, 2048, 2560]
+
+53_Min_reduction_over_a_dimension:
+  batch: [32, 48, 64]
+  dim1: [1024, 1536, 2048, 2560]
+
+54_conv_standard_3D__square_input__square_kernel:
+  batch: [8, 16, 32]
+  in_channels: [3, 6]
+  depth: [32, 64]
+  _linked:
+    height: depth
+    width: depth
+
+55_conv_standard_2D__asymmetric_input__square_kernel:
+  batch: [4, 8, 16]
+  in_channels: [8, 12, 16, 24]
+
+56_conv_standard_2D__asymmetric_input__asymmetric_kernel:
+  batch: [4, 8, 16]
+  in_channels: [16, 24, 32, 48]
+
+57_conv_transposed_2D__square_input__square_kernel:
+  batch: [4, 8, 12]
+  in_channels: [16, 24, 32, 48]
+
+58_conv_transposed_3D__asymmetric_input__asymmetric_kernel:
+  batch: [8, 16, 24]
+  in_channels: [16, 24, 32, 48]
+
+59_conv_standard_3D__asymmetric_input__square_kernel:
+  batch: [8, 16, 24]
+  in_channels: [3, 6]
+  height: [128, 256]
+  _linked:
+    width: height
+
+60_conv_standard_3D__square_input__asymmetric_kernel:
+  batch: [8, 16, 24]
+  in_channels: [3, 6]
+  width: [32, 64]
+  _linked:
+    height: width
+    depth: width
+
+61_conv_transposed_3D__square_input__square_kernel:
+  batch: [4, 8, 12]
+  in_channels: [24, 36, 48, 72]
+
+88_MinGPTNewGelu:
+  batch: [4096, 8192, 12288]
+  dim: [4096, 6144, 8192, 12288]
+
+94_MSELoss:
+  batch: [1024, 2048, 4096]
+  dim: [16384, 24576, 32768, 49152]
+
+95_CrossEntropyLoss:
+  batch: [16384, 32768, 49152]
+  num_classes: [1024, 2048, 3072, 4096]
+
+96_HuberLoss:
+  batch: [1024, 2048, 4096]
+  dim: [16384, 20480, 24576, 28672]
+
+97_ScaledDotProductAttention:
+  batch: [4, 8, 16]
+  num_heads: [4, 8, 16, 24]
+
+98_KLDivLoss:
+  batch: [4096, 8192, 16384]
+  dim: [8192, 12288, 16384, 24576]
+
+99_TripletMarginLoss:
+  batch: [4096, 8192, 16384]
+  dim: [4096, 6144, 8192, 12288]
+
+100_HingeLoss:
+  batch: [2048, 4096, 8192, 16384]
+  dim: [8192, 16384, 32768]
