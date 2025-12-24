@@ -6,23 +6,37 @@ build-backend = "setuptools.build_meta"
 name = "AI-bench"
 dynamic = ["version"]
 requires-python = ">=3.10"
+description = "AI kernel benchmarking harness"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Adam Siemieniuk", email = "adam.siemieniuk@intel.com"},
+    {name = "Marcin Spoczynski", email = "marcin@spoczynski.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Benchmark",
+]
+keywords = ["benchmark", "pytorch", "triton", "gpu", "xpu", "kernel", "performance"]
 dependencies = [
   "PyYAML",
   "numpy",
+  "python-dotenv",
 ]
 
-[dependency-groups]
-dev = [
-  "ruff==0.14.5",
-  "pre-commit",
-  "pytest",
-  "pytest-timeout",
-]
+[project.scripts]
+ai-bench = "ai_bench.cli:main"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_functions = ["test_*"]
+[project.urls]
+Homepage = "https://github.com/libxsmm/AI-bench"
+Repository = "https://github.com/libxsmm/AI-bench"
 
 [project.optional-dependencies]
 cpu = [
@@ -32,6 +46,20 @@ xpu = [
   "torch==2.9.1+xpu",
   "pytorch-triton-xpu",
 ]
+
+[dependency-groups]
+dev = [
+  "ruff==0.14.5",
+  "pre-commit",
+  "pytest",
+  "pytest-timeout",
+  "mypy",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
 
 [tool.uv]
 conflicts = [
@@ -52,10 +80,26 @@ explicit = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai_bench"]
+include = ["ai_bench*"]
+
+[tool.setuptools.package-data]
+ai_bench = ["py.typed"]
 
 [tool.setuptools.dynamic]
 version = {attr = "ai_bench.__version__"}
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "torch.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "triton.*"
+ignore_missing_imports = true
 
 [tool.ruff]
 src = ["AI-bench"]
