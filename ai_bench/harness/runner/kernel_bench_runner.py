@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from enum import StrEnum
 import json
 import os
@@ -26,6 +27,12 @@ class MemBwUnit(StrEnum):
 
     GBS = "GB/s"
     MBS = "MB/s"
+
+
+class NotesSymbols(StrEnum):
+    """Notes annotation symbols."""
+
+    ESTIMATE = "⚠️"
 
 
 class KernelBenchRunner:
@@ -65,6 +72,7 @@ class KernelBenchRunner:
             "flops",
             "flops_val",
             "flops_unit",
+            "flops_note",
             "mem_bytes",
             "mem_bw_val",
             "mem_bw_unit",
@@ -140,10 +148,19 @@ class KernelBenchRunner:
             return None
         return mod.Model
 
+    def print_info_legend(self, print_fn: Callable):
+        """Print information legend.
+        Args:
+            print_fn: Callback to a printing function
+        """
+        print_fn("Legend:")
+        print_fn(f"  - {NotesSymbols.ESTIMATE} : Estimated value")
+
     def run_kernels(self):
         """Run all KernelBench kernels."""
         self.logger.info(f"Backend: {self.backend}, Device: {self.device}")
         self.logger.info(f"Kernels: {self.kernels}")
+        self.print_info_legend(self.logger.info)
         self.logger.info("-" * 60)
 
         # Iterate over specs of kernel levels.
@@ -195,11 +212,14 @@ class KernelBenchRunner:
 
                     # Statistics - FLOPs.
                     flop = ai_hc.get_flop(variant)
+                    flop_is_estimate = False
                     if not flop and self.is_torch_backend():
                         flop = ai_utils.count_torch_flop(fn, args)
+                        flop_is_estimate = True
 
                     flops_val = ""
                     flops_unit = ""
+                    flops_note = ""
                     if flop:
                         tflops = flop / meas_us / 1e6
                         match self.flops_unit:
@@ -212,9 +232,11 @@ class KernelBenchRunner:
                                     f"Invalid FLOPS unit: {self.flops_unit}"
                                 )
                         flops_unit = str(self.flops_unit)
+                        if flop_is_estimate:
+                            flops_note = NotesSymbols.ESTIMATE
 
                     self.logger.info(
-                        f"  time [us]: {meas_us:.6f} {flops_unit}: {flops_val}"
+                        f"  time [us]: {meas_us:.6f} {flops_unit}: {flops_val} {flops_note}"
                     )
 
                     # Statistics - memory bandwidth.
@@ -251,6 +273,7 @@ class KernelBenchRunner:
                             "flops": flop if flop is not None else "",
                             "flops_val": flops_val,
                             "flops_unit": flops_unit,
+                            "flops_note": flops_note,
                             "mem_bytes": mem_bytes if mem_bytes is not None else "",
                             "mem_bw_val": mem_bw_val,
                             "mem_bw_unit": mem_bw_unit,

@@ -124,6 +124,7 @@ The CSV file includes the following columns:
 - `flops`: Number of floating-point operations
 - `flops_val`: Computed FLOPS value
 - `flops_unit`: FLOPS unit (GFLOPS/TFLOPS)
+- `flops_note`: FLOPS measurement annotation (see 'Notes legend')
 - `mem_bytes`: Number of bytes transferred - input reads + output writes
 - `mem_bw_val`: Computed memory bandwidth value
 - `mem_bw_unit`: Memory bandwidth unit (MB/s or GB/s)
@@ -139,6 +140,10 @@ export AIBENCH_CARD="BMG"
 export AIBENCH_SYSTEM="TestRig1"
 python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv
 ```
+
+Notes legend:
+
+- `⚠️`: estimated value, use with caution
 
 ### Command Line Options
 
