@@ -105,6 +105,10 @@ ignore_missing_imports = true
 module = "triton.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "helion.*"
+ignore_missing_imports = true
+
 [tool.ruff]
 src = ["AI-bench"]
 target-version = "py310"
