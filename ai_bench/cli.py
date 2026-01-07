@@ -95,6 +95,12 @@ Environment file (.env) example:
         default=None,
         help="Path to Triton kernels directory (default: auto-detect or AIBENCH_TRITON_KERNELS_DIR)",
     )
+    path_group.add_argument(
+        "--helion-kernels-dir",
+        type=Path,
+        default=None,
+        help="Path to Helion kernels directory (default: auto-detect or AIBENCH_HELION_KERNELS_DIR)",
+    )
 
     # Device options
     device_group = parser.add_argument_group("device options")

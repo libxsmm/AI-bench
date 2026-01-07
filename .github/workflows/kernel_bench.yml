@@ -19,6 +19,10 @@ on:
         description: "Run on Intel GPU (Triton)"
         type: boolean
         default: false
+      RUN_XPU_HELION:
+        description: "Run on Intel GPU (Helion)"
+        type: boolean
+        default: false
 
 env:
   NPROCS_LIMIT_LINK: 8
@@ -79,3 +83,15 @@ jobs:
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b triton'"
+
+  XPU-Helion:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_XPU_HELION)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Arc B580
+        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b helion'"

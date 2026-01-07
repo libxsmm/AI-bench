@@ -2,6 +2,7 @@ from .equations import eval_ast
 from .equations import eval_eq
 from .finder import ConfigurationError
 from .finder import configure
+from .finder import helion_kernels_dir
 from .finder import kernel_bench_dir
 from .finder import project_root
 from .finder import reset_configuration
@@ -16,6 +17,7 @@ __all__ = [
     "count_torch_flop",
     "eval_ast",
     "eval_eq",
+    "helion_kernels_dir",
     "import_from_path",
     "kernel_bench_dir",
     "project_root",

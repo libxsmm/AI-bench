@@ -46,6 +46,15 @@ class TestConfiguration:
 
         assert finder.triton_kernels_dir() == triton_dir
 
+    def test_configure_helion_kernels_dir(self, tmp_path):
+        """Test configuring Helion kernels directory."""
+        helion_dir = tmp_path / "helion"
+        helion_dir.mkdir()
+
+        finder.configure(helion_kernels_dir=helion_dir)
+
+        assert finder.helion_kernels_dir() == helion_dir
+
     def test_configure_with_string_path(self, tmp_path):
         """Test configuring with string path instead of Path object."""
         specs_dir = tmp_path / "specs"
@@ -109,6 +118,7 @@ class TestEnvironmentVariables:
             "AIBENCH_SPECS_DIR",
             "AIBENCH_KERNELS_DIR",
             "AIBENCH_TRITON_KERNELS_DIR",
+            "AIBENCH_HELION_KERNELS_DIR",
         ]:
             self._saved_env[key] = os.environ.get(key)
 
@@ -147,6 +157,15 @@ class TestEnvironmentVariables:
         os.environ["AIBENCH_TRITON_KERNELS_DIR"] = str(triton_dir)
 
         assert finder.triton_kernels_dir() == triton_dir
+
+    def test_helion_kernels_from_env_var(self, tmp_path):
+        """Test Helion kernels path from environment variable."""
+        helion_dir = tmp_path / "helion"
+        helion_dir.mkdir()
+
+        os.environ["AIBENCH_HELION_KERNELS_DIR"] = str(helion_dir)
+
+        assert finder.helion_kernels_dir() == helion_dir
 
     def test_env_var_nonexistent_path_raises(self, tmp_path):
         """Test that env var with nonexistent path raises error."""

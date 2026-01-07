@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 _specs_dir: Path | None = None
 _kernels_dir: Path | None = None
 _triton_kernels_dir: Path | None = None
+_helion_kernels_dir: Path | None = None
 _env_loaded: bool = False
 
 
@@ -82,6 +83,7 @@ def configure(
     specs_dir: Path | str | None = None,
     kernels_dir: Path | str | None = None,
     triton_kernels_dir: Path | str | None = None,
+    helion_kernels_dir: Path | str | None = None,
 ) -> None:
     """Configure library paths.
 
@@ -91,6 +93,7 @@ def configure(
         specs_dir: Path to YAML spec files directory
         kernels_dir: Path to PyTorch kernel implementations
         triton_kernels_dir: Path to Triton kernel implementations
+        helion_kernels_dir: Path to Helion kernel implementations
 
     Example:
         >>> import ai_bench
@@ -99,7 +102,7 @@ def configure(
         ...     kernels_dir="/path/to/kernels",
         ... )
     """
-    global _specs_dir, _kernels_dir, _triton_kernels_dir
+    global _specs_dir, _kernels_dir, _triton_kernels_dir, _helion_kernels_dir
 
     if specs_dir is not None:
         _specs_dir = Path(specs_dir)
@@ -107,6 +110,8 @@ def configure(
         _kernels_dir = Path(kernels_dir)
     if triton_kernels_dir is not None:
         _triton_kernels_dir = Path(triton_kernels_dir)
+    if helion_kernels_dir is not None:
+        _helion_kernels_dir = Path(helion_kernels_dir)
 
 
 def reset_configuration() -> None:
@@ -114,10 +119,16 @@ def reset_configuration() -> None:
 
     Useful for testing or reconfiguring.
     """
-    global _specs_dir, _kernels_dir, _triton_kernels_dir, _env_loaded
+    global \
+        _specs_dir, \
+        _kernels_dir, \
+        _triton_kernels_dir, \
+        _helion_kernels_dir, \
+        _env_loaded
     _specs_dir = None
     _kernels_dir = None
     _triton_kernels_dir = None
+    _helion_kernels_dir = None
     _env_loaded = False
 
 
@@ -255,4 +266,33 @@ def triton_kernels_dir() -> Path:
         "AIBENCH_TRITON_KERNELS_DIR",
         default,
         "Triton kernels directory",
+    )
+
+
+def helion_kernels_dir() -> Path:
+    """Path to the Helion kernels directory.
+
+    Can be configured via:
+    - ai_bench.configure(helion_kernels_dir=...)
+    - AIBENCH_HELION_KERNELS_DIR environment variable
+    - Auto-detected from project structure
+
+    Returns:
+        Path to Helion kernels directory
+
+    Raises:
+        ConfigurationError: If path cannot be determined
+    """
+
+    def default() -> Path:
+        path = project_root() / "backends" / "helion"
+        if not path.exists():
+            raise FileNotFoundError(f"Default Helion kernels path not found: {path}")
+        return path
+
+    return _get_path(
+        _helion_kernels_dir,
+        "AIBENCH_HELION_KERNELS_DIR",
+        default,
+        "Helion kernels directory",
     )

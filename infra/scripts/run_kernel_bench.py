@@ -16,6 +16,8 @@ def main(args):
     # Determine backend.
     if args.triton:
         backend = core.Backend.TRITON
+    elif args.helion:
+        backend = core.Backend.HELION
     else:
         if args.torch_compile:
             backend = core.Backend.PYTORCH_COMPILE
@@ -76,6 +78,12 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Use PyTorch compile mode",
+    )
+    backend_group.add_argument(
+        "--helion",
+        action="store_true",
+        default=False,
+        help="Use Helion backend",
     )
 
     # Run mode.

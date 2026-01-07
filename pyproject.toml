@@ -24,7 +24,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Benchmark",
 ]
-keywords = ["benchmark", "pytorch", "triton", "gpu", "xpu", "kernel", "performance"]
+keywords = [
+  "benchmark", "pytorch", "triton", "helion",
+  "gpu", "xpu", "kernel", "performance"
+]
 dependencies = [
   "PyYAML",
   "numpy",
@@ -45,6 +48,7 @@ cpu = [
 xpu = [
   "torch==2.9.1+xpu",
   "pytorch-triton-xpu",
+  "helion==0.2.9",
 ]
 
 [dependency-groups]
@@ -139,7 +143,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-local-folder = ["ai_bench"]
-known-third-party = ["torch"]
+known-third-party = ["torch", "triton", "helion"]
 known-first-party = ["mlir"]
 force-single-line = true  # Improves merge conflicts
 force-sort-within-sections = true

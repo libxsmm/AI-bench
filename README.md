@@ -5,7 +5,7 @@
 [![KernelBench Perf](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml/badge.svg)](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
-A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton) and devices (CPU, XPU).
+A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion) and devices (CPU, XPU).
 
 ## Installation
 
@@ -49,6 +49,9 @@ ai-bench --xpu --torch-compile
 # Triton on XPU
 ai-bench --xpu --triton
 
+# Helion on XPU
+ai-bench --xpu --helion
+
 # Benchmark mode (with timing)
 ai-bench --xpu --bench
 
@@ -72,6 +75,9 @@ python infra/scripts/run_kernel_bench.py --xpu --torch-compile
 
 # Triton on XPU
 python infra/scripts/run_kernel_bench.py --xpu --triton
+
+# Helion on XPU
+python infra/scripts/run_kernel_bench.py --xpu --helion
 
 # Benchmark mode (with timing)
 python infra/scripts/run_kernel_bench.py --xpu --bench
@@ -188,6 +194,7 @@ Environment variables used for project configuration:
 | `AIBENCH_SPECS_DIR` | Path to specs directory |
 | `AIBENCH_KERNELS_DIR` | Path to PyTorch kernels directory |
 | `AIBENCH_TRITON_KERNELS_DIR` | Path to Triton kernels directory |
+| `AIBENCH_HELION_KERNELS_DIR` | Path to Helion kernels directory |
 
 ## License
 

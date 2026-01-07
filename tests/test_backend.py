@@ -20,20 +20,23 @@ class TestBackendEnum:
         assert ai_hc.Backend.PYTORCH == "pytorch"
         assert ai_hc.Backend.PYTORCH_COMPILE == "pytorch-compile"
         assert ai_hc.Backend.TRITON == "triton"
+        assert ai_hc.Backend.HELION == "helion"
 
     def test_backend_iteration(self):
         """Test that all backends can be iterated."""
         backends = list(ai_hc.Backend)
-        assert len(backends) == 3
+        assert len(backends) == 4
         assert ai_hc.Backend.PYTORCH in backends
         assert ai_hc.Backend.PYTORCH_COMPILE in backends
         assert ai_hc.Backend.TRITON in backends
+        assert ai_hc.Backend.HELION in backends
 
     def test_backend_from_string(self):
         """Test creating backend from string."""
         assert ai_hc.Backend("pytorch") == ai_hc.Backend.PYTORCH
         assert ai_hc.Backend("pytorch-compile") == ai_hc.Backend.PYTORCH_COMPILE
         assert ai_hc.Backend("triton") == ai_hc.Backend.TRITON
+        assert ai_hc.Backend("helion") == ai_hc.Backend.HELION
 
     def test_backend_invalid_string(self):
         """Test that invalid string raises error."""
@@ -204,6 +207,20 @@ class TestKernelBenchRunnerInit:
         assert "triton" in str(kb_runner.kernels)
 
     @mock.patch("os.path.isdir")
+    def test_init_helion_backend(self, mock_isdir):
+        """Test runner initialization with Helion backend."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            spec_type=ai_hc.SpecKey.V_CI,
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.HELION,
+        )
+
+        assert kb_runner.backend == ai_hc.Backend.HELION
+        assert "helion" in str(kb_runner.kernels)
+
+    @mock.patch("os.path.isdir")
     def test_init_missing_kernels_dir(self, mock_isdir):
         """Test runner raises error when kernels directory is missing."""
         mock_isdir.return_value = False
@@ -257,16 +274,21 @@ class TestKernelBenchRunnerExecution:
             triton_kernels_dir = (
                 tmpdir / "backends" / "triton" / "KernelBench" / "level1"
             )
+            helion_kernels_dir = (
+                tmpdir / "backends" / "helion" / "KernelBench" / "level1"
+            )
 
             specs_dir.mkdir(parents=True)
             pytorch_kernels_dir.mkdir(parents=True)
             triton_kernels_dir.mkdir(parents=True)
+            helion_kernels_dir.mkdir(parents=True)
 
             yield {
                 "root": tmpdir,
                 "specs": specs_dir,
                 "pytorch_kernels": pytorch_kernels_dir,
                 "triton_kernels": triton_kernels_dir,
+                "helion_kernels": helion_kernels_dir,
             }
 
     def _create_spec_file(self, specs_dir: Path, filename: str, content: str):
@@ -417,12 +439,27 @@ class Model(torch.nn.Module):
         # Simulated Triton kernel (same result for testing).
         return x @ x
 """
+        helion_kernel = """
+import torch
+
+class Model(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.backend = "helion"
+
+    def forward(self, x):
+        # Simulated Helion kernel (same result for testing).
+        return x @ x
+"""
         self._create_spec_file(temp_dirs["specs"], "matmul.yaml", spec_content)
         self._create_kernel_file(
             temp_dirs["pytorch_kernels"], "matmul.py", pytorch_kernel
         )
         self._create_kernel_file(
             temp_dirs["triton_kernels"], "matmul.py", triton_kernel
+        )
+        self._create_kernel_file(
+            temp_dirs["helion_kernels"], "matmul.py", helion_kernel
         )
 
         with mock.patch(
@@ -452,10 +489,19 @@ class Model(torch.nn.Module):
             )
             assert triton_runner.backend == ai_hc.Backend.TRITON
 
+            # Run with Helion backend.
+            helion_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.HELION,
+            )
+            assert helion_runner.backend == ai_hc.Backend.HELION
+
             # Verify they use different kernel directories.
             assert "KernelBench" in str(pytorch_runner.kernels)
             assert "triton" not in str(pytorch_runner.kernels)
             assert "triton" in str(triton_runner.kernels)
+            assert "helion" in str(helion_runner.kernels)
 
     def test_run_kernels_with_inits(self, temp_dirs):
         """Test running kernel that requires initialization parameters."""
@@ -616,10 +662,12 @@ class TestIntegration:
                 tmpdir / "third_party" / "KernelBench" / "KernelBench" / "level1"
             )
             triton_dir = tmpdir / "backends" / "triton" / "KernelBench" / "level1"
+            helion_dir = tmpdir / "backends" / "helion" / "KernelBench" / "level1"
 
             specs_dir.mkdir(parents=True)
             pytorch_dir.mkdir(parents=True)
             triton_dir.mkdir(parents=True)
+            helion_dir.mkdir(parents=True)
 
             # Create spec.
             spec = """
@@ -675,6 +723,21 @@ class Model(torch.nn.Module):
 '''
             (triton_dir / "matmul.py").write_text(triton_kernel)
 
+            # Create Helion kernel (mocked - same behavior).
+            helion_kernel = '''
+import torch
+
+class Model(torch.nn.Module):
+    """Mocked Helion kernel with same interface."""
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, A, B):
+        # In real usage, this would be a Helion kernel.
+        return torch.matmul(A, B)
+'''
+            (helion_dir / "matmul.py").write_text(helion_kernel)
+
             yield tmpdir
 
     def test_full_ci_pipeline_pytorch(self, integration_setup):
@@ -713,6 +776,18 @@ class Model(torch.nn.Module):
             )
             kb_runner.run_kernels()
 
+    def test_full_ci_pipeline_helion(self, integration_setup):
+        """Test complete CI pipeline with Helion backend."""
+        with mock.patch(
+            "ai_bench.utils.finder.project_root", return_value=integration_setup
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.HELION,
+            )
+            kb_runner.run_kernels()
+
     def test_full_bench_pipeline(self, integration_setup):
         """Test complete benchmark pipeline."""
         with mock.patch(
@@ -741,6 +816,11 @@ class Model(torch.nn.Module):
                 device=torch.device("cpu"),
                 backend=ai_hc.Backend.TRITON,
             )
+            helion_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.HELION,
+            )
 
             pytorch_model_cls = pytorch_runner.load_model(
                 integration_setup
@@ -758,9 +838,18 @@ class Model(torch.nn.Module):
                 / "level1"
                 / "matmul.py"
             )
+            helion_model_cls = helion_runner.load_model(
+                integration_setup
+                / "backends"
+                / "helion"
+                / "KernelBench"
+                / "level1"
+                / "matmul.py"
+            )
 
             pytorch_model = pytorch_model_cls()
             triton_model = triton_model_cls()
+            helion_model = helion_model_cls()
 
             # Create deterministic inputs.
             torch.manual_seed(42)
@@ -769,8 +858,10 @@ class Model(torch.nn.Module):
 
             pytorch_result = pytorch_model(A, B)
             triton_result = triton_model(A, B)
+            helion_result = helion_model(A, B)
 
             assert torch.allclose(pytorch_result, triton_result)
+            assert torch.allclose(pytorch_result, helion_result)
 
 
 if __name__ == "__main__":

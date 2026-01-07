@@ -95,6 +95,8 @@ class KernelBenchRunner:
             self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
         elif self.backend == ai_hc.Backend.TRITON:
             self.kernels = ai_utils.triton_kernels_dir() / "KernelBench"
+        elif self.backend == ai_hc.Backend.HELION:
+            self.kernels = ai_utils.helion_kernels_dir() / "KernelBench"
         else:
             raise ValueError(f"Unsupported backend: {self.backend}")
 
