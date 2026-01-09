@@ -122,7 +122,7 @@ class MemoryCounter:
     def _create_hook(self, name: str) -> Callable:
         """Create a hook function for a specific module."""
 
-        def hook_fn(module: nn.Module, inputs, outputs) -> Callable:
+        def hook_fn(module: nn.Module, inputs, outputs) -> None:
             reads = 0
             writes = 0
             shapes = []
