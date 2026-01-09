@@ -30,7 +30,7 @@ Example .env file:
     AIBENCH_CARD=BMG
 """
 
-__version__ = "0.1.0b1"
+__version__ = "0.2.0b1"
 
 # Core types and enums
 from ai_bench.harness.core import Backend
