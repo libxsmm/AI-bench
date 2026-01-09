@@ -1,5 +1,4 @@
 from collections import defaultdict
-from pprint import pprint
 from typing import Callable
 from typing import Dict
 
@@ -84,6 +83,8 @@ class MemoryCounter:
 
     def print_memory_report(self):
         """Print a formatted memory counter report."""
+        from pprint import pprint
+
         total_stats = self.get_total_stats()
 
         print("=" * 50)
