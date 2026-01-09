@@ -1,5 +1,3 @@
-# ruff: noqa: E731
-
 import helion
 import helion.language as hl
 import torch
