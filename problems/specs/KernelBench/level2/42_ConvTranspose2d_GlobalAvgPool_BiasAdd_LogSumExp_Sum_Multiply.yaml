@@ -1,0 +1,22 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: OUT_CHANNELS
+  - dim: KERNEL_SIZE
+  - dim: BIAS_SHAPE
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 8
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 3
+      BIAS_SHAPE: [8, 1, 1] # TODO: bind these to other dims

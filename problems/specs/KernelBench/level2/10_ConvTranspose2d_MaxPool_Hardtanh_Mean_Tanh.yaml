@@ -1,0 +1,32 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: OUT_CHANNELS
+  - dim: KERNEL_SIZE
+  - dim: STRIDE
+  - dim: PADDING
+  - dim: MAXPOOL_KERNEL_SIZE
+  - dim: MAXPOOL_STRIDE
+  - dim: HARDTANH_MIN
+  - dim: HARDTANH_MAX
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 8
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 3
+      STRIDE: 1
+      PADDING: 1
+      MAXPOOL_KERNEL_SIZE: 2
+      MAXPOOL_STRIDE: 2
+      HARDTANH_MIN: -1
+      HARDTANH_MAX: 1

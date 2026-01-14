@@ -1,0 +1,20 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_FEATURES]
+    dtype: float16
+
+inits:
+  - dim: IN_FEATURES
+  - dim: OUT_FEATURES
+  - dim: NUM_GROUPS
+  - dim: BIAS_SHAPE
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_FEATURES: 32
+      OUT_FEATURES: 32
+      NUM_GROUPS: 4
+      BIAS_SHAPE: [1, 32, 1, 1] # TODO: bind these to other dims

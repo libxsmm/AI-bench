@@ -1,0 +1,19 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_FEATURES]
+    dtype: float16
+  Y:
+    shape: [BATCH_SIZE, OUT_FEATURES]
+    dtype: float16
+
+inits:
+  - dim: IN_FEATURES
+  - dim: OUT_FEATURES
+
+ci:
+  - params: [X, Y]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_FEATURES: 64
+      OUT_FEATURES: 64

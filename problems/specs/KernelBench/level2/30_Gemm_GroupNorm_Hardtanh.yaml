@@ -1,0 +1,22 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_FEATURES]
+    dtype: float16
+
+inits:
+  - dim: IN_FEATURES
+  - dim: OUT_FEATURES
+  - dim: NUM_GROUPS
+  - dim: HARDTANH_MIN
+  - dim: HARDTANH_MAX
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_FEATURES: 64
+      OUT_FEATURES: 64
+      NUM_GROUPS: 4
+      HARDTANH_MIN: -2.0
+      HARDTANH_MAX: 2.0

@@ -1,0 +1,33 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    dtype: float32
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: OUT_CHANNELS
+  - dim: KERNEL_SIZE
+  - dim: STRIDE
+  - dim: PADDING
+  - dim: OUTPUT_PADDING
+  - dim: SUM_WEIGHT
+  - dim: NORM_SHAPE
+  - dim: POOL_KERNEL_SIZE
+
+ci:
+  - params: [X]
+    dtype: float32 # "avg_pool3d_out_frame" not implemented for 'Half'
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 16
+      DEPTH: 4
+      HEIGHT: 8
+      WIDTH: 8
+      KERNEL_SIZE: [3, 3, 3]
+      STRIDE: [2, 2, 2]
+      PADDING: [1, 1, 1]
+      OUTPUT_PADDING: [1, 1, 1]
+      SUM_WEIGHT: 1.0
+      NORM_SHAPE: [16] # TODO: bind these to other dims
+      POOL_KERNEL_SIZE: [2, 2, 2]

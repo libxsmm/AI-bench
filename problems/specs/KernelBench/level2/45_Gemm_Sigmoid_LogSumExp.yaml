@@ -1,0 +1,18 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_SIZE]
+    dtype: float16
+
+inits:
+  - dim: INPUT_SIZE
+  - dim: HIDDEN_SIZE
+  - dim: OUTPUT_SIZE
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      INPUT_SIZE: 32
+      HIDDEN_SIZE: 64
+      OUTPUT_SIZE: 16

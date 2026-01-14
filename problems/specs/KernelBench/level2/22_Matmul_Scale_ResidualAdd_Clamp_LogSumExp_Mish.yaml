@@ -1,0 +1,22 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_SIZE]
+    dtype: float16
+
+inits:
+  - dim: INPUT_SIZE
+  - dim: HIDDEN_SIZE
+  - dim: SCALE_FACTOR
+  - dim: CLAMP_MIN
+  - dim: CLAMP_MAX
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      INPUT_SIZE: 64
+      HIDDEN_SIZE: 64
+      SCALE_FACTOR: 2.0
+      CLAMP_MIN: -10.0
+      CLAMP_MAX: 10.0
