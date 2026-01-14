@@ -1,0 +1,16 @@
+inputs:
+  predictions:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+  targets:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+
+inits: []
+
+ci:
+  - params: [predictions, targets]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 64
+      INPUT_DIM: 64

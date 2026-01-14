@@ -1,0 +1,16 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, DIM1, DIM2]
+    dtype: float16
+
+inits:
+  - dim: REDUCE_DIM
+
+ci:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      DIM1: 64
+      DIM2: 63
+      REDUCE_DIM: 1

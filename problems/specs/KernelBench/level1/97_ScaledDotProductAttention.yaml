@@ -1,0 +1,21 @@
+inputs:
+  Q:
+    shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
+    dtype: float16
+  K:
+    shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
+    dtype: float16
+  V:
+    shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
+    dtype: float16
+
+inits: []
+
+ci:
+  - params: [Q, K, V]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      NUM_HEADS: 8
+      SEQUENCE_LENGTH: 16
+      EMBEDDING_DIMENSION: 32

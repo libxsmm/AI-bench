@@ -1,0 +1,22 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, CHANNELS, DEPTH, HEIGHT, WIDTH]
+    dtype: float32
+
+inits:
+  - dim: KERNEL_SIZE
+  - dim: STRIDE
+  - dim: PADDING
+
+ci:
+  - params: [x]
+    dtype: float32 # "avg_pool3d_out_frame" not implemented for 'Half'
+    dims:
+      BATCH_SIZE: 2
+      CHANNELS: 8
+      DEPTH: 16
+      HEIGHT: 16
+      WIDTH: 32
+      KERNEL_SIZE: 3
+      STRIDE: 2
+      PADDING: 1

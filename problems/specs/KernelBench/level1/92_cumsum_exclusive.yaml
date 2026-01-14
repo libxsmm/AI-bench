@@ -1,0 +1,15 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+
+inits:
+  - dim: SCAN_DIM
+
+ci:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 64
+      INPUT_DIM: 64
+      SCAN_DIM: 1

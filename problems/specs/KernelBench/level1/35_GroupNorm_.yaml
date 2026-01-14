@@ -1,0 +1,18 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, FEATURES, DIM1, DIM2]
+    dtype: float16
+
+inits:
+  - dim: FEATURES
+  - dim: NUM_GROUPS
+
+ci:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      FEATURES: 8
+      NUM_GROUPS: 4
+      DIM1: 32
+      DIM2: 32

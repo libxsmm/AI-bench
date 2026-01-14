@@ -1,0 +1,24 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, FEATURES, SEQUENCE_LENGTH]
+    dtype: float16
+
+inits:
+  - dim: KERNEL_SIZE
+  - dim: STRIDE
+  - dim: PADDING
+  - dim: DILATION
+  - dim: RETURN_INDICES
+
+ci:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      FEATURES: 24
+      SEQUENCE_LENGTH: 64
+      KERNEL_SIZE: 2
+      STRIDE: 1
+      PADDING: 1
+      DILATION: 3
+      RETURN_INDICES: false

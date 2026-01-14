@@ -1,0 +1,17 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, FEATURES, DIM1, DIM2]
+    dtype: float16
+
+inits:
+  - dim: NORMALIZED_SHAPE
+
+ci:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      FEATURES: 4
+      DIM1: 64
+      DIM2: 64
+      NORMALIZED_SHAPE: [4, 64, 64] # TODO: bind these to other dims

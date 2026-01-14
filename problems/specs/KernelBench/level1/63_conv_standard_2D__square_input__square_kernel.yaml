@@ -1,0 +1,20 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: OUT_CHANNELS
+  - dim: KERNEL_SIZE
+
+ci:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 16
+      KERNEL_SIZE: 3
+      HEIGHT: 32
+      WIDTH: 32
