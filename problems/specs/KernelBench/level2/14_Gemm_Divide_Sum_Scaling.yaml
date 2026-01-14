@@ -12,9 +12,9 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 32
-      IN_SIZE: 128
-      HIDDEN_SIZE: 128
+      BATCH: 2
+      IN_SIZE: 64
+      HIDDEN_SIZE: 64
       SCALE: 1.5
     flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
 

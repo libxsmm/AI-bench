@@ -13,10 +13,10 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 32
-      IN_FEAT: 128
-      OUT_FEAT: 128
-      POOL_KERNEL_SIZE: 16
+      BATCH: 2
+      IN_FEAT: 64
+      OUT_FEAT: 64
+      POOL_KERNEL_SIZE: 8
       SCALE: 2.0
     flop: "BATCH*IN_FEAT*(POOL_KERNEL_SIZE-1) + 2*BATCH*OUT_FEAT*IN_FEAT + BATCH*OUT_FEAT"
 

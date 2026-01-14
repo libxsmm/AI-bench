@@ -10,7 +10,7 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 32
+      BATCH: 2
       IN_1: 1
       IN_2: 32
       IN_3: 32

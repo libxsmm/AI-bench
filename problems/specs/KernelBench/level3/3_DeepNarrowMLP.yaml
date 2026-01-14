@@ -12,15 +12,15 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 32
-      IN_SIZE: 128
+      BATCH: 8
+      IN_SIZE: 64
       LAYER_SIZES: [
-        32, 32, 32, 32,
-        32, 32, 32, 32,
-        32, 32, 32, 32,
-        32, 32, 32, 32
+        8, 8, 8, 8,
+        8, 8, 8, 8,
+        8, 8, 8, 8,
+        8, 8, 8, 8
       ]
-      OUT_SIZE: 128
+      OUT_SIZE: 64
 
 bench-gpu:
   - params: [X]

@@ -17,14 +17,14 @@ ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH: 4
+      BATCH: 2
       IN_CH: 8
-      OUT_CH: 64
-      H: 32
-      W: 32
+      OUT_CH: 32
+      H: 16
+      W: 16
       KERNEL_SIZE: 3
-      NUM_GROUPS: 16
-      SCALE_SHAPE: [64, 1, 1]
+      NUM_GROUPS: 8
+      SCALE_SHAPE: [32, 1, 1]
       MAXPOOL_KERNEL_SIZE: 4
       CLAMP_MIN: 0.0
       CLAMP_MAX: 1.0

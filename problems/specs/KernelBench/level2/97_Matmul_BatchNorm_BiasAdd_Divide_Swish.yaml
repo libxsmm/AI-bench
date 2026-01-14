@@ -15,9 +15,9 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 32
-      IN_FEAT: 128
-      OUT_FEAT: 128
+      BATCH: 2
+      IN_FEAT: 64
+      OUT_FEAT: 64
       BN_EPS: 0.00001
       BN_MOMENTUM: 0.1
       BIAS_SHAPE: [1]

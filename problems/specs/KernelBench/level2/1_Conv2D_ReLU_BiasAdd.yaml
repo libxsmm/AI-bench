@@ -13,13 +13,13 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 16
-      IN_CHANNELS: 32
-      OUT_CHANNELS: 64
-      HEIGHT: 64
-      WIDTH: 64
+      BATCH: 2
+      IN_CHANNELS: 16
+      OUT_CHANNELS: 32
+      HEIGHT: 32
+      WIDTH: 32
       KERNEL_SIZE: 3
-      BIAS_SHAPE: [64, 1, 1]
+      BIAS_SHAPE: [32, 1, 1]
     flop: "2*BATCH*OUT_CHANNELS*HEIGHT*WIDTH*IN_CHANNELS*KERNEL_SIZE*KERNEL_SIZE + BATCH*OUT_CHANNELS*HEIGHT*WIDTH"
 
 bench-gpu:

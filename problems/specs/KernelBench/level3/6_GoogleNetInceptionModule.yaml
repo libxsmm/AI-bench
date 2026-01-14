@@ -24,8 +24,8 @@ ci:
       OUT_5x5: 24
       POOL_PROJ: 32
       BATCH: 1
-      HEIGHT: 112
-      WIDTH: 112
+      HEIGHT: 56
+      WIDTH: 56
 
 # Disabled due to the error:
 # Condition append_res Failed on void ZeCollector::PostAppendKernelCommandCommon

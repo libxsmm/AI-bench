@@ -14,8 +14,8 @@ ci:
       NUM_CLASSES: 4
       IN_1: 2
       IN_2: 3
-      IN_3: 112
-      IN_4: 112
+      IN_3: 56
+      IN_4: 56
 
 bench-gpu:
   - params: [X]

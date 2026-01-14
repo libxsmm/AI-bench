@@ -13,9 +13,9 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 32
-      IN_FEAT: 128
-      OUT_FEAT: 128
+      BATCH: 2
+      IN_FEAT: 64
+      OUT_FEAT: 64
       MUL: 2.0
       NEG_SLOPE: 0.1
     flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"

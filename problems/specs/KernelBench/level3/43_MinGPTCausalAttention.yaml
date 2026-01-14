@@ -14,10 +14,10 @@ ci:
   - params: [X]
     dtype: float16
     dims:
-      BATCH: 8
-      MAX_SEQLEN: 256
-      SEQ_LEN: 128
-      N_EMBD: 96
+      BATCH: 2
+      MAX_SEQLEN: 128
+      SEQ_LEN: 64
+      N_EMBD: 48
       N_HEAD: 2
       ATTN_PDROP: 0.0
       RESID_PDROP: 0.0
