@@ -1,0 +1,32 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, CHANNELS, IMAGE_SIZE, IMAGE_SIZE]
+    dtype: float16
+
+inits:
+  - dim: IMAGE_SIZE
+  - dim: PATCH_SIZE
+  - dim: NUM_CLASSES
+  - dim: DIM
+  - dim: DEPTH
+  - dim: HEADS
+  - dim: MLP_DIM
+  - dim: CHANNELS
+  - dim: DROPOUT
+  - dim: EMB_DROPOUT
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      CHANNELS: 3
+      IMAGE_SIZE: 56
+      PATCH_SIZE: 4
+      NUM_CLASSES: 2
+      DIM: 32
+      DEPTH: 3
+      HEADS: 4
+      MLP_DIM: 64
+      DROPOUT: 0.0
+      EMB_DROPOUT: 0.0

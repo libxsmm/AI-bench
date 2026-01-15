@@ -1,0 +1,20 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, NUM_INPUT_FEATURES, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: NUM_LAYERS
+  - dim: NUM_INPUT_FEATURES
+  - dim: GROWTH_RATE
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      NUM_INPUT_FEATURES: 2
+      NUM_LAYERS: 3
+      GROWTH_RATE: 4
+      HEIGHT: 32
+      WIDTH: 32

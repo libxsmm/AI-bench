@@ -1,0 +1,22 @@
+inputs:
+  X:
+    shape: [SEQUENCE_LENGTH, BATCH_SIZE, INPUT_SIZE]
+    dtype: float16
+  H0:
+    shape: [NUM_LAYERS, BATCH_SIZE, HIDDEN_SIZE]
+    dtype: float16
+
+inits:
+  - dim: INPUT_SIZE
+  - dim: HIDDEN_SIZE
+  - dim: NUM_LAYERS
+
+ci:
+  - params: [X, H0]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      SEQUENCE_LENGTH: 32
+      INPUT_SIZE: 8
+      HIDDEN_SIZE: 16
+      NUM_LAYERS: 3

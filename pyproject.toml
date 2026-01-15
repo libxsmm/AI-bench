@@ -32,6 +32,7 @@ dependencies = [
   "PyYAML",
   "numpy",
   "python-dotenv",
+  "einops",
 ]
 
 [project.scripts]

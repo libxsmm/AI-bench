@@ -1,0 +1,14 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_CHANNELS, IMAGE_SIZE, IMAGE_SIZE]
+    dtype: float16
+
+inits: []
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      INPUT_CHANNELS: 3
+      IMAGE_SIZE: 224

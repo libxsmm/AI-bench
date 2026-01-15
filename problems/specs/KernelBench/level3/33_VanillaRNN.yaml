@@ -1,0 +1,21 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_SIZE]
+    dtype: float16
+  INITIAL_HIDDEN:
+    shape: [BATCH_SIZE, HIDDEN_SIZE]
+    dtype: float16
+
+inits:
+  - dim: INPUT_SIZE
+  - dim: HIDDEN_SIZE
+  - dim: OUTPUT_SIZE
+
+ci:
+  - params: [X, INITIAL_HIDDEN]
+    dtype: float32 # TODO: Fix model dtype
+    dims:
+      BATCH_SIZE: 256
+      INPUT_SIZE: 32
+      HIDDEN_SIZE: 32
+      OUTPUT_SIZE: 16

@@ -1,0 +1,19 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_CHANNELS, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: GROWTH_RATE
+  - dim: NUM_CLASSES
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      INPUT_CHANNELS: 3
+      HEIGHT: 112
+      WIDTH: 112
+      GROWTH_RATE: 4
+      NUM_CLASSES: 2

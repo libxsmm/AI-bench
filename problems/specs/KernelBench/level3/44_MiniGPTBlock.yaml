@@ -1,0 +1,23 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, SEQUENCE_LENGTH, N_EMBD]
+    dtype: float16
+
+inits:
+  - dim: N_EMBD
+  - dim: N_HEAD
+  - dim: ATTN_PDROP
+  - dim: RESID_PDROP
+  - dim: MAX_SEQLEN
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      SEQUENCE_LENGTH: 32
+      N_EMBD: 48
+      N_HEAD: 2
+      ATTN_PDROP: 0.0
+      RESID_PDROP: 0.0
+      MAX_SEQLEN: 32

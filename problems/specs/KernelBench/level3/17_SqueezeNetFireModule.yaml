@@ -1,0 +1,22 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: IN_CHANNELS
+  - dim: SQUEEZE_CHANNELS
+  - dim: EXPAND1X1_CHANNELS
+  - dim: EXPAND3X3_CHANNELS
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      IN_CHANNELS: 3
+      HEIGHT: 56
+      WIDTH: 56
+      SQUEEZE_CHANNELS: 2
+      EXPAND1X1_CHANNELS: 8
+      EXPAND3X3_CHANNELS: 8

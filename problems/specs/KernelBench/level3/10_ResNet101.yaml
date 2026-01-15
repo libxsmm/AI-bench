@@ -1,0 +1,19 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_CHANNELS, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: LAYERS
+  - dim: NUM_CLASSES
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      INPUT_CHANNELS: 3
+      HEIGHT: 56
+      WIDTH: 56
+      LAYERS: [3, 2, 11, 3]
+      NUM_CLASSES: 2

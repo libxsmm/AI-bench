@@ -1,0 +1,18 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, EMBED_DIM, HEIGHT, WIDTH]
+    dtype: float16
+
+inits:
+  - dim: EMBED_DIM
+  - dim: NUM_HEADS
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      EMBED_DIM: 16
+      HEIGHT: 16
+      WIDTH: 16
+      NUM_HEADS: 2

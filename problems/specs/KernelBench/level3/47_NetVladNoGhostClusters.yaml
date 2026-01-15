@@ -1,0 +1,19 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, NUM_FEATURES, FEATURE_SIZE]
+    dtype: float16
+
+inits:
+  - dim: CLUSTER_SIZE
+  - dim: FEATURE_SIZE
+  - dim: GHOST_CLUSTERS
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      NUM_FEATURES: 10
+      FEATURE_SIZE: 32
+      CLUSTER_SIZE: 8
+      GHOST_CLUSTERS: 0

@@ -1,0 +1,23 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, SEQ_LENGTH, N_HEADS, D_HEAD]
+    dtype: float16
+
+inits:
+  - dim: BATCH_SIZE
+  - dim: SEQ_LENGTH
+  - dim: N_HEADS
+  - dim: D_HEAD
+  - dim: D_STATE
+  - dim: BLOCK_LEN
+
+ci:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 1
+      SEQ_LENGTH: 32
+      N_HEADS: 2
+      D_HEAD: 32
+      D_STATE: 8
+      BLOCK_LEN: 32
