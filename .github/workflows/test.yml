@@ -28,4 +28,4 @@ jobs:
         run: uv run pytest --timeout=60
 
       - name: Test KernelBench (CI variant)
-        run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py
+        run: uv run ai-bench

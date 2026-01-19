@@ -46,7 +46,7 @@ jobs:
           uv sync --extra cpu
 
       - name: Run KernelBench (PyTorch)
-        run: uv run ${{ github.workspace }}/infra/scripts/run_kernel_bench.py --bench --gflops
+        run: uv run ai-bench --bench --gflops
 
   XPU-PyTorch:
     runs-on: pcl-tiergarten

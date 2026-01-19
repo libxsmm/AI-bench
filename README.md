@@ -59,33 +59,6 @@ ai-bench --xpu --bench
 ai-bench --xpu --bench --csv results.csv --note "baseline run"
 ```
 
-### Using Scripts Directly
-
-Run KernelBench problems with different backends and devices:
-
-```bash
-# PyTorch on CPU (default)
-python infra/scripts/run_kernel_bench.py
-
-# PyTorch on XPU
-python infra/scripts/run_kernel_bench.py --xpu
-
-# PyTorch compile on XPU
-python infra/scripts/run_kernel_bench.py --xpu --torch-compile
-
-# Triton on XPU
-python infra/scripts/run_kernel_bench.py --xpu --triton
-
-# Helion on XPU
-python infra/scripts/run_kernel_bench.py --xpu --helion
-
-# Benchmark mode (with timing)
-python infra/scripts/run_kernel_bench.py --xpu --bench
-
-# Triton benchmark on XPU
-python infra/scripts/run_kernel_bench.py --xpu --triton --bench
-```
-
 ### As a Library
 
 ```python
@@ -116,10 +89,10 @@ Benchmark results can be logged to a CSV file using the `--csv` option:
 
 ```bash
 # Log results to CSV
-python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv
+ai-bench --xpu --triton --bench --csv results.csv
 
 # Add a note to identify the run
-python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv --note "BMG card test"
+ai-bench --xpu --triton --bench --csv results.csv --note "BMG card test"
 ```
 
 The CSV file includes the following columns:
@@ -145,7 +118,7 @@ Additionally, any environment variables prefixed with `AIBENCH_` are automatical
 # Set environment variables for tracking
 export AIBENCH_CARD="BMG"
 export AIBENCH_SYSTEM="TestRig1"
-python infra/scripts/run_kernel_bench.py --xpu --triton --bench --csv results.csv
+ai-bench --xpu --triton --bench --csv results.csv
 ```
 
 Notes legend:

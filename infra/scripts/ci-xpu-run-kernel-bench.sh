@@ -74,5 +74,5 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_HELION}" ]]; then
   export HELION_AUTOTUNE_LOG_LEVEL=0
 fi
 
-${AI_BENCH_UV} run python ${SCRIPTS_DIR}/run_kernel_bench.py ${BENCH_FLAGS}
+${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}
 echo ""
