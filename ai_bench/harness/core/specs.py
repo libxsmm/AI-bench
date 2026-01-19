@@ -22,6 +22,7 @@ class InKey(StrEnum):
 
     SHAPE = "shape"
     TYPE = "dtype"
+    RANGE = "range"
 
 
 class InitKey(StrEnum):
@@ -81,6 +82,46 @@ def input_torch_dtype(input_entry: dict) -> torch.dtype:
     return get_torch_dtype(input_entry[InKey.TYPE])
 
 
+def input_is_float(input_entry: dict) -> bool:
+    """Check if an input is of floating point type.
+    Args:
+        input_entry: Specs' input entry
+    Returns:
+        True if type is of a floating point type
+    """
+    return "float" in input_entry[InKey.TYPE]
+
+
+def input_is_int(input_entry: dict) -> bool:
+    """Check an input is of integer type.
+    Args:
+        input_entry: Specs' input entry
+    Returns:
+        True if type is of an integer type
+    """
+    return "int" in input_entry[InKey.TYPE]
+
+
+def input_range(variant: dict, input_entry: dict) -> list[float, float]:
+    """Get input's values range.
+    Args:
+        variant: Specs' variant entry
+        input_entry: Specs' input entry
+    Returns:
+        Values range for the input: [low, high]
+    """
+    entry_range = input_entry[InKey.RANGE]
+    assert len(entry_range) == 2, "Expected range with two values [low, high]"
+    dims = variant[VKey.DIMS]
+
+    def get_range_value(val: str | float) -> float:
+        if isinstance(val, (int, float)):
+            return val
+        return dims[val]
+
+    return [get_range_value(val) for val in entry_range]
+
+
 def get_inputs(
     variant: dict, inputs: dict, device: torch.device | None = None
 ) -> list[torch.Tensor]:
@@ -97,7 +138,6 @@ def get_inputs(
     vals = []
     for param in variant[VKey.PARAMS]:
         input_entry = inputs[param]
-        assert "float" in input_entry[InKey.TYPE], "Only floating type is supported now"
         shape = input_shape(input_entry, dims)
         dtype = input_torch_dtype(input_entry)
         if variant_dtype is not None and dtype != variant_dtype:
@@ -107,7 +147,14 @@ def get_inputs(
                 UserWarning,
                 stacklevel=2,
             )
-        tensor = torch.randn(shape, dtype=dtype, device=device)
+        if input_is_float(input_entry):
+            tensor = torch.randn(shape, dtype=dtype, device=device)
+        elif input_is_int(input_entry):
+            value_range = input_range(variant, input_entry)
+            value_range = list(map(int, value_range))
+            tensor = torch.randint(*value_range, shape, dtype=dtype, device=device)
+        else:
+            raise TypeError("Only floating and integer types are supported now")
         vals.append(tensor)
     return vals
 

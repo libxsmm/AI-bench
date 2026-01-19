@@ -11,6 +11,85 @@ from ai_bench.harness import core as ai_hc
 class TestDtypeMismatchWarning:
     """Tests for dtype mismatch warning in get_inputs."""
 
+    def test_input_int_ranges(self):
+        """Test integer inputs with various value ranges."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["X", "Y", "Z"],
+            ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 16},
+        }
+        inputs = {
+            "X": {
+                ai_hc.InKey.SHAPE: ["BATCH"],
+                ai_hc.InKey.TYPE: "int64",
+                ai_hc.InKey.RANGE: [1, 5],
+            },
+            "Y": {
+                ai_hc.InKey.SHAPE: ["IN_FEAT"],
+                ai_hc.InKey.TYPE: "int32",
+                ai_hc.InKey.RANGE: ["BATCH", 7],
+            },
+            "Z": {
+                ai_hc.InKey.SHAPE: ["BATCH"],
+                ai_hc.InKey.TYPE: "int16",
+                ai_hc.InKey.RANGE: ["BATCH", "IN_FEAT"],
+            },
+            "INVALID_RANGE": {
+                ai_hc.InKey.SHAPE: ["BATCH"],
+                ai_hc.InKey.TYPE: "int64",
+                ai_hc.InKey.RANGE: [3, 6, 9],
+            },
+        }
+
+        assert ai_hc.input_range(variant, inputs["X"]) == [1, 5]
+        assert ai_hc.input_range(variant, inputs["Y"]) == [2, 7]
+        assert ai_hc.input_range(variant, inputs["Z"]) == [2, 16]
+
+        with pytest.raises(Exception):
+            ai_hc.input_range(variant, inputs["INVALID_RANGE"])
+
+        inputs = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert len(inputs) == 3
+        assert inputs[0].dtype == torch.int64
+        assert inputs[1].dtype == torch.int32
+        assert inputs[2].dtype == torch.int16
+
+    def test_input_data_types(self):
+        """Test inputs with various data types."""
+        float_param = "T_FLOAT"
+        int_param = "T_INT"
+
+        variant = {
+            ai_hc.VKey.PARAMS: [float_param, int_param],
+            ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 8},
+        }
+        inputs = {
+            float_param: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "bfloat16",
+            },
+            int_param: {
+                ai_hc.InKey.SHAPE: ["BATCH"],
+                ai_hc.InKey.TYPE: "int64",
+                ai_hc.InKey.RANGE: [0, "IN_FEAT"],
+            },
+        }
+
+        input_float = inputs[float_param]
+        assert ai_hc.input_is_float(input_float)
+        assert not ai_hc.input_is_int(input_float)
+
+        input_int = inputs[int_param]
+        assert not ai_hc.input_is_float(input_int)
+        assert ai_hc.input_is_int(input_int)
+
+        int_range = ai_hc.input_range(variant, input_int)
+        assert int_range == [0, 8]
+
+        inputs = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert len(inputs) == 2
+        assert inputs[0].dtype == torch.bfloat16
+        assert inputs[1].dtype == torch.int64
+
     def test_warns_on_dtype_mismatch(self):
         """Test that warning is raised when input dtype differs from variant dtype."""
         variant = {

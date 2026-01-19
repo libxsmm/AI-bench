@@ -9,6 +9,9 @@ from .specs import get_inputs
 from .specs import get_mem_bytes
 from .specs import get_torch_dtype
 from .specs import get_variant_torch_dtype
+from .specs import input_is_float
+from .specs import input_is_int
+from .specs import input_range
 from .specs import input_shape
 from .specs import input_torch_dtype
 
@@ -24,6 +27,9 @@ __all__ = [
     "get_mem_bytes",
     "get_torch_dtype",
     "get_variant_torch_dtype",
+    "input_is_float",
+    "input_is_int",
+    "input_range",
     "input_shape",
     "input_torch_dtype",
 ]
