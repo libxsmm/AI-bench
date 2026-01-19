@@ -227,7 +227,7 @@ def get_inputs(
             )
 
         if input_is_float(input_entry):
-            tensor = torch.randn(shape, dtype=dtype, device=device)
+            tensor = torch.rand(shape, dtype=dtype, device=device)
         elif input_is_int(input_entry):
             value_range = input_range(variant, input_entry)
             value_range = list(map(int, value_range))
