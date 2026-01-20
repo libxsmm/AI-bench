@@ -83,23 +83,33 @@ def input_torch_dtype(input_entry: dict) -> torch.dtype:
 
 
 def input_is_float(input_entry: dict) -> bool:
-    """Check if an input is of floating point type.
+    """Check if an input is of a floating point type.
     Args:
         input_entry: Specs' input entry
     Returns:
-        True if type is of a floating point type
+        True if type is floating point
     """
     return "float" in input_entry[InKey.TYPE]
 
 
 def input_is_int(input_entry: dict) -> bool:
-    """Check an input is of integer type.
+    """Check an input is of an integer type.
     Args:
         input_entry: Specs' input entry
     Returns:
-        True if type is of an integer type
+        True if type is integer
     """
     return "int" in input_entry[InKey.TYPE]
+
+
+def input_is_bool(input_entry: dict) -> bool:
+    """Check an input is of a boolean type.
+    Args:
+        input_entry: Specs' input entry
+    Returns:
+        True if type is boolean
+    """
+    return "bool" in input_entry[InKey.TYPE]
 
 
 def input_range(variant: dict, input_entry: dict) -> list[float, float]:
@@ -153,6 +163,8 @@ def get_inputs(
             value_range = input_range(variant, input_entry)
             value_range = list(map(int, value_range))
             tensor = torch.randint(*value_range, shape, dtype=dtype, device=device)
+        elif input_is_bool(input_entry):
+            tensor = torch.randint(0, 2, shape, dtype=torch.int64, device=device).bool()
         else:
             raise TypeError("Only floating and integer types are supported now")
         vals.append(tensor)

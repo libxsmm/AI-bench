@@ -1,0 +1,26 @@
+inputs:
+  x:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+  mask:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: bool
+
+inits:
+  - dim: SCAN_DIM
+
+ci:
+  - params: [x, mask]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 64
+      INPUT_DIM: 64
+      SCAN_DIM: 1
+
+bench-gpu:
+  - params: [x, mask]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 8192
+      INPUT_DIM: 8192
+      SCAN_DIM: 1
