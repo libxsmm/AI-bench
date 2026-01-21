@@ -52,6 +52,7 @@ from ai_bench.harness.core import input_torch_dtype
 # Runner
 from ai_bench.harness.runner import FlopsUnit
 from ai_bench.harness.runner import KernelBenchRunner
+from ai_bench.harness.runner import KernelRunner
 from ai_bench.harness.runner import MemBwUnit
 
 # Timing utilities
@@ -73,6 +74,7 @@ __all__ = [
     "InKey",
     "InitKey",
     "KernelBenchRunner",
+    "KernelRunner",
     "MemBwUnit",
     "SpecKey",
     "VKey",

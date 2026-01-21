@@ -38,7 +38,13 @@ Examples:
   # Save results to CSV
   ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
-  # Use custom paths (for library-style usage)
+  # Run a single kernel with a spec
+  ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml
+
+  # Run a single kernel with a spec on XPU
+  ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml --xpu
+
+  # Use custom KernelBench paths (for library-style usage)
   ai-bench --specs-dir /path/to/specs --kernels-dir /path/to/kernels
 
   # Use specific .env file
@@ -59,6 +65,17 @@ Environment file (.env) example:
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
+    )
+
+    # Runner options
+    runner_group = parser.add_argument_group("runner options")
+    runner_group.add_argument(
+        "--kernel",
+        nargs=2,
+        type=Path,
+        default=None,
+        help="Paths to kernel .py and specs .yaml files to run (default: KernelBench runner)",
+        metavar=("KERNEL_PATH", "SPEC_PATH"),
     )
 
     # Environment file options
@@ -251,6 +268,31 @@ def main(argv: list[str] | None = None) -> int:
     mem_bw_unit = runner.MemBwUnit.MBS if args.mbs else runner.MemBwUnit.GBS
 
     try:
+        if args.kernel:
+            # Paths pre-validation
+            kernel_path: Path = args.kernel[0]
+            if kernel_path.suffix != ".py":
+                print(
+                    f"Expected .py kernel file but got: {kernel_path}", file=sys.stderr
+                )
+                return 1
+            spec_path: Path = args.kernel[1]
+            if spec_path.suffix != ".yaml":
+                print(f"Expected .yaml spec file but got: {spec_path}", file=sys.stderr)
+                return 1
+
+            # Run a single kernel
+            kernel_runner = runner.KernelRunner(
+                spec_type=spec_type,
+                device=device,
+                backend=backend,
+                flops_unit=flops_unit,
+                mem_bw_unit=mem_bw_unit,
+            )
+            kernel_runner.run_kernel_spec(kernel_path, spec_path)
+            return 0
+
+        # Run KernelBench problems
         kb_runner = runner.KernelBenchRunner(
             spec_type=spec_type,
             device=device,

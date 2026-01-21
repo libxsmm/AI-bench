@@ -132,10 +132,10 @@ class KernelRunner:
         self.print_info_legend(print_fn)
         print_fn("-" * 60)
 
-    def run_kernel_specs(
-        self, kernel_path: Path, spec_path: Path
+    def run_kernel_spec(
+        self, kernel_path: Path | str, spec_path: Path | str
     ) -> list[KernelStats] | None:
-        """Run a kernel in all variants.
+        """Run a kernel with a spec.
         Args:
             kernel_path: Path to kernel wrapped in PyTorch module '.py' file
             spec_path: Path to problem spec '.yaml' file
@@ -144,6 +144,15 @@ class KernelRunner:
             No statistics are available for CI spec.
             None is returned when execution is unsuccessful.
         """
+        if isinstance(kernel_path, str):
+            kernel_path = Path(kernel_path)
+        if isinstance(spec_path, str):
+            spec_path = Path(spec_path)
+
+        if not kernel_path.exists():
+            raise FileNotFoundError(f"Kernel path not found: {kernel_path}")
+        if not spec_path.exists():
+            raise FileNotFoundError(f"Spec path not found: {spec_path}")
 
         with open(spec_path) as f:
             spec = yaml.safe_load(f)

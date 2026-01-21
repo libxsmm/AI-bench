@@ -57,6 +57,9 @@ ai-bench --xpu --bench
 
 # Log results to CSV
 ai-bench --xpu --bench --csv results.csv --note "baseline run"
+
+# Run a single kernel with a problem specification
+ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml
 ```
 
 ### As a Library
@@ -65,14 +68,24 @@ ai-bench --xpu --bench --csv results.csv --note "baseline run"
 import ai_bench
 import torch
 
+# Create a single Kernel benchmark
+kernel_runner = ai_bench.KernelRunner(
+    spec_type=ai_bench.SpecKey.V_BENCH_CPU,
+    device=torch.device("cpu"),
+    backend=ai_bench.Backend.PYTORCH,
+    flops_unit=ai_bench.FlopsUnit.TFLOPS,
+    mem_bw_unit=ai_bench.MemBwUnit.GBS,
+)
+kernel_runner.run_kernel_spec("path/to/kernel.py", "path/to/spec.yaml")
+
 # Configure paths if running outside project root
 ai_bench.configure(
     specs_dir="/path/to/specs",
     kernels_dir="/path/to/kernels",
 )
 
-# Create benchmark runner
-runner = ai_bench.KernelBenchRunner(
+# Create KernelBench benchmark runner
+kb_runner = ai_bench.KernelBenchRunner(
     spec_type=ai_bench.SpecKey.V_BENCH_GPU,
     device=torch.device("xpu"),
     backend=ai_bench.Backend.PYTORCH,
@@ -80,7 +93,7 @@ runner = ai_bench.KernelBenchRunner(
     mem_bw_unit=ai_bench.MemBwUnit.GBS,
     csv_path="results.csv",
 )
-runner.run_kernels()
+kb_runner.run_kernels()
 ```
 
 ### CSV Logging
@@ -129,9 +142,10 @@ Notes legend:
 
 | Option | Description |
 |--------|-------------|
+| `--kernel KERNEL_PATH SPEC_PATH` | Run a kernel with a spec (default: KernelBench) |
 | `--xpu` | Run on Intel XPU (default: CPU) |
-| `--triton` | Use Triton backend (default: PyTorch) |
-| `--torch-compile` | Use PyTorch compile mode |
+| `--triton` | Use Triton backend (default: PyTorch eager) |
+| `--torch-compile` | Use PyTorch compile mode (default: PyTorch eager) |
 | `--bench` | Run benchmarks with timing (default: CI validation) |
 | `--gflops` | Report GFLOPS (default: TFLOPS) |
 | `--mbs` | Report MB/s (default: GB/s) |
@@ -139,6 +153,10 @@ Notes legend:
 | `--note TEXT` | Add a note to CSV output for identifying runs |
 | `--specs-dir PATH` | Path to specs directory (CLI only) |
 | `--kernels-dir PATH` | Path to kernels directory (CLI only) |
+| `--triton-kernels-dir PATH` | Path to Triton kernels directory (CLI only) |
+| `--helion-kernels-dir PATH` | Path to Helion kernels directory (CLI only) |
+| `--env-file PATH` | Path to .env file (default: auto-detect) |
+| `--no-env` | Disable loading .env config |
 
 ## Testing
 

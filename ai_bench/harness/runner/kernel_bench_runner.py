@@ -109,7 +109,7 @@ class KernelBenchRunner(KernelRunner):
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ".py"))
 
                 # Run the kernel in all compatible variants.
-                run_stats: list[KernelStats] | None = self.run_kernel_specs(
+                run_stats: list[KernelStats] | None = self.run_kernel_spec(
                     kernel_file, spec_dir / file
                 )
 
