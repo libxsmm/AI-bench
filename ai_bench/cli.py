@@ -276,9 +276,16 @@ def main(argv: list[str] | None = None) -> int:
                     f"Expected .py kernel file but got: {kernel_path}", file=sys.stderr
                 )
                 return 1
+            if not kernel_path.exists():
+                print(f"Kernel path not found: {kernel_path}", file=sys.stderr)
+                return 1
+
             spec_path: Path = args.kernel[1]
             if spec_path.suffix != ".yaml":
                 print(f"Expected .yaml spec file but got: {spec_path}", file=sys.stderr)
+                return 1
+            if not spec_path.exists():
+                print(f"Spec path not found: {spec_path}", file=sys.stderr)
                 return 1
 
             # Run a single kernel

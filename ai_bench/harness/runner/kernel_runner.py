@@ -149,11 +149,6 @@ class KernelRunner:
         if isinstance(spec_path, str):
             spec_path = Path(spec_path)
 
-        if not kernel_path.exists():
-            raise FileNotFoundError(f"Kernel path not found: {kernel_path}")
-        if not spec_path.exists():
-            raise FileNotFoundError(f"Spec path not found: {spec_path}")
-
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
         # Bail if desired configuration is not available.

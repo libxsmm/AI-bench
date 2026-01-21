@@ -546,6 +546,36 @@ class Model(torch.nn.Module):
             # Should initialize model with hidden_size=16.
             kb_runner.run_kernels()
 
+    def test_spec_without_kernel(self, temp_dirs):
+        """Test spec without a kernel."""
+        spec_content = """
+inputs:
+  X:
+    shape: [B, H]
+    dtype: float32
+inits:
+  - dim: H
+ci:
+  - params: [X]
+    dims:
+      B: 2
+      H: 16
+"""
+        self._create_spec_file(temp_dirs["specs"], "spec.yaml", spec_content)
+
+        with mock.patch(
+            "ai_bench.utils.finder.project_root", return_value=temp_dirs["root"]
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.PYTORCH,
+            )
+            # Should run without errors.
+            # When a spec has no corresponding kernel,
+            # this case is simply skipped.
+            kb_runner.run_kernels()
+
 
 class TestTimerFunctions:
     """Tests for timing functions."""
