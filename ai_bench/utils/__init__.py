@@ -6,6 +6,7 @@ from .finder import helion_kernels_dir
 from .finder import kernel_bench_dir
 from .finder import project_root
 from .finder import reset_configuration
+from .finder import spec_inits
 from .finder import specs
 from .finder import triton_kernels_dir
 from .flop_counter import count_torch_flop
@@ -26,6 +27,7 @@ __all__ = [
     "kernel_bench_dir",
     "project_root",
     "reset_configuration",
+    "spec_inits",
     "specs",
     "triton_kernels_dir",
 ]

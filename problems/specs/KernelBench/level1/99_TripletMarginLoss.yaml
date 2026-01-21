@@ -1,0 +1,23 @@
+inputs:
+  anchor:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+    init:
+      - fn: apply_scale
+  positive:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+  negative:
+    shape: [BATCH_SIZE, INPUT_DIM]
+    dtype: float16
+
+inits:
+  - dim: MARGIN
+
+ci:
+  - params: [anchor, positive, negative]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 64
+      INPUT_DIM: 8
+      MARGIN: 1.0

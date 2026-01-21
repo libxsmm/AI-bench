@@ -1,3 +1,5 @@
+from .spec_inits import apply_scale
+from .spec_inits import apply_softmax
 from .specs import Backend
 from .specs import InitKey
 from .specs import InKey
@@ -22,6 +24,8 @@ __all__ = [
     "InitKey",
     "SpecKey",
     "VKey",
+    "apply_scale",
+    "apply_softmax",
     "get_flop",
     "get_inits",
     "get_inputs",

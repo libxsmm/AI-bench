@@ -216,6 +216,39 @@ def specs() -> Path:
     return _get_path(_specs_dir, "AIBENCH_SPECS_DIR", default, "Specs directory")
 
 
+def spec_inits() -> frozenset[Path]:
+    """Path to problem spec initializer modules.
+
+    Can be configured via:
+    - ai_bench.configure(spec_inits_path=...)
+    - AIBENCH_SPEC_INITS_PATH environment variable
+    - Auto-detected from project structure
+
+    Returns:
+        Path to spec inits module files
+
+    Raises:
+        ConfigurationError: If path cannot be determined
+    """
+
+    def built_ins() -> set[Path]:
+        path = project_root() / "ai_bench" / "harness" / "core" / "spec_inits.py"
+        if not path.exists():
+            raise FileNotFoundError(f"Default specs path not found: {path}")
+        return set([path])
+
+    paths = built_ins()
+
+    extra_paths = _get_path(
+        _specs_dir, "AIBENCH_SPECS_DIR", lambda: None, "Spec inits path"
+    )
+    if extra_paths is not None:
+        for path in str(extra_paths).split(":"):
+            paths.add(Path(path))
+
+    return frozenset(paths)
+
+
 def kernel_bench_dir() -> Path:
     """Path to the KernelBench directory (PyTorch kernels).
 

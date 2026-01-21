@@ -1,4 +1,9 @@
+from collections.abc import Callable
+from collections.abc import Sequence
 from enum import StrEnum
+from functools import lru_cache
+from pathlib import Path
+import types
 from typing import Dict
 import warnings
 
@@ -23,6 +28,15 @@ class InKey(StrEnum):
     SHAPE = "shape"
     TYPE = "dtype"
     RANGE = "range"
+    INIT = "init"
+
+
+class InInitKey(StrEnum):
+    """Keys for spec input initialization."""
+
+    FN = "fn"
+    ARGS = "args"
+    KWARGS = "kwargs"
 
 
 class InitKey(StrEnum):
@@ -132,6 +146,39 @@ def input_range(variant: dict, input_entry: dict) -> list[float, float]:
     return [get_range_value(val) for val in entry_range]
 
 
+@lru_cache(maxsize=None)
+def _load_spec_init_modules(module_paths: Sequence[Path]) -> Sequence[types.ModuleType]:
+    assert len(module_paths) > 0, "Expected at least one path to init module"
+
+    modules = []
+    for path in module_paths:
+        modules.append(utils.import_from_path(path.stem, path))
+    return modules
+
+
+@lru_cache(maxsize=None)
+def _input_init_fn(fn_name: str) -> Callable[..., torch.Tensor] | None:
+    modules = _load_spec_init_modules(utils.spec_inits())
+    for mod in modules:
+        if hasattr(mod, fn_name):
+            return getattr(mod, fn_name)
+    return None
+
+
+def initialize_input(
+    tensor: torch.Tensor, variant: dict, input_inits: list[dict]
+) -> torch.Tensor:
+    # TODO: remove debug prints
+    for init_entry in input_inits:
+        init_fn = _input_init_fn(init_entry[InInitKey.FN])
+        print(f"{init_fn}", flush=True)
+        # TODO: get spec args
+        # TODO: get spec kwargs
+        # TODO: substiture dim vars in the above
+        tensor = init_fn(tensor)
+    return tensor
+
+
 def get_inputs(
     variant: dict, inputs: dict, device: torch.device | None = None
 ) -> list[torch.Tensor]:
@@ -157,6 +204,7 @@ def get_inputs(
                 UserWarning,
                 stacklevel=2,
             )
+
         if input_is_float(input_entry):
             tensor = torch.randn(shape, dtype=dtype, device=device)
         elif input_is_int(input_entry):
@@ -167,6 +215,12 @@ def get_inputs(
             tensor = torch.randint(0, 2, shape, dtype=torch.int64, device=device).bool()
         else:
             raise TypeError("Only floating and integer types are supported now")
+
+        if InKey.INIT in input_entry:
+            # TODO: remove debug prints
+            print(f"input: {param}")
+            tensor = initialize_input(tensor, variant, input_entry[InKey.INIT])
+
         vals.append(tensor)
     return vals
 
