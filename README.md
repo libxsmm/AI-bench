@@ -68,7 +68,7 @@ ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml
 import ai_bench
 import torch
 
-# Create a single Kernel benchmark
+# Create a single kernel benchmark
 kernel_runner = ai_bench.KernelRunner(
     spec_type=ai_bench.SpecKey.V_BENCH_CPU,
     device=torch.device("cpu"),
