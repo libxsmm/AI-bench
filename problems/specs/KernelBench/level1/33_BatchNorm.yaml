@@ -3,7 +3,8 @@ inputs:
     shape: [BATCH_SIZE, FEATURES, DIM1, DIM2]
     dtype: float16
 
-inits: []
+inits:
+  - dim: FEATURES
 
 ci:
   - params: [x]
