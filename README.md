@@ -60,6 +60,9 @@ ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
 # Run a single kernel with a problem specification
 ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml
+
+# Run a single kernel with a problem specification on XPU
+ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml --xpu
 ```
 
 ### As a Library
