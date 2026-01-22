@@ -27,7 +27,7 @@ class InKey(StrEnum):
 
 
 class InInitKey(StrEnum):
-    """Input initialization transforms."""
+    """Keys for input initialization transforms."""
 
     SCALE = "scale"
     SOFTMAX = "softmax"
