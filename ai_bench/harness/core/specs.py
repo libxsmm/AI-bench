@@ -23,6 +23,21 @@ class InKey(StrEnum):
     SHAPE = "shape"
     TYPE = "dtype"
     RANGE = "range"
+    INITS = "inits"
+
+
+class InInitKey(StrEnum):
+    """Input initialization transforms."""
+
+    SCALE = "scale"
+    SOFTMAX = "softmax"
+    ABS = "abs"
+    NORMALIZE = "normalize"
+    SYMMETRY = "symmetry"
+    TRI_UPPER = "triu"
+    TRI_LOWER = "tril"
+    TRANSPOSE = "transpose"
+    UNIFORM = "uniform"
 
 
 class InitKey(StrEnum):
@@ -132,6 +147,43 @@ def input_range(variant: dict, input_entry: dict) -> list[float, float]:
     return [get_range_value(val) for val in entry_range]
 
 
+def apply_input_inits(tensor: torch.Tensor, inits: list[str]) -> torch.Tensor:
+    """
+    Apply initialization transform to a tensor.
+
+    The transformation are applied sequentially over the same tensor.
+
+    Args:
+        tensor: tensor to transform
+        inits: Specs' input inits entry
+    Return:
+        tensor with transformation applied
+    """
+    for init in inits:
+        match InInitKey(init):
+            case InInitKey.SCALE:
+                scale = torch.rand((), device=tensor.device, dtype=tensor.dtype)
+                tensor = tensor * scale
+            case InInitKey.SOFTMAX:
+                tensor = tensor.softmax(dim=-1)
+            case InInitKey.ABS:
+                tensor = tensor.abs()
+            case InInitKey.NORMALIZE:
+                tensor = torch.nn.functional.normalize(tensor, dim=-1)
+            case InInitKey.SYMMETRY:
+                tensor = (tensor + tensor.T) / 2
+            case InInitKey.TRI_UPPER:
+                tensor = tensor.triu()
+            case InInitKey.TRI_LOWER:
+                tensor = tensor.tril()
+            case InInitKey.TRANSPOSE:
+                tensor = tensor.T
+            case InInitKey.UNIFORM:
+                # TODO: Support different bounds
+                tensor = tensor.uniform_(-1, 1)
+    return tensor
+
+
 def get_inputs(
     variant: dict, inputs: dict, device: torch.device | None = None
 ) -> list[torch.Tensor]:
@@ -157,6 +209,7 @@ def get_inputs(
                 UserWarning,
                 stacklevel=2,
             )
+
         if input_is_float(input_entry):
             tensor = torch.randn(shape, dtype=dtype, device=device)
         elif input_is_int(input_entry):
@@ -167,6 +220,10 @@ def get_inputs(
             tensor = torch.randint(0, 2, shape, dtype=torch.int64, device=device).bool()
         else:
             raise TypeError("Only floating and integer types are supported now")
+
+        if InKey.INITS in input_entry:
+            tensor = apply_input_inits(tensor, input_entry[InKey.INITS])
+
         vals.append(tensor)
     return vals
 

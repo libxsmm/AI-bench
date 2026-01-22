@@ -1,0 +1,17 @@
+inputs:
+  A:
+    shape: [M, M]
+    dtype: float16
+    inits: [tril]
+  B:
+    shape: [M, M]
+    dtype: float16
+    inits: [tril]
+
+inits: []
+
+ci:
+  - params: [A, B]
+    dtype: float16
+    dims:
+      M: 64

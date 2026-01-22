@@ -151,5 +151,117 @@ class TestDtypeMismatchWarning:
             assert len(w) == 0
 
 
+class TestInputInitializations:
+    """Tests input initialization transformations."""
+
+    def test_input_inits(self):
+        """Test inputs with various initializers."""
+        variant = {
+            ai_hc.VKey.PARAMS: [
+                ai_hc.InInitKey.SCALE,
+                ai_hc.InInitKey.SOFTMAX,
+                ai_hc.InInitKey.ABS,
+                ai_hc.InInitKey.NORMALIZE,
+                ai_hc.InInitKey.SYMMETRY,
+                ai_hc.InInitKey.TRI_UPPER,
+                ai_hc.InInitKey.TRI_LOWER,
+                ai_hc.InInitKey.TRANSPOSE,
+                ai_hc.InInitKey.UNIFORM,
+                "multiple_inits",
+            ],
+            ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 4},
+        }
+        inputs = {
+            ai_hc.InInitKey.SCALE: {
+                ai_hc.InKey.SHAPE: ["IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.SCALE],
+            },
+            ai_hc.InInitKey.SOFTMAX: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.SOFTMAX],
+            },
+            ai_hc.InInitKey.ABS: {
+                ai_hc.InKey.SHAPE: ["IN_FEAT"],
+                ai_hc.InKey.TYPE: "int16",
+                ai_hc.InKey.RANGE: [-5, 5],
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.ABS],
+            },
+            ai_hc.InInitKey.NORMALIZE: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.NORMALIZE],
+            },
+            ai_hc.InInitKey.SYMMETRY: {
+                ai_hc.InKey.SHAPE: ["IN_FEAT", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.SYMMETRY],
+            },
+            ai_hc.InInitKey.TRI_UPPER: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.TRI_UPPER],
+            },
+            ai_hc.InInitKey.TRI_LOWER: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float32",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.TRI_LOWER],
+            },
+            ai_hc.InInitKey.TRANSPOSE: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "int32",
+                ai_hc.InKey.RANGE: [-3, 3],
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.TRANSPOSE],
+            },
+            ai_hc.InInitKey.UNIFORM: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.UNIFORM],
+            },
+            "multiple_inits": {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [
+                    ai_hc.InInitKey.SCALE,
+                    ai_hc.InInitKey.SOFTMAX,
+                    ai_hc.InInitKey.SCALE,
+                    ai_hc.InInitKey.ABS,
+                ],
+            },
+        }
+
+        invalid_variant = {
+            ai_hc.VKey.PARAMS: ["INVALID"],
+            ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 4},
+        }
+        invalid_inputs = {
+            "INVALID": {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.INITS: [
+                    ai_hc.InInitKey.SCALE,
+                    "invalid_init",
+                    ai_hc.InInitKey.SCALE,
+                ],
+            },
+        }
+
+        with pytest.raises(Exception) as e:
+            ai_hc.get_inputs(
+                invalid_variant, invalid_inputs, device=torch.device("cpu")
+            )
+        assert "invalid_init" in str(e)
+
+        inputs = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert len(inputs) == 10
+        assert inputs[0].dtype == torch.float16
+        assert inputs[2].dtype == torch.int16
+        assert inputs[3].dtype == torch.float16
+        assert inputs[7].dtype == torch.int32
+        assert inputs[7].shape == (4, 2)
+        assert inputs[9].dtype == torch.float16
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

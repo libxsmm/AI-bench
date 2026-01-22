@@ -1,8 +1,10 @@
 from .specs import Backend
+from .specs import InInitKey
 from .specs import InitKey
 from .specs import InKey
 from .specs import SpecKey
 from .specs import VKey
+from .specs import apply_input_inits
 from .specs import get_flop
 from .specs import get_inits
 from .specs import get_inputs
@@ -18,10 +20,12 @@ from .specs import input_torch_dtype
 
 __all__ = [
     "Backend",
+    "InInitKey",
     "InKey",
     "InitKey",
     "SpecKey",
     "VKey",
+    "apply_input_inits",
     "get_flop",
     "get_inits",
     "get_inputs",
