@@ -75,4 +75,8 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_HELION}" ]]; then
 fi
 
 ${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}
+EXIT_CODE=$?
+
 echo ""
+
+exit ${EXIT_CODE}
