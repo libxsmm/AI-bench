@@ -270,6 +270,7 @@ class TestInputInitializations:
         assert inputs[8].dtype == torch.float32
         assert all(x >= -1.0 or x <= 1.0 for x in inputs[8].flatten().tolist())
         assert inputs[9].dtype == torch.int8
+        assert inputs[9].shape == (2, 4)
         assert all(x == -1 or x == 1 for x in inputs[9].flatten().tolist())
         assert inputs[10].dtype == torch.float16
 
