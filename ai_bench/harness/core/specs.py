@@ -38,6 +38,7 @@ class InInitKey(StrEnum):
     TRI_LOWER = "tril"
     TRANSPOSE = "transpose"
     UNIFORM = "uniform"
+    RADEMACHER = "rademacher"
 
 
 class InitKey(StrEnum):
@@ -191,6 +192,11 @@ def apply_input_inits(tensor: torch.Tensor, inits: list[str]) -> torch.Tensor:
             case InInitKey.UNIFORM:
                 # TODO: Support different bounds
                 tensor = tensor.uniform_(-1, 1)
+            case InInitKey.RADEMACHER:
+                dist = (
+                    torch.randint(0, 2, size=tensor.shape, device=tensor.device) * 2 - 1
+                )
+                tensor = dist.to(tensor.dtype)
     return tensor
 
 

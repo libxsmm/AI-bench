@@ -167,6 +167,7 @@ class TestInputInitializations:
                 ai_hc.InInitKey.TRI_LOWER,
                 ai_hc.InInitKey.TRANSPOSE,
                 ai_hc.InInitKey.UNIFORM,
+                ai_hc.InInitKey.RADEMACHER,
                 "multiple_inits",
             ],
             ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 4},
@@ -216,8 +217,14 @@ class TestInputInitializations:
             },
             ai_hc.InInitKey.UNIFORM: {
                 ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
-                ai_hc.InKey.TYPE: "float16",
+                ai_hc.InKey.TYPE: "float32",
                 ai_hc.InKey.INITS: [ai_hc.InInitKey.UNIFORM],
+            },
+            ai_hc.InInitKey.RADEMACHER: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "int8",
+                ai_hc.InKey.RANGE: [-10, 10],
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.RADEMACHER],
             },
             "multiple_inits": {
                 ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
@@ -254,13 +261,17 @@ class TestInputInitializations:
         assert "invalid_init" in str(e)
 
         inputs = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
-        assert len(inputs) == 10
+        assert len(inputs) == 11
         assert inputs[0].dtype == torch.float16
         assert inputs[2].dtype == torch.int16
         assert inputs[3].dtype == torch.float16
         assert inputs[7].dtype == torch.int32
         assert inputs[7].shape == (4, 2)
-        assert inputs[9].dtype == torch.float16
+        assert inputs[8].dtype == torch.float32
+        assert all(x >= -1.0 or x <= 1.0 for x in inputs[8].flatten().tolist())
+        assert inputs[9].dtype == torch.int8
+        assert all(x == -1 or x == 1 for x in inputs[9].flatten().tolist())
+        assert inputs[10].dtype == torch.float16
 
 
 if __name__ == "__main__":

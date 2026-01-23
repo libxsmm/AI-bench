@@ -5,7 +5,7 @@ inputs:
   targets:
     shape: [BATCH_SIZE]
     dtype: float16
-    inits: [uniform]
+    inits: [rademacher]
 
 inits: []
 
