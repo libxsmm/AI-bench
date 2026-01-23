@@ -162,7 +162,7 @@ class TestInputInitializations:
                 ai_hc.InInitKey.SOFTMAX,
                 ai_hc.InInitKey.ABS,
                 ai_hc.InInitKey.NORMALIZE,
-                ai_hc.InInitKey.SYMMETRY,
+                ai_hc.InInitKey.SYMMETRIC,
                 ai_hc.InInitKey.TRI_UPPER,
                 ai_hc.InInitKey.TRI_LOWER,
                 ai_hc.InInitKey.TRANSPOSE,
