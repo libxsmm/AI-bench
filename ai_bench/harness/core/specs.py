@@ -33,7 +33,7 @@ class InInitKey(StrEnum):
     SOFTMAX = "softmax"
     ABS = "abs"
     NORMALIZE = "normalize"
-    SYMMETRY = "symmetry"
+    SYMMETRIC = "symmetric"
     TRI_UPPER = "triu"
     TRI_LOWER = "tril"
     TRANSPOSE = "transpose"

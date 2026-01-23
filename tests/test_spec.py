@@ -193,10 +193,10 @@ class TestInputInitializations:
                 ai_hc.InKey.TYPE: "float16",
                 ai_hc.InKey.INITS: [ai_hc.InInitKey.NORMALIZE],
             },
-            ai_hc.InInitKey.SYMMETRY: {
+            ai_hc.InInitKey.SYMMETRIC: {
                 ai_hc.InKey.SHAPE: ["IN_FEAT", "IN_FEAT"],
                 ai_hc.InKey.TYPE: "float16",
-                ai_hc.InKey.INITS: [ai_hc.InInitKey.SYMMETRY],
+                ai_hc.InKey.INITS: [ai_hc.InInitKey.SYMMETRIC],
             },
             ai_hc.InInitKey.TRI_UPPER: {
                 ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
