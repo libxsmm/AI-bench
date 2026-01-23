@@ -149,15 +149,15 @@ def input_range(variant: dict, input_entry: dict) -> list[float, float]:
 
 def apply_input_inits(tensor: torch.Tensor, inits: list[str]) -> torch.Tensor:
     """
-    Apply initialization transform to a tensor.
+    Apply initialization transforms to a tensor.
 
-    The transformation are applied sequentially over the same tensor.
+    Transforms are applied sequentially.
 
     Args:
         tensor: tensor to transform
-        inits: Specs' input inits entry
-    Return:
-        tensor with transformation applied
+        inits: list of transform names from InInitKey
+    Returns:
+        transformed tensor
     """
     for init in inits:
         match InInitKey(init):
@@ -170,13 +170,23 @@ def apply_input_inits(tensor: torch.Tensor, inits: list[str]) -> torch.Tensor:
                 tensor = tensor.abs()
             case InInitKey.NORMALIZE:
                 tensor = torch.nn.functional.normalize(tensor, dim=-1)
-            case InInitKey.SYMMETRY:
+            case InInitKey.SYMMETRIC:
+                if tensor.ndim != 2 or tensor.shape[0] != tensor.shape[1]:
+                    raise ValueError(
+                        f"'{init}' requires square 2D tensor, got shape {tuple(tensor.shape)}"
+                    )
                 tensor = (tensor + tensor.T) / 2
             case InInitKey.TRI_UPPER:
+                if tensor.ndim != 2:
+                    raise ValueError(f"'{init}' requires 2D tensor, got {tensor.ndim}D")
                 tensor = tensor.triu()
             case InInitKey.TRI_LOWER:
+                if tensor.ndim != 2:
+                    raise ValueError(f"'{init}' requires 2D tensor, got {tensor.ndim}D")
                 tensor = tensor.tril()
             case InInitKey.TRANSPOSE:
+                if tensor.ndim != 2:
+                    raise ValueError(f"'{init}' requires 2D tensor, got {tensor.ndim}D")
                 tensor = tensor.T
             case InInitKey.UNIFORM:
                 # TODO: Support different bounds
