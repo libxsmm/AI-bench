@@ -111,7 +111,7 @@ def input_torch_dtype(input_entry: dict, variant: dict | None = None) -> torch.d
                     raise ValueError("Missing variant type for inheritance")
                 return dtype
             case _:
-                raise ValueError(f"Unsupported input key: {in_type}")
+                raise ValueError(f"Unimplemented input key: {in_type}")
     return get_torch_dtype(in_type)
 
 
