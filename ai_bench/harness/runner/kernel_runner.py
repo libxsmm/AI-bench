@@ -74,10 +74,10 @@ class KernelRunner:
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
-        if self.device.type == "cpu":
+        if self.is_cpu():
             self.warmup = 5
             self.rep = 20
-        elif self.device.type == "xpu":
+        elif self.is_xpu():
             self.warmup = 200
             self.rep = 100
         else:
@@ -90,6 +90,14 @@ class KernelRunner:
             True if the current backend is torch-based.
         """
         return self.backend in [ai_hc.Backend.PYTORCH, ai_hc.Backend.PYTORCH_COMPILE]
+
+    def is_cpu(self) -> bool:
+        """Check if the device is a CPU."""
+        return self.device.type == "cpu"
+
+    def is_xpu(self) -> bool:
+        """Check if the device is an XPU."""
+        return self.device.type == "xpu"
 
     def load_model(self, kernel_path: Path) -> types.ModuleType | None:
         """Load a kernel model.
@@ -180,7 +188,9 @@ class KernelRunner:
             if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
                 model = torch.compile(model, dynamic=False)
 
-            fn = model.forward
+            # Call model directly to avoid skipping extra hooks if present.
+            # It allows 'torch.compile' decorator to be invoked correctly.
+            fn = model
             args = ai_hc.get_inputs(variant, inputs, device=self.device)
 
             # Simple CI run to verify functionality.

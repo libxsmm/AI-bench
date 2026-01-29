@@ -9,9 +9,10 @@ SCRIPTS_DIR=$(realpath $(dirname $0))
 # Backends
 BENCH_BACKEND_TORCH="torch"
 BENCH_BACKEND_TORCH_COMPILE="torch-compile"
+BENCH_BACKEND_MLIR="mlir"
 
 die_syntax() {
-  echo "Syntax: $0 [-b (${BENCH_BACKEND_TORCH}|${BENCH_BACKEND_TORCH_COMPILE})]"
+  echo "Syntax: $0 [-b (${BENCH_BACKEND_TORCH}|${BENCH_BACKEND_TORCH_COMPILE}|${BENCH_BACKEND_MLIR})]"
   echo ""
   echo "  -b: Optional, backend to use (default: torch)"
   exit 1
@@ -23,7 +24,8 @@ while getopts "b:" arg; do
   case ${arg} in
     b)
       if [ "${OPTARG}" == "${BENCH_BACKEND_TORCH}" ] || \
-         [ "${OPTARG}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]; then
+         [ "${OPTARG}" == "${BENCH_BACKEND_TORCH_COMPILE}" ] || \
+         [ "${OPTARG}" == "${BENCH_BACKEND_MLIR}" ]; then
         BENCH_BACKEND="${OPTARG}"
       else
         echo "Invalid backend: ${OPTARG}"
@@ -54,7 +56,12 @@ git submodule update --init
 pip install --upgrade --user uv
 AI_BENCH_UV=${HOME}/.local/bin/uv
 
-${AI_BENCH_UV} sync --extra cpu --link-mode copy
+PROJECT_DEPS="--extra cpu"
+if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
+  PROJECT_DEPS="${PROJECT_DEPS} --extra mlir"
+fi
+
+${AI_BENCH_UV} sync ${PROJECT_DEPS} --link-mode copy
 echo ""
 
 # Run benchmark
@@ -64,6 +71,9 @@ BENCH_FLAGS="--bench --gflops"
 
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --torch-compile"
+fi
+if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --mlir"
 fi
 
 ${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}

@@ -3,8 +3,12 @@ name: KernelBench Perf
 on:
   workflow_dispatch:
     inputs:
-      RUN_CPU:
-        description: "Run on CPU"
+      RUN_CPU_TORCH:
+        description: "Run on CPU (PyTorch eager)"
+        type: boolean
+        default: false
+      RUN_CPU_MLIR:
+        description: "Run on CPU (MLIR)"
         type: boolean
         default: false
       RUN_XPU_TORCH:
@@ -29,10 +33,10 @@ env:
   SRUN: ${HOME}/srun.sh
 
 jobs:
-  CPU:
+  CPU-PyTorch:
     runs-on: pcl-tiergarten
     if: |
-      (github.event_name == 'workflow_dispatch' && inputs.RUN_CPU)
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_CPU_TORCH)
 
     steps:
       - uses: actions/checkout@v5
@@ -40,6 +44,18 @@ jobs:
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
             '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -b torch'"
+
+  CPU-MLIR:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_CPU_MLIR)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Emerald Rapids
+        run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
+            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -b mlir'"
 
   XPU-PyTorch:
     runs-on: pcl-tiergarten

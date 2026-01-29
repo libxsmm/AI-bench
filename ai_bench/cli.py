@@ -35,6 +35,9 @@ Examples:
   # Run with Helion backend
   ai-bench --xpu --bench --helion
 
+  # Run with MLIR backend
+  ai-bench --bench --mlir
+
   # Save results to CSV
   ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
@@ -121,6 +124,12 @@ Environment file (.env) example:
         default=None,
         help="Path to Helion kernels directory (default: auto-detect or AIBENCH_HELION_KERNELS_DIR)",
     )
+    path_group.add_argument(
+        "--mlir-kernels-dir",
+        type=Path,
+        default=None,
+        help="Path to MLIR kernels directory (default: auto-detect or AIBENCH_MLIR_KERNELS_DIR)",
+    )
 
     # Device options
     device_group = parser.add_argument_group("device options")
@@ -157,6 +166,12 @@ Environment file (.env) example:
         action="store_true",
         default=False,
         help="Use Helion backend",
+    )
+    backend_exclusive.add_argument(
+        "--mlir",
+        action="store_true",
+        default=False,
+        help="Use MLIR backend",
     )
 
     # Run mode
@@ -228,12 +243,14 @@ def main(argv: list[str] | None = None) -> int:
         or args.kernels_dir
         or args.triton_kernels_dir
         or args.helion_kernels_dir
+        or args.mlir_kernels_dir
     ):
         finder.configure(
             specs_dir=args.specs_dir,
             kernels_dir=args.kernels_dir,
             triton_kernels_dir=args.triton_kernels_dir,
             helion_kernels_dir=args.helion_kernels_dir,
+            mlir_kernels_dir=args.mlir_kernels_dir,
         )
 
     # Determine device
@@ -251,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
         backend = core.Backend.HELION
     elif args.torch_compile:
         backend = core.Backend.PYTORCH_COMPILE
+    elif args.mlir:
+        backend = core.Backend.MLIR
     else:
         backend = core.Backend.PYTORCH
 

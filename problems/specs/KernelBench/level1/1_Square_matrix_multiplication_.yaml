@@ -14,9 +14,14 @@ ci:
 
 bench-cpu:
   - params: [A, B]
+    dtype: float32
+    dims:
+      N: 1024
+    flop: "2*N*N*N"
+  - params: [A, B]
     dtype: bfloat16
     dims:
-      N: 256
+      N: 1024
     flop: "2*N*N*N"
 
 bench-gpu:

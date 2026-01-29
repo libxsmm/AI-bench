@@ -51,6 +51,10 @@ xpu = [
   "pytorch-triton-xpu",
   "helion==0.2.9",
 ]
+mlir = [
+  "lighthouse[ingress_torch_mlir]",
+  "ml_dtypes",
+]
 
 [dependency-groups]
 dev = [
@@ -77,6 +81,7 @@ conflicts = [
 [tool.uv.sources]
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch" }
+lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "d32d1cf" }
 
 [[tool.uv.index]]
 name = "pytorch"
@@ -148,7 +153,9 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-local-folder = ["ai_bench"]
-known-third-party = ["torch", "triton", "helion"]
-known-first-party = ["mlir"]
+known-third-party = [
+  "torch", "triton", "helion",
+  "mlir", "lighthouse", "torch_mlir",
+]
 force-single-line = true  # Improves merge conflicts
 force-sort-within-sections = true

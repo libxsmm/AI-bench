@@ -4,6 +4,7 @@ from .finder import ConfigurationError
 from .finder import configure
 from .finder import helion_kernels_dir
 from .finder import kernel_bench_dir
+from .finder import mlir_kernels_dir
 from .finder import project_root
 from .finder import reset_configuration
 from .finder import specs
@@ -24,6 +25,7 @@ __all__ = [
     "helion_kernels_dir",
     "import_from_path",
     "kernel_bench_dir",
+    "mlir_kernels_dir",
     "project_root",
     "reset_configuration",
     "specs",

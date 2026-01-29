@@ -119,6 +119,7 @@ class TestEnvironmentVariables:
             "AIBENCH_KERNELS_DIR",
             "AIBENCH_TRITON_KERNELS_DIR",
             "AIBENCH_HELION_KERNELS_DIR",
+            "AIBENCH_MLIR_KERNELS_DIR",
         ]:
             self._saved_env[key] = os.environ.get(key)
 
@@ -166,6 +167,15 @@ class TestEnvironmentVariables:
         os.environ["AIBENCH_HELION_KERNELS_DIR"] = str(helion_dir)
 
         assert finder.helion_kernels_dir() == helion_dir
+
+    def test_mlir_kernels_from_env_var(self, tmp_path):
+        """Test MLIR kernels path from environment variable."""
+        mlir_dir = tmp_path / "mlir"
+        mlir_dir.mkdir()
+
+        os.environ["AIBENCH_MLIR_KERNELS_DIR"] = str(mlir_dir)
+
+        assert finder.mlir_kernels_dir() == mlir_dir
 
     def test_env_var_nonexistent_path_raises(self, tmp_path):
         """Test that env var with nonexistent path raises error."""

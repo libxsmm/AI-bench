@@ -15,6 +15,7 @@ _specs_dir: Path | None = None
 _kernels_dir: Path | None = None
 _triton_kernels_dir: Path | None = None
 _helion_kernels_dir: Path | None = None
+_mlir_kernels_dir: Path | None = None
 _env_loaded: bool = False
 
 
@@ -84,6 +85,7 @@ def configure(
     kernels_dir: Path | str | None = None,
     triton_kernels_dir: Path | str | None = None,
     helion_kernels_dir: Path | str | None = None,
+    mlir_kernels_dir: Path | str | None = None,
 ) -> None:
     """Configure library paths.
 
@@ -94,6 +96,7 @@ def configure(
         kernels_dir: Path to PyTorch kernel implementations
         triton_kernels_dir: Path to Triton kernel implementations
         helion_kernels_dir: Path to Helion kernel implementations
+        mlir_kernels_dir: Path to MLIR kernel implementations
 
     Example:
         >>> import ai_bench
@@ -102,7 +105,12 @@ def configure(
         ...     kernels_dir="/path/to/kernels",
         ... )
     """
-    global _specs_dir, _kernels_dir, _triton_kernels_dir, _helion_kernels_dir
+    global \
+        _specs_dir, \
+        _kernels_dir, \
+        _triton_kernels_dir, \
+        _helion_kernels_dir, \
+        _mlir_kernels_dir
 
     if specs_dir is not None:
         _specs_dir = Path(specs_dir)
@@ -112,6 +120,8 @@ def configure(
         _triton_kernels_dir = Path(triton_kernels_dir)
     if helion_kernels_dir is not None:
         _helion_kernels_dir = Path(helion_kernels_dir)
+    if mlir_kernels_dir is not None:
+        _mlir_kernels_dir = Path(mlir_kernels_dir)
 
 
 def reset_configuration() -> None:
@@ -124,11 +134,13 @@ def reset_configuration() -> None:
         _kernels_dir, \
         _triton_kernels_dir, \
         _helion_kernels_dir, \
+        _mlir_kernels_dir, \
         _env_loaded
     _specs_dir = None
     _kernels_dir = None
     _triton_kernels_dir = None
     _helion_kernels_dir = None
+    _mlir_kernels_dir = None
     _env_loaded = False
 
 
@@ -295,4 +307,33 @@ def helion_kernels_dir() -> Path:
         "AIBENCH_HELION_KERNELS_DIR",
         default,
         "Helion kernels directory",
+    )
+
+
+def mlir_kernels_dir() -> Path:
+    """Path to the MLIR kernels directory.
+
+    Can be configured via:
+    - ai_bench.configure(mlir_kernels_dir=...)
+    - AIBENCH_MLIR_KERNELS_DIR environment variable
+    - Auto-detected from project structure
+
+    Returns:
+        Path to MLIR kernels directory
+
+    Raises:
+        ConfigurationError: If path cannot be determined
+    """
+
+    def default() -> Path:
+        path = project_root() / "backends" / "mlir"
+        if not path.exists():
+            raise FileNotFoundError(f"Default MLIR kernels path not found: {path}")
+        return path
+
+    return _get_path(
+        _mlir_kernels_dir,
+        "AIBENCH_MLIR_KERNELS_DIR",
+        default,
+        "MLIR kernels directory",
     )

@@ -5,7 +5,7 @@
 [![KernelBench Perf](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml/badge.svg)](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
-A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion) and devices (CPU, XPU).
+A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR) and devices (CPU, XPU).
 
 ## Installation
 
@@ -17,7 +17,7 @@ The project is using [uv](https://docs.astral.sh/uv/) package manager.
 pip install uv
 ```
 
-The project can be installed with appropriate device-specific extensions using:
+The project can be installed with appropriate device and backend extensions using:
 
 ```bash
 # CPU only
@@ -25,6 +25,9 @@ uv sync --extra cpu
 
 # CPU + XPU
 uv sync --extra xpu
+
+# CPU + MLIR backend
+uv sync --extra cpu --extra mlir
 ```
 
 ## Usage
@@ -39,6 +42,9 @@ ai-bench --help
 
 # PyTorch on CPU (default)
 ai-bench
+
+# MLIR on CPU
+ai-bench --mlir
 
 # PyTorch on XPU
 ai-bench --xpu
@@ -149,6 +155,8 @@ Notes legend:
 | `--xpu` | Run on Intel XPU (default: CPU) |
 | `--triton` | Use Triton backend (default: PyTorch eager) |
 | `--torch-compile` | Use PyTorch compile mode (default: PyTorch eager) |
+| `--helion` | Use Helion backend (default: PyTorch eager) |
+| `--mlir` | Use MLIR backend (default: PyTorch eager) |
 | `--bench` | Run benchmarks with timing (default: CI validation) |
 | `--gflops` | Report GFLOPS (default: TFLOPS) |
 | `--mbs` | Report MB/s (default: GB/s) |
@@ -158,6 +166,7 @@ Notes legend:
 | `--kernels-dir PATH` | Path to kernels directory (CLI only) |
 | `--triton-kernels-dir PATH` | Path to Triton kernels directory (CLI only) |
 | `--helion-kernels-dir PATH` | Path to Helion kernels directory (CLI only) |
+| `--mlir-kernels-dir PATH` | Path to MLIR kernels directory (CLI only) |
 | `--env-file PATH` | Path to .env file (default: auto-detect) |
 | `--no-env` | Disable loading .env config |
 
@@ -190,6 +199,10 @@ Environment variables used for project configuration:
 | `AIBENCH_KERNELS_DIR` | Path to PyTorch kernels directory |
 | `AIBENCH_TRITON_KERNELS_DIR` | Path to Triton kernels directory |
 | `AIBENCH_HELION_KERNELS_DIR` | Path to Helion kernels directory |
+| `AIBENCH_MLIR_KERNELS_DIR` | Path to MLIR kernels directory |
+| `AIBENCH_MLIR_LIB_PATH` | Paths to MLIR shared libraries (colon separated) |
+| `AIBENCH_MLIR_DUMP` | Dump imported MLIR IR |
+| `AIBENCH_MLIR_DUMP_OBJ` | Dump jitted MLIR to an object file |
 
 ## License
 
