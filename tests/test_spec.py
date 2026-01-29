@@ -1,5 +1,6 @@
 """Tests for dtype mismatch warning between input and variant specs."""
 
+import logging
 import warnings
 
 import pytest
@@ -8,8 +9,77 @@ import torch
 from ai_bench.harness import core as ai_hc
 
 
-class TestDtypeMismatchWarning:
-    """Tests for dtype mismatch warning in get_inputs."""
+class TestInputDataTypes:
+    def test_input_data_types(self):
+        """Test inputs with various data types."""
+        float_param = "T_FLOAT"
+        int_param = "T_INT"
+        bool_param = "T_BOOL"
+        inherit_param = "T_INHERIT"
+
+        variant = {
+            ai_hc.VKey.PARAMS: [float_param, int_param, bool_param, inherit_param],
+            ai_hc.VKey.TYPE: "float32",
+            ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 8},
+        }
+        inputs = {
+            float_param: {
+                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
+                ai_hc.InKey.TYPE: "bfloat16",
+            },
+            int_param: {
+                ai_hc.InKey.SHAPE: ["BATCH"],
+                ai_hc.InKey.TYPE: "int64",
+                ai_hc.InKey.RANGE: [0, "IN_FEAT"],
+            },
+            bool_param: {
+                ai_hc.InKey.SHAPE: ["IN_FEAT"],
+                ai_hc.InKey.TYPE: "bool",
+            },
+            inherit_param: {
+                ai_hc.InKey.SHAPE: ["IN_FEAT"],
+                ai_hc.InKey.TYPE: ai_hc.InInputKey.INHERIT,
+            },
+        }
+
+        input_float = inputs[float_param]
+        assert ai_hc.input_is_float(input_float)
+        assert not ai_hc.input_is_int(input_float)
+        assert not ai_hc.input_is_bool(input_float)
+
+        input_int = inputs[int_param]
+        assert not ai_hc.input_is_float(input_int)
+        assert ai_hc.input_is_int(input_int)
+        assert not ai_hc.input_is_bool(input_int)
+
+        input_bool = inputs[bool_param]
+        assert not ai_hc.input_is_float(input_bool)
+        assert not ai_hc.input_is_int(input_bool)
+        assert ai_hc.input_is_bool(input_bool)
+
+        input_inherit = inputs[inherit_param]
+        assert not ai_hc.input_is_float(input_inherit)
+        assert not ai_hc.input_is_int(input_inherit)
+        assert not ai_hc.input_is_bool(input_inherit)
+        with pytest.raises(Exception) as e:
+            ai_hc.input_torch_dtype(input_inherit)
+        assert "Missing variant" in str(e)
+        inherit_dtype = ai_hc.input_torch_dtype(input_inherit, variant)
+        assert inherit_dtype == torch.float32
+
+        int_range = ai_hc.input_range(variant, input_int)
+        assert int_range == [0, 8]
+
+        inputs = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert len(inputs) == 4
+        assert inputs[0].dtype == torch.bfloat16
+        assert inputs[1].dtype == torch.int64
+        assert inputs[2].dtype == torch.bool
+        assert inputs[3].dtype == torch.float32
+
+
+class TestIntegerInputCreation:
+    """Tests for integer input creation."""
 
     def test_input_int_ranges(self):
         """Test integer inputs with various value ranges."""
@@ -53,57 +123,30 @@ class TestDtypeMismatchWarning:
         assert inputs[1].dtype == torch.int32
         assert inputs[2].dtype == torch.int16
 
-    def test_input_data_types(self):
-        """Test inputs with various data types."""
-        float_param = "T_FLOAT"
-        int_param = "T_INT"
-        bool_param = "T_BOOL"
-
+    def test_integer_inheritance(self):
+        """Test integer type inherited from the variant."""
         variant = {
-            ai_hc.VKey.PARAMS: [float_param, int_param, bool_param],
+            ai_hc.VKey.PARAMS: ["X"],
+            ai_hc.VKey.TYPE: "int16",
             ai_hc.VKey.DIMS: {"BATCH": 2, "IN_FEAT": 8},
         }
         inputs = {
-            float_param: {
-                ai_hc.InKey.SHAPE: ["BATCH", "IN_FEAT"],
-                ai_hc.InKey.TYPE: "bfloat16",
-            },
-            int_param: {
+            "X": {
                 ai_hc.InKey.SHAPE: ["BATCH"],
-                ai_hc.InKey.TYPE: "int64",
-                ai_hc.InKey.RANGE: [0, "IN_FEAT"],
-            },
-            bool_param: {
-                ai_hc.InKey.SHAPE: ["IN_FEAT"],
-                ai_hc.InKey.TYPE: "bool",
+                ai_hc.InKey.TYPE: ai_hc.InInputKey.INHERIT,
+                ai_hc.InKey.RANGE: [1, 5],
             },
         }
 
-        input_float = inputs[float_param]
-        assert ai_hc.input_is_float(input_float)
-        assert not ai_hc.input_is_int(input_float)
-        assert not ai_hc.input_is_bool(input_float)
-
-        input_int = inputs[int_param]
-        assert not ai_hc.input_is_float(input_int)
-        assert ai_hc.input_is_int(input_int)
-        assert not ai_hc.input_is_bool(input_int)
-
-        input_bool = inputs[bool_param]
-        assert not ai_hc.input_is_float(input_bool)
-        assert not ai_hc.input_is_int(input_bool)
-        assert ai_hc.input_is_bool(input_bool)
-
-        int_range = ai_hc.input_range(variant, input_int)
-        assert int_range == [0, 8]
-
         inputs = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
-        assert len(inputs) == 3
-        assert inputs[0].dtype == torch.bfloat16
-        assert inputs[1].dtype == torch.int64
-        assert inputs[2].dtype == torch.bool
+        assert len(inputs) == 1
+        assert inputs[0].dtype == torch.int16
 
-    def test_warns_on_dtype_mismatch(self):
+
+class TestDtypeMismatchWarning:
+    """Tests for dtype mismatch warning in get_inputs."""
+
+    def test_warns_on_dtype_mismatch(self, caplog):
         """Test that warning is raised when input dtype differs from variant dtype."""
         variant = {
             ai_hc.VKey.PARAMS: ["X"],
@@ -117,15 +160,11 @@ class TestDtypeMismatchWarning:
             },
         }
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.DEBUG):
             tensors = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
-
-            assert len(w) == 1
-            assert issubclass(w[0].category, UserWarning)
-            assert "dtype" in str(w[0].message).lower()
-            assert "float16" in str(w[0].message)
-            assert "bfloat16" in str(w[0].message)
+        assert "dtype" in str(caplog.text).lower()
+        assert "float16" in str(caplog.text)
+        assert "bfloat16" in str(caplog.text)
 
         # Tensor should still be created with input dtype.
         assert tensors[0].dtype == torch.float16

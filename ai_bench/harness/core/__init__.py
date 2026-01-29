@@ -1,5 +1,6 @@
 from .specs import Backend
 from .specs import InInitKey
+from .specs import InInputKey
 from .specs import InitKey
 from .specs import InKey
 from .specs import SpecKey
@@ -21,6 +22,7 @@ from .specs import input_torch_dtype
 __all__ = [
     "Backend",
     "InInitKey",
+    "InInputKey",
     "InKey",
     "InitKey",
     "SpecKey",

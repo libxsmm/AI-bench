@@ -1,10 +1,10 @@
 inputs:
   X:
     shape: [SEQUENCE_LENGTH, BATCH_SIZE, INPUT_SIZE]
-    dtype: float16
+    dtype: inherit
   H0:
     shape: [BATCH_SIZE, HIDDEN_SIZE]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: INPUT_SIZE

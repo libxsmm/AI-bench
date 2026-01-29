@@ -1,10 +1,10 @@
 inputs:
   predictions:
     shape: [BATCH_SIZE, INPUT_DIM]
-    dtype: float16
+    dtype: inherit
   targets:
     shape: [BATCH_SIZE]
-    dtype: float16
+    dtype: inherit
     inits: [rademacher]
 
 inits: []

@@ -5,10 +5,10 @@ inputs:
     inits: [scale]
   positive:
     shape: [BATCH_SIZE, INPUT_DIM]
-    dtype: float16
+    dtype: inherit
   negative:
     shape: [BATCH_SIZE, INPUT_DIM]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: MARGIN

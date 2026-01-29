@@ -1,7 +1,7 @@
 inputs:
   X:
     shape: [BATCH, IN_1, IN_2, IN_3]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: NUM_CLASSES

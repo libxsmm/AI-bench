@@ -1,7 +1,7 @@
 inputs:
   x:
     shape: [BATCH_SIZE, IN_CHANNELS, WIDTH, HEIGHT, DEPTH]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: IN_CHANNELS

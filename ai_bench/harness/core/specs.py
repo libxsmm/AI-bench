@@ -1,6 +1,6 @@
 from enum import StrEnum
+from functools import cache
 from typing import Dict
-import warnings
 
 import torch
 
@@ -24,6 +24,12 @@ class InKey(StrEnum):
     TYPE = "dtype"
     RANGE = "range"
     INITS = "inits"
+
+
+class InInputKey(StrEnum):
+    """Keys for input type."""
+
+    INHERIT = "inherit"
 
 
 class InInitKey(StrEnum):
@@ -88,14 +94,25 @@ def get_torch_dtype(dtype: str) -> torch.dtype:
     return dtp
 
 
-def input_torch_dtype(input_entry: dict) -> torch.dtype:
+def input_torch_dtype(input_entry: dict, variant: dict | None = None) -> torch.dtype:
     """Get torch data type for an input.
     Args:
         input_entry: Specs' input entry
+        variant: Optional specs' variant entry
     Returns:
         torch data type
     """
-    return get_torch_dtype(input_entry[InKey.TYPE])
+    in_type = input_entry[InKey.TYPE]
+    if in_type in InInputKey:
+        match InInputKey(in_type):
+            case InInputKey.INHERIT:
+                dtype = get_variant_torch_dtype(variant) if variant else None
+                if dtype is None:
+                    raise ValueError("Missing variant type for inheritance")
+                return dtype
+            case _:
+                raise ValueError(f"Unsupported input key: {in_type}")
+    return get_torch_dtype(in_type)
 
 
 def input_is_float(input_entry: dict) -> bool:
@@ -200,6 +217,13 @@ def apply_input_inits(tensor: torch.Tensor, inits: list[str]) -> torch.Tensor:
     return tensor
 
 
+@cache
+def _get_logger():
+    from ai_bench.utils.logger import setup_logger
+
+    return setup_logger()
+
+
 def get_inputs(
     variant: dict, inputs: dict, device: torch.device | None = None
 ) -> list[torch.Tensor]:
@@ -217,25 +241,27 @@ def get_inputs(
     for param in variant[VKey.PARAMS]:
         input_entry = inputs[param]
         shape = input_shape(input_entry, dims)
-        dtype = input_torch_dtype(input_entry)
+        dtype = input_torch_dtype(input_entry, variant)
         if variant_dtype is not None and dtype != variant_dtype:
-            warnings.warn(
+            logger = _get_logger()
+            logger.debug(
                 f"Input '{param}' dtype ({dtype}) differs from variant dtype "
-                f"({variant_dtype}). This may cause type mismatches.",
-                UserWarning,
-                stacklevel=2,
+                f"({variant_dtype}). This may cause type mismatches."
             )
 
-        if input_is_float(input_entry):
+        dtype_str = str(dtype)
+        if "float" in dtype_str:
             tensor = torch.randn(shape, dtype=dtype, device=device)
-        elif input_is_int(input_entry):
+        elif "int" in dtype_str:
             value_range = input_range(variant, input_entry)
             value_range = list(map(int, value_range))
             tensor = torch.randint(*value_range, shape, dtype=dtype, device=device)
-        elif input_is_bool(input_entry):
+        elif "bool" in dtype_str:
             tensor = torch.randint(0, 2, shape, dtype=torch.int64, device=device).bool()
         else:
-            raise TypeError("Only floating and integer types are supported now")
+            raise TypeError(
+                "Only floating, integer, and boolean types are supported now"
+            )
 
         if InKey.INITS in input_entry:
             tensor = apply_input_inits(tensor, input_entry[InKey.INITS])

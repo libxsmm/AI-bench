@@ -1,10 +1,10 @@
 inputs:
   X:
     shape: [BATCH_SIZE, IN_FEATURES]
-    dtype: float16
+    dtype: inherit
   Y:
     shape: [BATCH_SIZE, OUT_FEATURES]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: IN_FEATURES

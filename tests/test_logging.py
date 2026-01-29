@@ -45,6 +45,7 @@ inputs:
     dtype: float32
 bench-cpu:
   - params: [X]
+    dtype: float16
     dims:
       N: 4
     flop: 8*N

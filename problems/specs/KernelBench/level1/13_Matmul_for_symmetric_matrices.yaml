@@ -1,11 +1,11 @@
 inputs:
   A:
     shape: [N, N]
-    dtype: float16
+    dtype: inherit
     inits: [symmetric]
   B:
     shape: [N, N]
-    dtype: float16
+    dtype: inherit
     inits: [symmetric]
 
 inits: []

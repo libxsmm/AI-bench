@@ -1,7 +1,7 @@
 inputs:
   X:
     shape: [BATCH_SIZE, SEQUENCE_LENGTH, N_EMBD]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: N_EMBD

@@ -4,10 +4,10 @@ inputs:
     dtype: float16
   K:
     shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
-    dtype: float16
+    dtype: inherit
   V:
     shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
-    dtype: float16
+    dtype: inherit
 
 inits: []
 

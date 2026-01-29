@@ -1,7 +1,7 @@
 inputs:
   X:
     shape: [BATCH_SIZE, INPUT_CHANNELS, HEIGHT, WIDTH]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: GROWTH_RATE

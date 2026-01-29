@@ -1,11 +1,11 @@
 inputs:
   predictions:
     shape: [BATCH_SIZE, INPUT_DIM]
-    dtype: float16
+    dtype: inherit
     inits: [scale, softmax]
   targets:
     shape: [BATCH_SIZE, INPUT_DIM]
-    dtype: float16
+    dtype: inherit
     inits: [softmax]
 
 inits: []

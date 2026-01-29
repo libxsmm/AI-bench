@@ -1,13 +1,14 @@
 inputs:
   A:
     shape: [N, M, K]
-    dtype: float16
+    dtype: inherit
   B:
     shape: [K, L]
-    dtype: float16
+    dtype: inherit
 
 ci:
   - params: [A, B]
+    dtype: float16
     dims:
       N: 4
       M: 32
@@ -17,6 +18,7 @@ ci:
 
 bench-gpu:
   - params: [A, B]
+    dtype: float16
     dims:
       N: 16
       M: 1024

@@ -4,7 +4,7 @@ description: Matrix multiplication with bias, add value, followed by Swish, Tanh
 inputs:
   X:
     shape: [BATCH, IN_FEAT]
-    dtype: float16
+    dtype: inherit
 
 inits:
   - dim: IN_FEAT

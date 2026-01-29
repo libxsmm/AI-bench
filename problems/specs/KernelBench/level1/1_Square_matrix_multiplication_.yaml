@@ -1,32 +1,37 @@
 inputs:
   A:
     shape: [N, N]
-    dtype: float16
+    dtype: inherit
   B:
     shape: [N, N]
-    dtype: float16
+    dtype: inherit
 
 ci:
   - params: [A, B]
+    dtype: float16
     dims:
       N: 128
 
 bench-cpu:
   - params: [A, B]
+    dtype: float16
     dims:
       N: 256
     flop: "2*N*N*N"
 
 bench-gpu:
   - params: [A, B]
+    dtype: float16
     dims:
       N: 1024
     flop: "2*N*N*N"
   - params: [A, B]
+    dtype: float16
     dims:
       N: 2048
     flop: "2*N*N*N"
   - params: [A, B]
+    dtype: float16
     dims:
       N: 4096
     flop: "2*N*N*N"
