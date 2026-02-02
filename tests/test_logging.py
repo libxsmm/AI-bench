@@ -98,6 +98,7 @@ class Model(torch.nn.Module):
 def test_env_var_log_levels(monkeypatch, caplog):
     info_txt = "info msg"
     debug_txt = "debug msg"
+    logger_name = "log_test"
 
     def print_log(logger):
         caplog.clear()
@@ -106,19 +107,19 @@ def test_env_var_log_levels(monkeypatch, caplog):
         return caplog.text
 
     monkeypatch.delenv("AIBENCH_LOG", raising=False)
-    logger = setup_logger(level=logging.INFO)
+    logger = setup_logger(logger_name, level=logging.INFO)
     out = print_log(logger)
     assert info_txt in out
     assert debug_txt not in out
 
     monkeypatch.setenv("AIBENCH_LOG", "INFO")
-    logger = setup_logger()
+    logger = setup_logger(logger_name)
     out = print_log(logger)
     assert info_txt in out
     assert debug_txt not in out
 
     monkeypatch.setenv("AIBENCH_LOG", "DEBUG")
-    logger = setup_logger()
+    logger = setup_logger(logger_name)
     out = print_log(logger)
     assert info_txt in out
     assert debug_txt in out

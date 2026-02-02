@@ -1,8 +1,5 @@
 """Tests for dtype mismatch warning between input and variant specs."""
 
-import logging
-import warnings
-
 import pytest
 import torch
 
@@ -63,7 +60,7 @@ class TestInputDataTypes:
         assert not ai_hc.input_is_bool(input_inherit)
         with pytest.raises(Exception) as e:
             ai_hc.input_torch_dtype(input_inherit)
-        assert "Missing variant" in str(e)
+        assert "Input uses 'inherit' dtype but variant has no 'dtype' field" in str(e)
         inherit_dtype = ai_hc.input_torch_dtype(input_inherit, variant)
         assert inherit_dtype == torch.float32
 
@@ -160,16 +157,16 @@ class TestDtypeMismatchWarning:
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level("DEBUG", logger="ai_bench"):
             tensors = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
-        assert "dtype" in str(caplog.text).lower()
-        assert "float16" in str(caplog.text)
-        assert "bfloat16" in str(caplog.text)
+            assert "dtype" in caplog.text
+            assert "float16" in caplog.text
+            assert "bfloat16" in caplog.text
 
         # Tensor should still be created with input dtype.
         assert tensors[0].dtype == torch.float16
 
-    def test_no_warning_when_dtypes_match(self):
+    def test_no_warning_when_dtypes_match(self, caplog):
         """Test that no warning is raised when input and variant dtypes match."""
         variant = {
             ai_hc.VKey.PARAMS: ["X"],
@@ -183,11 +180,9 @@ class TestDtypeMismatchWarning:
             },
         }
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level("DEBUG", logger="ai_bench"):
             ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
-
-            assert len(w) == 0
+            assert "dtype" not in caplog.text
 
 
 class TestInputInitializations:
