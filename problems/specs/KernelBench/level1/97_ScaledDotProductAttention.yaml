@@ -1,7 +1,7 @@
 inputs:
   Q:
     shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
-    dtype: float16
+    dtype: inherit
   K:
     shape: [BATCH_SIZE, NUM_HEADS, SEQUENCE_LENGTH, EMBEDDING_DIMENSION]
     dtype: inherit

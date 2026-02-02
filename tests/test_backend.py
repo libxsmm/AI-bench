@@ -374,7 +374,6 @@ inputs:
     dtype: float32
 ci:
   - params: [X]
-    dtype: float16
     dims:
       N: 8
 """
@@ -414,7 +413,6 @@ inputs:
     dtype: float32
 ci:
   - params: [A]
-    dtype: float16
     dims:
       N: 4
 """
@@ -516,7 +514,6 @@ inits:
   - dim: H
 ci:
   - params: [X]
-    dtype: float16
     dims:
       B: 2
       H: 16
@@ -560,7 +557,6 @@ inits:
   - dim: H
 ci:
   - params: [X]
-    dtype: float16
     dims:
       B: 2
       H: 16
@@ -714,14 +710,12 @@ inputs:
     dtype: float32
 ci:
   - params: [A, B]
-    dtype: float16
     dims:
       M: 8
       K: 8
       N: 8
 bench-cpu:
   - params: [A, B]
-    dtype: float16
     dims:
       M: 32
       K: 32
