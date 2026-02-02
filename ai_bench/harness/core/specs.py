@@ -108,7 +108,9 @@ def input_torch_dtype(input_entry: dict, variant: dict | None = None) -> torch.d
             case InInputKey.INHERIT:
                 dtype = get_variant_torch_dtype(variant) if variant else None
                 if dtype is None:
-                    raise ValueError("Missing variant type for inheritance")
+                    raise ValueError(
+                        "Input uses 'inherit' dtype but variant has no 'dtype' field"
+                    )
                 return dtype
             case _:
                 raise ValueError(f"Unimplemented input key: {in_type}")
