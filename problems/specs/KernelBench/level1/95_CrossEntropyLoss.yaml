@@ -11,7 +11,7 @@ inits: []
 
 ci:
   - params: [predictions, targets]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 64
       NUM_CLASSES: 8

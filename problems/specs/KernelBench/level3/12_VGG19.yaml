@@ -7,9 +7,9 @@ inits:
   - dim: NUM_CLASSES
 
 # TODO: Reenable for CI
-SKIP: # Compute too long for local use
+ci: # Compute too long for local use
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 1
       INPUT_CHANNELS: 3

@@ -18,7 +18,7 @@ inits:
 
 ci:
   - params: [X, H0, C0]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 1
       SEQUENCE_LENGTH: 32

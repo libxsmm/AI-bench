@@ -15,7 +15,7 @@ inits:
 
 ci:
   - params: [anchor, positive, negative]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 64
       INPUT_DIM: 8

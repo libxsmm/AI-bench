@@ -17,7 +17,7 @@ inits:
 
 ci:
   - params: [X, ADD_INPUT]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 2
       IN_CHANNELS: 4

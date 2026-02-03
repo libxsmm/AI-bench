@@ -5,7 +5,7 @@ inputs:
 
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH: 128
       DIM: 512

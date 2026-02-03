@@ -9,7 +9,7 @@ inits:
 
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 2
       INPUT_SIZE: 32

@@ -12,7 +12,7 @@ inits:
 
 ci:
   - params: [X, Y]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 2
       IN_FEATURES: 64

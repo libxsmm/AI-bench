@@ -17,7 +17,7 @@ inits:
 
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH_SIZE: 1
       CHANNELS: 3

@@ -12,6 +12,6 @@ inits: []
 
 ci:
   - params: [A, B]
-    dtype: float16
+    dtype: float32
     dims:
       N: 64

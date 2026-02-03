@@ -12,7 +12,7 @@ inits:
 
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH: 2
       MAX_SEQLEN: 128

@@ -11,7 +11,7 @@ inits:
 
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH: 2
       IN_FEAT: 64
