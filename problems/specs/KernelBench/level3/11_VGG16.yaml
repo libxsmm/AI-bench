@@ -6,8 +6,7 @@ inputs:
 inits:
   - dim: NUM_CLASSES
 
-# TODO: Reenable for CI
-ci: # Compute too long for local use
+ci:
   - params: [X]
     dtype: float32
     dims:
