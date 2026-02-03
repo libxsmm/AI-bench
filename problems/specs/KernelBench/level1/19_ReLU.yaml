@@ -12,7 +12,7 @@ ci:
 
 bench-cpu:
   - params: [X]
-    dtype: float16
+    dtype: bfloat16
     dims:
       BATCH: 128
       DIM: 2048

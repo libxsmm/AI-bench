@@ -16,7 +16,7 @@ ci:
 
 bench-cpu:
   - params: [A, B]
-    dtype: float16
+    dtype: bfloat16
     dims:
       M: 128
       N: 256
