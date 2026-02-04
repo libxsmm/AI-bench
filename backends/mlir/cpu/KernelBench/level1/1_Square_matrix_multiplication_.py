@@ -14,8 +14,19 @@ TILE_SIZE = 64
 
 
 def tile_and_vector_gemm(ctx: ir.Context) -> ir.Module:
+    """
+    Specialized schedule for Linalg operations.
+
+    Tiling and vectorization is progressively applied to
+    achieve SIMD code generation.
+
+    Args:
+        ctx: MLIR context.
+    Returns:
+        MLIR transform module.
+    """
     with ctx, ir.Location.unknown(context=ctx):
-        # Create transform module.
+        # Create a transform module.
         schedule = ir.Module.create()
         schedule.operation.attributes["transform.with_named_sequence"] = (
             ir.UnitAttr.get()
@@ -40,7 +51,7 @@ def tile_and_vector_gemm(ctx: ir.Context) -> ir.Module:
                 mm, tile_sizes=[TILE_SIZE, TILE_SIZE], apply_cleanup=True
             ).results[0]
 
-            # Tile for better vectorization.
+            # Tile buffer initialization for better vectorization.
             tiled_fill = structured.MatchOp.match_op_names(
                 named_seq.bodyTarget, ["linalg.fill"]
             ).result
