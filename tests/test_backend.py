@@ -273,6 +273,19 @@ class TestKernelBenchRunnerInit:
         assert kb_runner.warmup == 200
         assert kb_runner.rep == 100
 
+    @mock.patch("os.path.isdir")
+    def test_init_cuda_warmup_rep(self, mock_isdir):
+        """Test CUDA warmup and rep settings."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            device=torch.device("cuda"),
+            backend=ai_hc.Backend.PYTORCH,
+        )
+
+        assert kb_runner.warmup == 200
+        assert kb_runner.rep == 100
+
 
 class TestKernelBenchRunnerExecution:
     """Tests for KernelBenchRunner execution with mocked kernels."""
@@ -697,7 +710,7 @@ class TestTimerFunctions:
         x = torch.randn(100)
 
         with pytest.raises(ValueError, match="Unsupported device"):
-            testing.time(simple_fn, (x,), device=torch.device("cuda"))
+            testing.time(simple_fn, (x,), device=torch.device("mps"))
 
 
 class TestEquations:

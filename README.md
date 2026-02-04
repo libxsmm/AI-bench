@@ -5,7 +5,15 @@
 [![KernelBench Perf](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml/badge.svg)](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
-A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR) and devices (CPU, XPU).
+A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR) and devices (CPU, XPU, CUDA).
+
+| | PyTorch | Triton | Helion | MLIR |
+|:---:|:---:|:---:|:---:|:---:|
+| **CPU** | ✅ | ❌ | ❌ | ✅ |
+| **XPU** | ✅ | ✅ | ✅ | ❌ |
+| **CUDA** | ✅ | ⚠️ | ⚠️ | ❌ |
+
+✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 
 ## Installation
 
@@ -25,6 +33,9 @@ uv sync --extra cpu
 
 # CPU + XPU
 uv sync --extra xpu
+
+# CPU + CUDA
+uv sync --extra cuda
 
 # CPU + MLIR backend
 uv sync --extra cpu --extra mlir
@@ -48,6 +59,9 @@ ai-bench --mlir
 
 # PyTorch on XPU
 ai-bench --xpu
+
+# PyTorch on CUDA GPU
+ai-bench --cuda
 
 # PyTorch compile on XPU
 ai-bench --xpu --torch-compile
@@ -153,6 +167,7 @@ Notes legend:
 |--------|-------------|
 | `--kernel KERNEL_PATH SPEC_PATH` | Run a kernel with a spec (default: KernelBench) |
 | `--xpu` | Run on Intel XPU (default: CPU) |
+| `--cuda` | Run on Nvidia GPU (default: CPU) |
 | `--triton` | Use Triton backend (default: PyTorch eager) |
 | `--torch-compile` | Use PyTorch compile mode (default: PyTorch eager) |
 | `--helion` | Use Helion backend (default: PyTorch eager) |

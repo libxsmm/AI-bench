@@ -34,13 +34,16 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     return torch.mean(times).item()
 
 
-def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> float:
-    """Measure execution time of the provided function on XPU.
+def time_gpu(
+    device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
+) -> float:
+    """Measure execution time of the provided function on GPU.
 
     Uses hardware events for accurate GPU-side timing, with L2 cache flushing
     and a dummy matmul to improve accuracy for short-lived kernels.
 
     Args:
+        device: Target device
         fn: Function to measure
         args: Arguments to pass to the function
         warmup: Warmup iterations
@@ -48,7 +51,10 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     Returns:
         Mean runtime in microseconds
     """
-    device = torch.device("xpu")
+    current_device = torch.accelerator.current_accelerator().type
+    assert current_device == device.type, (
+        f"Invalid accelerator {current_device}, expected {device.type}"
+    )
 
     # Buffer used to flush L2 cache between kernel runs.
     cache_size = 256 * 1024 * 1024
@@ -63,11 +69,11 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     for _ in range(warmup):
         cache.zero_()
         fn(*args)
-    torch.xpu.synchronize()
+    torch.accelerator.synchronize()
 
     # Pre-allocate events to reduce timing overhead.
-    start_events = [torch.xpu.Event(enable_timing=True) for _ in range(rep)]
-    end_events = [torch.xpu.Event(enable_timing=True) for _ in range(rep)]
+    start_events = [torch.Event(device=device, enable_timing=True) for _ in range(rep)]
+    end_events = [torch.Event(device=device, enable_timing=True) for _ in range(rep)]
 
     # Benchmark loop.
     for i in range(rep):
@@ -89,7 +95,7 @@ def time_xpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
         end_events[i].record()
 
     # Ensure all measurements are recorded.
-    torch.xpu.synchronize()
+    torch.accelerator.synchronize()
 
     # Collect times (elapsed_time returns ms, convert to μs).
     times = torch.tensor(
@@ -123,6 +129,6 @@ def time(
     """
     if not device or device.type == "cpu":
         return time_cpu(fn, args, warmup=warmup, rep=rep)
-    if device.type == "xpu":
-        return time_xpu(fn, args, warmup=warmup, rep=rep)
+    if device.type == "xpu" or device.type == "cuda":
+        return time_gpu(device, fn, args, warmup=warmup, rep=rep)
     raise ValueError(f"Unsupported device for timing: {device.type}")

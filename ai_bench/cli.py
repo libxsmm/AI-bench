@@ -23,6 +23,9 @@ Examples:
   # Run CI validation on CPU
   ai-bench
 
+  # Run CI validation on CUDA GPU
+  ai-bench --cuda
+
   # Run benchmarks on XPU with PyTorch
   ai-bench --xpu --bench
 
@@ -133,13 +136,14 @@ Environment file (.env) example:
 
     # Device options
     device_group = parser.add_argument_group("device options")
-    device_group.add_argument(
+    device_exclusive = device_group.add_mutually_exclusive_group()
+    device_exclusive.add_argument(
         "--xpu",
         action="store_true",
         default=False,
         help="Run on Intel XPU (default: CPU)",
     )
-    device_group.add_argument(
+    device_exclusive.add_argument(
         "--cuda",
         action="store_true",
         default=False,

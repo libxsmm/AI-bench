@@ -51,6 +51,12 @@ xpu = [
   "pytorch-triton-xpu",
   "helion==0.2.9",
 ]
+cuda = [
+  "torch==2.9.1+cu128",
+  "torchvision==0.24.1",
+  "pytorch-triton",
+  "helion==0.2.9",
+]
 mlir = [
   "lighthouse[ingress_torch_mlir]",
   "ml_dtypes",
@@ -75,12 +81,14 @@ conflicts = [
   [
     { extra = "cpu" },
     { extra = "xpu" },
+    { extra = "cuda" },
   ],
 ]
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch" }
+pytorch-triton = { index = "pytorch" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "d32d1cf" }
 
 [[tool.uv.index]]

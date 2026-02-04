@@ -27,6 +27,10 @@ on:
         description: "Run on Intel GPU (Helion)"
         type: boolean
         default: false
+      RUN_CUDA_TORCH:
+        description: "Run on Nvidia GPU (PyTorch eager)"
+        type: boolean
+        default: false
 
 env:
   NPROCS_LIMIT_LINK: 8
@@ -104,3 +108,15 @@ jobs:
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b helion'"
+
+  CUDA-PyTorch:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.RUN_CUDA_TORCH)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Nvidia A100
+        run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
+            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -b torch'"

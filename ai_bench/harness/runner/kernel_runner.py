@@ -77,7 +77,7 @@ class KernelRunner:
         if self.is_cpu():
             self.warmup = 5
             self.rep = 20
-        elif self.is_xpu():
+        elif self.is_gpu():
             self.warmup = 200
             self.rep = 100
         else:
@@ -98,6 +98,14 @@ class KernelRunner:
     def is_xpu(self) -> bool:
         """Check if the device is an XPU."""
         return self.device.type == "xpu"
+
+    def is_cuda(self) -> bool:
+        """Check if the device is a CUDA device."""
+        return self.device.type == "cuda"
+
+    def is_gpu(self) -> bool:
+        """Check if the device is a GPU."""
+        return self.is_xpu() or self.is_cuda()
 
     def load_model(self, kernel_path: Path) -> types.ModuleType | None:
         """Load a kernel model.
