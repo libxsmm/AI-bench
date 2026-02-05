@@ -2,6 +2,7 @@
 
 from typing import List
 from typing import Optional
+import logging
 
 import torch
 
@@ -9,6 +10,161 @@ from .kernel_runner import KernelStats
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
 
+logger = logging.getLogger(__name__)
+
+def copy_model_weights(source_model, target_model) -> bool:
+    """
+    Copy weights from source model to target model.
+
+    Handles cases where parameter names might differ slightly.
+
+    Args:
+        source_model: Model to copy weights from
+        target_model: Model to copy weights to
+
+    Returns:
+        True if weights were successfully copied
+    """
+
+    try:
+        source_state = source_model.state_dict()
+        target_state = target_model.state_dict()
+
+        # Try direct load first
+        try:
+            target_model.load_state_dict(source_state)
+            logger.debug("Copied weights using direct state_dict load")
+            return True
+        except Exception as e:
+            logger.debug(f"Direct state_dict load failed: {e}")
+
+        # Try matching by shape if names differ
+        source_params = list(source_state.items())
+        target_params = list(target_state.keys())
+
+        if len(source_params) != len(target_params):
+            logger.warning(
+                f"Parameter count mismatch: original={len(source_params)}, "
+                f"optimized={len(target_params)}"
+            )
+            return False
+
+        new_state = {}
+        for (src_name, src_tensor), tgt_name in zip(source_params, target_params):
+            tgt_shape = target_state[tgt_name].shape
+            if src_tensor.shape != tgt_shape:
+                logger.warning(
+                    f"Shape mismatch for {src_name}->{tgt_name}: "
+                    f"{src_tensor.shape} vs {tgt_shape}"
+                )
+                return False
+            new_state[tgt_name] = src_tensor
+
+        target_model.load_state_dict(new_state)
+        logger.debug("Copied weights using shape-matched state_dict")
+        return True
+
+    except Exception as e:
+        logger.warning(f"Failed to copy model weights: {e}")
+        return False
+
+
+def set_all_seeds(seed: int) -> None:
+    """Set random seeds for all backends."""
+    import torch
+
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # XPU seed
+    try:
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            torch.xpu.manual_seed_all(seed)
+    except Exception:
+        pass
+
+    # Also set Python random and numpy if available
+    import random
+
+    random.seed(seed)
+
+    try:
+        import numpy as np
+
+        np.random.seed(seed)
+    except ImportError:
+        pass
+
+def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
+    """
+    Compare two output tensors and check correctness.
+
+    Args:
+        original_output: Output from original kernel
+        optimized_output: Output from optimized kernel
+
+    Returns:
+        True if outputs match within tolerance
+    """
+    import torch
+
+    # Handle tuple outputs (some models return multiple tensors)
+    if isinstance(original_output, tuple):
+        original_output = original_output[0]
+    if isinstance(optimized_output, tuple):
+        optimized_output = optimized_output[0]
+
+    # Check shapes
+    if original_output.shape != optimized_output.shape:
+        logger.warning(
+            f"Shape mismatch: original={original_output.shape}, "
+            f"optimized={optimized_output.shape}"
+        )
+        return False
+
+    # Convert to float for comparison (handles fp16/bf16)
+    orig_float = original_output.float()
+    opt_float = optimized_output.float()
+
+    # Check for NaN/Inf
+    if torch.isnan(orig_float).any():
+        logger.warning("Original output contains NaN values")
+    if torch.isnan(opt_float).any():
+        logger.warning("Optimized output contains NaN values - likely a bug in optimization")
+        return False
+    if torch.isinf(opt_float).any() and not torch.isinf(orig_float).any():
+        logger.warning("Optimized output contains Inf values not present in original")
+        return False
+
+    # Compare values
+    is_close = torch.allclose(orig_float, opt_float, rtol=rtol, atol=atol)
+
+    if not is_close:
+        diff = torch.abs(orig_float - opt_float)
+        max_diff = torch.max(diff).item()
+        mean_diff = torch.mean(diff).item()
+
+        # Calculate relative error
+        rel_diff = diff / (torch.abs(orig_float) + 1e-8)
+        max_rel_diff = torch.max(rel_diff).item()
+
+        logger.warning(
+            f"Output mismatch: max_diff={max_diff:.6e}, mean_diff={mean_diff:.6e}, "
+            f"max_rel_diff={max_rel_diff:.6e} (rtol={rtol}, atol={atol})"
+        )
+
+        # Log some debug info about where differences occur
+        if diff.numel() > 0:
+            num_mismatched = (diff > atol + rtol * torch.abs(orig_float)).sum().item()
+            total_elements = diff.numel()
+            logger.debug(
+                f"Mismatched elements: {num_mismatched}/{total_elements} "
+                f"({100 * num_mismatched / total_elements:.2f}%)"
+            )
+
+    return is_close
 
 def benchmark_problem(
     problem: str,
@@ -42,6 +198,8 @@ def benchmark_problem(
         "spec_mem_bytes": None,
     }
 
+    pytorch_model = None
+
     for backend in backends:
         print(f"backend: {backend}")
         try:
@@ -56,21 +214,59 @@ def benchmark_problem(
             kernel_path = runner.kernels / level / f"{kernel_name}.py"
             print(f"kernel path: {kernel_path}")
             # Run the kernel in all compatible variants.
-            run_stats: list[KernelStats] | None = runner.run_kernel_spec(
-                kernel_path, spec_path
-            )
+
+            variants, spec_inputs, inits, model_obj = runner.load_kernel_and_spec(kernel_path, spec_path)
+
+            stats = []
+            for variant in variants:
+                model = runner.init_model(model_obj, variant, inits)
+                # save pytorch model for correctness check
+                if backend == str(ai_hc.Backend.PYTORCH):
+                    pytorch_model = model
+
+                #  Set seed for reproducible inputs
+                set_all_seeds(123)
+
+                # prepare inputs
+                inputs = ai_hc.get_inputs(variant, spec_inputs, device=runner.device)
+
+                # correctness check
+                if backend != str(ai_hc.Backend.PYTORCH) and pytorch_model:
+                    weights_copied = copy_model_weights(pytorch_model, model)
+                    if not weights_copied:
+                        logger.warning("Could not copy weights - using seed-based initialization")
+                    
+                    # Clone for fair comparison (in case kernels modify inputs) # TODO is this needed here?
+                    inputs_orig = [inp.clone() for inp in inputs]
+                    inputs_cur = [inp.clone() for inp in inputs]
+
+                    # Run both kernels
+                    with torch.no_grad():
+                        pytorch_fn = pytorch_model.forward
+                        pytorch_output = pytorch_fn(*inputs_orig)
+                        cur_fn = model.forward
+                        cur_output = cur_fn(*inputs_cur)
+
+                    #  Compare outputs
+                    correct = check_correctness(pytorch_output, cur_output, rtol, atol )
+                    if correct:
+                        logger.info(f"\033[92m✔\033[0m  Correctness check PASSED for {backend} !")
+                    else:
+                        logger.warning(f"\033[91m✘\033[0m  Correctness check FAILED for {backend} !")
+                
+                # benchmark
+                kernel_stats = runner.benchmark_model(model, variant, inputs)
+                stats.append(kernel_stats)
 
             # Continue if desired configuration is not available or
             # if there is nothing extra to report.
-            if not run_stats:
+            if not stats:
                 print(f"Warnning: received no results for {backend} backend.")
                 continue
 
-            results["backends"][str(backend)] = run_stats[
-                0
-            ]  # assuming a single variant
+            results["backends"][str(backend)] = stats[0] # TODO: assuming a single variant for now
 
-        except FileNotFoundError as e:
+        except Exception as e:
             print(f"error: {e}")
             results["backends"][str(backend)] = None
 
