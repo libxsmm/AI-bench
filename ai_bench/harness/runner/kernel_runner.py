@@ -190,11 +190,10 @@ class KernelRunner:
         for variant in variants:
             model_inits = ai_hc.get_inits(variant, inits)
             model_dtype = ai_hc.get_variant_torch_dtype(variant)
-            base_model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
-            model = base_model
+            model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
 
             if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
-                model = torch.compile(model, dynamic=False)
+                model.compile(dynamic=False)
 
             # Call model directly to avoid skipping extra hooks if present.
             # It allows 'torch.compile' decorator to be invoked correctly.
@@ -243,7 +242,7 @@ class KernelRunner:
             mem_bytes = ai_hc.get_mem_bytes(variant)
             mem_is_estimate = False
             if not mem_bytes and self.is_torch_backend():
-                mem_bytes = ai_utils.count_torch_memory_bytes(base_model, args)
+                mem_bytes = ai_utils.count_torch_memory_bytes(model, args)
                 mem_is_estimate = True
 
             mem_bw_val = None
