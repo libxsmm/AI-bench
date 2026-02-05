@@ -148,59 +148,75 @@ class KernelRunner:
         self.print_info_legend(print_fn)
         print_fn("-" * 60)
 
-    def load_kernel_and_spec(self, kernel_path: Path | str, spec_path: Path | str):
-        if isinstance(kernel_path, str):
-            kernel_path = Path(kernel_path)
-        if isinstance(spec_path, str):
-            spec_path = Path(spec_path)
+    def load_spec(self, spec_path: Path) -> dict:
+        """Load problem spec.
+        Args:
+            spec_path: Path to problem spec '.yaml' file
+        Returns:
+            Problem spec descriptor
+        """
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
-        # Bail if desired configuration is not available.
-        if self.spec_type not in spec:
-            return None
+        return spec
 
-        variants = spec[self.spec_type]
-        inputs = spec[ai_hc.SpecKey.INS]
-        inits = []
+    def get_spec_variants(self, spec: dict) -> list[dict]:
+        """Get problem variants for current spec type.
+        Args:
+            spec: Problem spec
+        Returns:
+            Defined spec type variants
+        """
+        return spec[self.spec_type]
+
+    def get_spec_inputs(self, spec: dict) -> dict:
+        """Get problem inputs.
+        Args:
+            spec: Problem spec
+        Returns:
+            Defined problem inputs
+        """
+        return spec[ai_hc.SpecKey.INS]
+
+    def get_spec_inits(self, spec: dict) -> list[dict]:
+        """Get problem inits.
+        Args:
+            spec: Problem spec
+        Returns:
+            Defined problem inits
+        """
         if ai_hc.SpecKey.INITS in spec:
-            inits = spec[ai_hc.SpecKey.INITS]
+            return spec[ai_hc.SpecKey.INITS]
+        return []
 
-        # Import kernel file to access underlying Model and execution method.
-        model_obj = self.load_model(kernel_path)
-        if not model_obj:
-            self.logger.debug(f"Missing kernel for: {kernel_path.name}")
-            return None
-
-        # Run the kernel with provided input configurations.
-        self.logger.info(
-            f"Kernel: {spec_path.parent.name} / {spec_path.name} [{self.backend}]"
-        )
-
-        return variants, inputs, inits, model_obj
-    
-    def init_model(self, model_obj, variant, inits):
+    def init_model(
+        self, model_obj: types.ModuleType, variant: dict, inits: list[dict]
+    ) -> torch.nn.Module:
+        """Initialize model for given variant.
+        Args:
+            model_obj: Loaded base model
+            variant: Specs' variant entry
+            spec_inits: Specs' inits entry
+        Returns:
+            PyTorch model
+        """
         model_inits = ai_hc.get_inits(variant, inits)
         model_dtype = ai_hc.get_variant_torch_dtype(variant)
-        base_model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
-        model = base_model
+        return model_obj(*model_inits).to(self.device, dtype=model_dtype)
 
+    def benchmark_model(self, variant, model, args) -> KernelStats:
+        """Gather model's performance.
+        Args:
+            variant: Specs' variant entry
+            model: PyTorch model
+            args: Arguments to pass to the model
+        Returns:
+            Performance statistics
+        """
+        # Call model directly to avoid skipping extra hooks if present.
+        # It allows 'torch.compile' decorator to be invoked correctly.
+        fn = model
 
-        return model
-
-    def benchmark_model(self, base_model, variant, args):
-        model = base_model
-        # compile model for pytorch.compile backend
-        if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
-            model = torch.compile(model, dynamic=False)
-
-        fn = model.forward
-        
-        # Simple CI run to verify functionality.
-        if self.spec_type == ai_hc.SpecKey.V_CI:
-            self.logger.info(f"Validating: {variant}")
-            fn(*args)
-
-        self.logger.info(f"Benchmarking: {variant}")
+        # Measure performance.
         meas_us = testing.time(
             fn, args, warmup=self.warmup, rep=self.rep, device=self.device
         )
@@ -236,7 +252,7 @@ class KernelRunner:
         mem_bytes = ai_hc.get_mem_bytes(variant)
         mem_is_estimate = False
         if not mem_bytes and self.is_torch_backend():
-            mem_bytes = ai_utils.count_torch_memory_bytes(base_model, args)
+            mem_bytes = ai_utils.count_torch_memory_bytes(model, args)
             mem_is_estimate = True
 
         mem_bw_val = None
@@ -287,13 +303,44 @@ class KernelRunner:
             No statistics are available for CI spec.
             None is returned when execution is unsuccessful.
         """
-        
-        variants, inputs, inits, model_obj = self.load_kernel_and_spec(kernel_path, spec_path)
+        if isinstance(kernel_path, str):
+            kernel_path = Path(kernel_path)
+        if isinstance(spec_path, str):
+            spec_path = Path(spec_path)
+
+        spec = self.load_spec(spec_path)
+        # Bail if desired configuration is not available.
+        if self.spec_type not in spec:
+            return None
+
+        # Import kernel file to access underlying Model and execution method.
+        model_obj = self.load_model(kernel_path)
+        if not model_obj:
+            self.logger.debug(f"Missing kernel for: {kernel_path.name}")
+            return None
+        spec_variants = self.get_spec_variants(spec)
+        spec_inputs = self.get_spec_inputs(spec)
+        spec_inits = self.get_spec_inits(spec)
+
+        # Run the kernel with provided input configurations.
+        self.logger.info(
+            f"Kernel: {spec_path.parent.name} / {spec_path.name} [{self.backend}]"
+        )
         stats = []
-        for variant in variants:
-            model = self.init_model(model_obj, variant, inits)
-            args = ai_hc.get_inputs(variant, inputs, device=self.device)
-            kernel_stats = self.benchmark_model(model, variant, args)
+        for variant in spec_variants:
+            model = self.init_model(model_obj, variant, spec_inits)
+            if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
+                model.compile(dynamic=False)
+            args = ai_hc.get_inputs(variant, spec_inputs, device=self.device)
+
+            # Simple CI run to verify functionality.
+            if self.spec_type == ai_hc.SpecKey.V_CI:
+                self.logger.info(f"Validating: {variant}")
+                model(*args)
+                continue
+
+            self.logger.info(f"Benchmarking: {variant}")
+            kernel_stats = self.benchmark_model(variant, model, args)
             stats.append(kernel_stats)
 
         # Report statistics for all variants

@@ -1,16 +1,16 @@
 """Benchmark comparison utilities for ai_bench."""
 
+import logging
 from typing import List
 from typing import Optional
-import logging
 
 import torch
 
-from .kernel_runner import KernelStats
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
 
 logger = logging.getLogger(__name__)
+
 
 def copy_model_weights(source_model, target_model) -> bool:
     """
@@ -97,6 +97,7 @@ def set_all_seeds(seed: int) -> None:
     except ImportError:
         pass
 
+
 def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
     """
     Compare two output tensors and check correctness.
@@ -132,7 +133,9 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
     if torch.isnan(orig_float).any():
         logger.warning("Original output contains NaN values")
     if torch.isnan(opt_float).any():
-        logger.warning("Optimized output contains NaN values - likely a bug in optimization")
+        logger.warning(
+            "Optimized output contains NaN values - likely a bug in optimization"
+        )
         return False
     if torch.isinf(opt_float).any() and not torch.isinf(orig_float).any():
         logger.warning("Optimized output contains Inf values not present in original")
@@ -165,6 +168,7 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
             )
 
     return is_close
+
 
 def benchmark_problem(
     problem: str,
@@ -212,11 +216,23 @@ def benchmark_problem(
                 raise FileNotFoundError(f"Spec not found: {spec_path}")
 
             kernel_path = runner.kernels / level / f"{kernel_name}.py"
+            if not kernel_path.exists():
+                raise FileNotFoundError(f"Kernel not found: {kernel_path}")
             print(f"kernel path: {kernel_path}")
+
             # Run the kernel in all compatible variants.
+            model_obj = runner.load_model(kernel_path)
+            if not model_obj:
+                raise ValueError("Missing kernel's entry model")
 
-            variants, spec_inputs, inits, model_obj = runner.load_kernel_and_spec(kernel_path, spec_path)
+            spec = runner.load_spec(spec_path)
+            variants = runner.get_spec_variants(spec)
+            spec_inputs = runner.get_spec_inputs(spec)
+            inits = runner.get_spec_inits(spec)
 
+            logger.info(
+                f"Kernel: {spec_path.parent.name} / {spec_path.name} [{runner.backend}]"
+            )
             stats = []
             for variant in variants:
                 model = runner.init_model(model_obj, variant, inits)
@@ -234,8 +250,10 @@ def benchmark_problem(
                 if backend != str(ai_hc.Backend.PYTORCH) and pytorch_model:
                     weights_copied = copy_model_weights(pytorch_model, model)
                     if not weights_copied:
-                        logger.warning("Could not copy weights - using seed-based initialization")
-                    
+                        logger.warning(
+                            "Could not copy weights - using seed-based initialization"
+                        )
+
                     # Clone for fair comparison (in case kernels modify inputs) # TODO is this needed here?
                     inputs_orig = [inp.clone() for inp in inputs]
                     inputs_cur = [inp.clone() for inp in inputs]
@@ -248,14 +266,18 @@ def benchmark_problem(
                         cur_output = cur_fn(*inputs_cur)
 
                     #  Compare outputs
-                    correct = check_correctness(pytorch_output, cur_output, rtol, atol )
+                    correct = check_correctness(pytorch_output, cur_output, rtol, atol)
                     if correct:
-                        logger.info(f"\033[92m✔\033[0m  Correctness check PASSED for {backend} !")
+                        logger.info(
+                            f"\033[92m✔\033[0m  Correctness check PASSED for {backend} !"
+                        )
                     else:
-                        logger.warning(f"\033[91m✘\033[0m  Correctness check FAILED for {backend} !")
-                
+                        logger.warning(
+                            f"\033[91m✘\033[0m  Correctness check FAILED for {backend} !"
+                        )
+
                 # benchmark
-                kernel_stats = runner.benchmark_model(model, variant, inputs)
+                kernel_stats = runner.benchmark_model(variant, model, inputs)
                 stats.append(kernel_stats)
 
             # Continue if desired configuration is not available or
@@ -264,7 +286,9 @@ def benchmark_problem(
                 print(f"Warnning: received no results for {backend} backend.")
                 continue
 
-            results["backends"][str(backend)] = stats[0] # TODO: assuming a single variant for now
+            results["backends"][str(backend)] = stats[
+                0
+            ]  # TODO: assuming a single variant for now
 
         except Exception as e:
             print(f"error: {e}")
@@ -321,7 +345,7 @@ def print_comparison(results: dict):
     flops_unit_list = [
         r.flops_unit for r in results["backends"].values() if r is not None
     ]
-    flops_unit = next(f for f in flops_unit_list if f is not None)
+    flops_unit = next((f for f in flops_unit_list if f is not None), None)
 
     if not flops_unit:
         flops_unit = "FLOPS"
