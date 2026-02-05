@@ -120,11 +120,9 @@ class KernelRunner:
             Loaded model if available
         """
         if not kernel_path.is_file():
-            self.logger.error("No 'Model' attribute")
             return None
         mod = ai_utils.import_from_path("kernel_model", kernel_path)
         if not hasattr(mod, "Model"):
-            self.logger.error("Error: No 'Model' attribute")
             return None
         return mod.Model
 
@@ -170,7 +168,6 @@ class KernelRunner:
             spec = yaml.safe_load(f)
         # Bail if desired configuration is not available.
         if self.spec_type not in spec:
-            self.logger.error("spec type not in spec")
             return None
 
         variants = spec[self.spec_type]

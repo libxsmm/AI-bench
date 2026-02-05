@@ -73,7 +73,7 @@ class KernelBenchRunner(KernelRunner):
 
         # Set kernel directory based on backend.
         if self.is_torch_backend():
-            self.kernels = ai_utils.kernel_bench_dir() #/ "KernelBench"
+            self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
         elif self.backend == ai_hc.Backend.TRITON:
             self.kernels = ai_utils.triton_kernels_dir() / "KernelBench"
         elif self.backend == ai_hc.Backend.HELION:
