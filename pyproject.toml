@@ -59,7 +59,7 @@ cuda = [
 ]
 mlir = [
   "lighthouse[ingress_torch_mlir]",
-  "ml_dtypes",
+  "ml-dtypes",
 ]
 
 [dependency-groups]
@@ -84,17 +84,27 @@ conflicts = [
     { extra = "cuda" },
   ],
 ]
+override-dependencies = [
+  "mlir-python-bindings==20260206+1ad20b942",
+]
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch" }
 pytorch-triton = { index = "pytorch" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "d32d1cf" }
+mlir-python-bindings = { index = "eudsl" }
 
 [[tool.uv.index]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl"
 explicit = true
+
+[[tool.uv.index]]
+name = "eudsl"
+url = "https://llvm.github.io/eudsl"
+explicit = true
+format = "flat"
 
 [tool.setuptools.packages.find]
 where = ["."]
