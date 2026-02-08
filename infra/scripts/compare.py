@@ -18,8 +18,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python compare.py --problem level1/23_softmax --xpu
-  python compare.py --problem level1/23_softmax --xpu --backends pytorch triton
+  python compare.py --problem level1/23_Softmax --xpu
+  python compare.py --problem level1/23_Softmax --xpu --backends pytorch triton
 
 CV Stability: ★★★ (<1%) | ★★ (1-5%) | ★ (5-10%) | ⚠ (>10%)
         """,

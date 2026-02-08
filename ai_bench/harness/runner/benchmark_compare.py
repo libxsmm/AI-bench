@@ -71,7 +71,6 @@ def copy_model_weights(source_model, target_model) -> bool:
 
 def set_all_seeds(seed: int) -> None:
     """Set random seeds for all backends."""
-    import torch
 
     torch.manual_seed(seed)
 
@@ -109,7 +108,6 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
     Returns:
         True if outputs match within tolerance
     """
-    import torch
 
     # Handle tuple outputs (some models return multiple tensors)
     if isinstance(original_output, tuple):
@@ -236,6 +234,8 @@ def benchmark_problem(
             stats = []
             for variant in variants:
                 model = runner.init_model(model_obj, variant, inits)
+                if backend == str(ai_hc.Backend.PYTORCH_COMPILE):
+                    model.compile(dynamic=False)
                 # save pytorch model for correctness check
                 if backend == str(ai_hc.Backend.PYTORCH):
                     pytorch_model = model
@@ -283,7 +283,7 @@ def benchmark_problem(
             # Continue if desired configuration is not available or
             # if there is nothing extra to report.
             if not stats:
-                print(f"Warnning: received no results for {backend} backend.")
+                print(f"Warning: received no results for {backend} backend.")
                 continue
 
             results["backends"][str(backend)] = stats[
@@ -364,15 +364,13 @@ def print_comparison(results: dict):
             continue
         speedup_str = f"{speedups.get(backend, 1.0):.2f}x"
         flops_str = f"{res.flops:.2f}" if res.flops else "N/A"
-        # cv_str = _fmt_cv(res.cv)
+
         if have_bw:
             gbs_str = f"{res.mem_bw:.1f}" if res.mem_bw else "N/A"
-            # print(f"{backend:<18} {res.meas_us:>12.2f} {flops_str:>8} {gbs_str:>8} {cv_str:>12} {speedup_str:>10}")
             print(
                 f"{backend:<18} {res.meas_us:>12.2f} {flops_str:>8} {gbs_str:>8} {speedup_str:>10}"
             )
         else:
-            # print(f"{backend:<18} {res.meas_us:>12.2f} {flops_str:>10} {cv_str:>12} {speedup_str:>10}")
             print(
                 f"{backend:<18} {res.meas_us:>12.2f} {flops_str:>10} {speedup_str:>10}"
             )
@@ -388,9 +386,6 @@ def print_comparison(results: dict):
             print(
                 f"Max speedup: {slowest[1].meas_us / fastest[1].meas_us:.2f}x ({fastest[0]} vs {slowest[0]})"
             )
-        # most_stable = min(valid, key=lambda x: x[1].cv or float('inf'))
-        # if most_stable[1].cv is not None:
-        #     print(f"\nMost stable: {most_stable[0]} (CV: {_fmt_cv(most_stable[1].cv)})")
 
     print(f"{'=' * (80 if have_bw else 70)}\n")
 
@@ -399,10 +394,10 @@ def print_comparison_brief(results: dict):
     """Print brief one-line comparison."""
     fastest, fastest_time = None, float("inf")
     for backend, res in results["backends"].items():
-        if not res.error and res.meas_us > 0 and res.meas_us < fastest_time:
+        if res and res.meas_us > 0 and res.meas_us < fastest_time:
             fastest, fastest_time = backend, res.meas_us
     speedups = results.get("speedups", {})
     speedup_strs = [f"{b}:{s:.2f}x" for b, s in speedups.items()]
     print(
-        f"{results['problem']}: fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
+        f"{'=' * 80}\n{results['problem']}: fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
     )
