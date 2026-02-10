@@ -85,6 +85,11 @@ ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml
 ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml --xpu
 ```
 
+Optionally, custom CLI autocompletion is available for certain scripts. It can be activated using:
+```bash
+activate-global-python-argcomplete --user
+```
+
 ### As a Library
 
 ```python

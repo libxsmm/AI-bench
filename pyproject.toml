@@ -33,6 +33,7 @@ dependencies = [
   "numpy",
   "python-dotenv",
   "einops",
+  "argcomplete",
 ]
 
 [project.scripts]

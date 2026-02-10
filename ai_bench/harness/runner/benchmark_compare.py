@@ -175,9 +175,8 @@ def benchmark_problem(
         backends = [
             ai_hc.Backend.PYTORCH,
             ai_hc.Backend.PYTORCH_COMPILE,
-            ai_hc.Backend.TRITON,
         ]
-    logger.info(f"backends: {backends}")
+    logger.info(f"backends: {[str(backend) for backend in backends]}")
     parts = problem.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError(
