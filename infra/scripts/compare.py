@@ -53,7 +53,7 @@ CV Stability: ★★★ (<1%) | ★★ (1-5%) | ★ (5-10%) | ⚠ (>10%)
         "--problem",
         metavar="PROBLEM",
         required=True,
-        help="level[1-4]/kernel_name",
+        help="KernelBench problem: level[1-4]/kernel_name",
         choices=problem_choices,
     )
     parser.add_argument(
@@ -68,7 +68,7 @@ CV Stability: ★★★ (<1%) | ★★ (1-5%) | ★ (5-10%) | ⚠ (>10%)
         "--backends",
         metavar="BACKENDS",
         nargs="+",
-        help=f"Available backend: {backends_choices}",
+        help=f"Available backends: {backends_choices}",
         choices=backends_choices,
     )
 

@@ -176,12 +176,15 @@ def benchmark_problem(
             ai_hc.Backend.PYTORCH,
             ai_hc.Backend.PYTORCH_COMPILE,
         ]
-    logger.info(f"backends: {[str(backend) for backend in backends]}")
     parts = problem.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError(
             f"Invalid problem format: '{problem}'. Expected 'level/kernel_name'"
         )
+
+    logger.info(f"backends: {[str(backend) for backend in backends]}")
+    logger.info(f"Device: {device}")
+    logger.info(f"Problem spec: {spec_type}")
 
     level, kernel_name = parts
 
