@@ -1,6 +1,5 @@
 """Benchmark comparison utilities for ai_bench."""
 
-import logging
 from typing import List
 from typing import Optional
 
@@ -8,8 +7,9 @@ import torch
 
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
+from ai_bench.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 
 def copy_model_weights(source_model, target_model) -> bool:
@@ -77,12 +77,8 @@ def set_all_seeds(seed: int) -> None:
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    # XPU seed
-    try:
-        if hasattr(torch, "xpu") and torch.xpu.is_available():
-            torch.xpu.manual_seed_all(seed)
-    except Exception:
-        pass
+    if torch.xpu.is_available():
+        torch.xpu.manual_seed_all(seed)
 
     # Also set Python random and numpy if available
     import random
@@ -123,32 +119,28 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
         )
         return False
 
-    # Convert to float for comparison (handles fp16/bf16)
-    orig_float = original_output.float()
-    opt_float = optimized_output.float()
-
     # Check for NaN/Inf
-    if torch.isnan(orig_float).any():
+    if torch.isnan(original_output).any():
         logger.warning("Original output contains NaN values")
-    if torch.isnan(opt_float).any():
+    if torch.isnan(optimized_output).any():
         logger.warning(
             "Optimized output contains NaN values - likely a bug in optimization"
         )
         return False
-    if torch.isinf(opt_float).any() and not torch.isinf(orig_float).any():
+    if torch.isinf(optimized_output).any() and not torch.isinf(original_output).any():
         logger.warning("Optimized output contains Inf values not present in original")
         return False
 
     # Compare values
-    is_close = torch.allclose(orig_float, opt_float, rtol=rtol, atol=atol)
+    is_close = torch.allclose(original_output, optimized_output, rtol=rtol, atol=atol)
 
     if not is_close:
-        diff = torch.abs(orig_float - opt_float)
+        diff = torch.abs(original_output - optimized_output)
         max_diff = torch.max(diff).item()
         mean_diff = torch.mean(diff).item()
 
         # Calculate relative error
-        rel_diff = diff / (torch.abs(orig_float) + 1e-8)
+        rel_diff = diff / (torch.abs(original_output) + 1e-8)
         max_rel_diff = torch.max(rel_diff).item()
 
         logger.warning(
@@ -158,7 +150,9 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
 
         # Log some debug info about where differences occur
         if diff.numel() > 0:
-            num_mismatched = (diff > atol + rtol * torch.abs(orig_float)).sum().item()
+            num_mismatched = (
+                (diff > atol + rtol * torch.abs(original_output)).sum().item()
+            )
             total_elements = diff.numel()
             logger.debug(
                 f"Mismatched elements: {num_mismatched}/{total_elements} "
@@ -183,7 +177,7 @@ def benchmark_problem(
             ai_hc.Backend.PYTORCH_COMPILE,
             ai_hc.Backend.TRITON,
         ]
-    print(f"backends: {backends}")
+    logger.info(f"backends: {backends}")
     parts = problem.strip("/").split("/")
     if len(parts) != 2:
         raise ValueError(
@@ -202,8 +196,13 @@ def benchmark_problem(
 
     pytorch_model = None
 
+    # Set seed for reproducible inputs
+    rand_seed = 123
+    set_all_seeds(rand_seed)
+    logger.info(f"Using seed: {rand_seed}")
+
     for backend in backends:
-        print(f"backend: {backend}")
+        logger.info(f"backend: {backend}")
         try:
             runner = KernelBenchRunner(
                 spec_type=spec_type, device=device, backend=backend
@@ -216,7 +215,7 @@ def benchmark_problem(
             kernel_path = runner.kernels / level / f"{kernel_name}.py"
             if not kernel_path.exists():
                 raise FileNotFoundError(f"Kernel not found: {kernel_path}")
-            print(f"kernel path: {kernel_path}")
+            logger.info(f"kernel path: {kernel_path}")
 
             # Run the kernel in all compatible variants.
             model_obj = runner.load_model(kernel_path)
@@ -239,9 +238,6 @@ def benchmark_problem(
                 # save pytorch model for correctness check
                 if backend == str(ai_hc.Backend.PYTORCH):
                     pytorch_model = model
-
-                #  Set seed for reproducible inputs
-                set_all_seeds(123)
 
                 # prepare inputs
                 inputs = ai_hc.get_inputs(variant, spec_inputs, device=runner.device)
@@ -283,7 +279,7 @@ def benchmark_problem(
             # Continue if desired configuration is not available or
             # if there is nothing extra to report.
             if not stats:
-                print(f"Warning: received no results for {backend} backend.")
+                logger.info(f"Warning: received no results for {backend} backend.")
                 continue
 
             results["backends"][str(backend)] = stats[
@@ -291,7 +287,7 @@ def benchmark_problem(
             ]  # TODO: assuming a single variant for now
 
         except Exception as e:
-            print(f"error: {e}")
+            logger.info(f"error: {e}")
             results["backends"][str(backend)] = None
 
     pytorch_res = results["backends"].get(str(ai_hc.Backend.PYTORCH))
