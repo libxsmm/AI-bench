@@ -188,12 +188,6 @@ def benchmark_problem(
 
     level, kernel_name = parts
 
-    variant_result = {
-        "backends": {},
-        "spec_flop": None,
-        "spec_mem_bytes": None,
-    }
-
 
     pytorch_model = None
 
