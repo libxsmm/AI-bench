@@ -188,13 +188,12 @@ def benchmark_problem(
 
     level, kernel_name = parts
 
-    results = {
-        "problem": problem,
-        "device": str(device),
+    variant_result = {
         "backends": {},
         "spec_flop": None,
         "spec_mem_bytes": None,
     }
+
 
     pytorch_model = None
 
@@ -203,38 +202,51 @@ def benchmark_problem(
     set_all_seeds(rand_seed)
     logger.info(f"Using seed: {rand_seed}")
 
-    for backend in backends:
-        logger.info(f"backend: {backend}")
-        try:
-            runner = KernelBenchRunner(
-                spec_type=spec_type, device=device, backend=backend
-            )
+    completed = False
+    variant_idx = 0
+    variant_results = []
+    while not completed:
+        print(f"\n{'=' * 80}")
+        logger.info(f"Running variant index: {variant_idx}")
+        
+        variant_result = {
+            "backends": {},
+            "spec_flop": None,
+            "spec_mem_bytes": None,
+        }
+        variant_results.append(variant_result)
 
-            spec_path = runner.specs / level / f"{kernel_name}.yaml"
-            if not spec_path.exists():
-                raise FileNotFoundError(f"Spec not found: {spec_path}")
+        for backend in backends:
+            logger.info(f"backend: {backend}")
+            try:
+                runner = KernelBenchRunner(
+                    spec_type=spec_type, device=device, backend=backend
+                )
 
-            kernel_path = runner.kernels / level / f"{kernel_name}.py"
-            if not kernel_path.exists():
-                raise FileNotFoundError(f"Kernel not found: {kernel_path}")
-            logger.info(f"kernel path: {kernel_path}")
+                spec_path = runner.specs / level / f"{kernel_name}.yaml"
+                if not spec_path.exists():
+                    raise FileNotFoundError(f"Spec not found: {spec_path}")
 
-            # Run the kernel in all compatible variants.
-            model_obj = runner.load_model(kernel_path)
-            if not model_obj:
-                raise ValueError("Missing kernel's entry model")
+                kernel_path = runner.kernels / level / f"{kernel_name}.py"
+                if not kernel_path.exists():
+                    raise FileNotFoundError(f"Kernel not found: {kernel_path}")
+                logger.info(f"kernel path: {kernel_path}")
 
-            spec = runner.load_spec(spec_path)
-            variants = runner.get_spec_variants(spec)
-            spec_inputs = runner.get_spec_inputs(spec)
-            inits = runner.get_spec_inits(spec)
+                # Run the kernel in all compatible variants.
+                model_obj = runner.load_model(kernel_path)
+                if not model_obj:
+                    raise ValueError("Missing kernel's entry model")
 
-            logger.info(
-                f"Kernel: {spec_path.parent.name} / {spec_path.name} [{runner.backend}]"
-            )
-            stats = []
-            for variant in variants:
-                model = runner.init_model(model_obj, variant, inits)
+                spec = runner.load_spec(spec_path)
+                variants = runner.get_spec_variants(spec)
+                spec_inputs = runner.get_spec_inputs(spec)
+                inits = runner.get_spec_inits(spec)
+
+                logger.info(
+                    f"Kernel: {spec_path.parent.name} / {spec_path.name} [{runner.backend}]"
+                )
+                
+                model = runner.init_model(model_obj, variants[variant_idx], inits)
                 if backend == str(ai_hc.Backend.PYTORCH_COMPILE):
                     model.compile(dynamic=False)
                 # save pytorch model for correctness check
@@ -242,9 +254,9 @@ def benchmark_problem(
                     pytorch_model = model
 
                 # prepare inputs
-                inputs = ai_hc.get_inputs(variant, spec_inputs, device=runner.device)
+                inputs = ai_hc.get_inputs(variants[variant_idx], spec_inputs, device=runner.device)
 
-                # correctness check
+                # correctness check, only if we have a reference PyTorch model and we're not currently benchmarking the PyTorch backend
                 if backend != str(ai_hc.Backend.PYTORCH) and pytorch_model:
                     weights_copied = copy_model_weights(pytorch_model, model)
                     if not weights_copied:
@@ -275,31 +287,46 @@ def benchmark_problem(
                         )
 
                 # benchmark
-                kernel_stats = runner.benchmark_model(variant, model, inputs)
-                stats.append(kernel_stats)
+                kernel_stats = runner.benchmark_model(variants[variant_idx], model, inputs)
 
-            # Continue if desired configuration is not available or
-            # if there is nothing extra to report.
-            if not stats:
-                logger.info(f"Warning: received no results for {backend} backend.")
-                continue
+                # Continue if desired configuration is not available or
+                # if there is nothing extra to report.
+                if not kernel_stats:
+                    logger.info(f"Warning: received no results for {backend} backend. (variant={variants[variant_idx]})")
+                    continue
+                
+                
+                variant_result["backends"][str(backend)] = kernel_stats
 
-            results["backends"][str(backend)] = stats[
-                0
-            ]  # TODO: assuming a single variant for now
+            except Exception as e:
+                logger.info(f"error: {e}")
+                variant_result["backends"][str(backend)] = None
 
-        except Exception as e:
-            logger.info(f"error: {e}")
-            results["backends"][str(backend)] = None
+        pytorch_res = variant_result["backends"].get(str(ai_hc.Backend.PYTORCH))
 
-    pytorch_res = results["backends"].get(str(ai_hc.Backend.PYTORCH))
+        if pytorch_res:
+            baseline_time = pytorch_res.meas_us
+            variant_result["speedups"] = {
+                b: baseline_time / r.meas_us for b, r in variant_result["backends"].items() if r
+            }
+        
+        print_variant_results(variant_result, variant_idx)
+        
 
-    if pytorch_res:
-        baseline_time = pytorch_res.meas_us
-        results["speedups"] = {
-            b: baseline_time / r.meas_us for b, r in results["backends"].items() if r
-        }
+        if variant_idx + 1 >= len(variants):
+            completed = True
+            break
+        else:             
+            logger.info(f"Moving to next variant (idx={variant_idx + 1})")
+            variant_idx += 1
+            
 
+    results = {
+        "problem": problem,
+        "device": str(device),
+        "variants": variant_results
+    }
+        
     return results
 
 
@@ -323,11 +350,18 @@ def _fmt_cv(cv):
 
 def print_comparison(results: dict):
     """Pretty print comparison results."""
+    print("COMPARISON FINAL RESULTS:")
     print(f"\n{'=' * 80}")
     print(f"Problem: {results['problem']}")
     print(f"Device:  {results['device']}")
     print(f"{'=' * 80}")
+    for idx, variant_result in enumerate(results.get("variants", [])):
+        print_variant_results(variant_result, idx)
 
+def print_variant_results(results: dict, idx: int = 0):
+    print(f"\n{'=' * 80}")
+    print(f"Variant {idx} results:")
+    print(f"{'=' * 80}")
     spec_flop, spec_mem = results.get("spec_flop"), results.get("spec_mem_bytes")
     if spec_flop or spec_mem:
         parts = []
@@ -390,12 +424,15 @@ def print_comparison(results: dict):
 
 def print_comparison_brief(results: dict):
     """Print brief one-line comparison."""
-    fastest, fastest_time = None, float("inf")
-    for backend, res in results["backends"].items():
-        if res and res.meas_us > 0 and res.meas_us < fastest_time:
-            fastest, fastest_time = backend, res.meas_us
-    speedups = results.get("speedups", {})
-    speedup_strs = [f"{b}:{s:.2f}x" for b, s in speedups.items()]
-    print(
-        f"{'=' * 80}\n{results['problem']}: fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
-    )
+    print("SUMMARY:")
+    variant_results = results.get("variants", [])
+    for idx, variant_result in enumerate(variant_results):
+        fastest, fastest_time = None, float("inf")
+        for backend, res in variant_result.get("backends", {}).items():
+            if res and res.meas_us > 0 and res.meas_us < fastest_time:
+                fastest, fastest_time = backend, res.meas_us
+        speedups = variant_result.get("speedups", {})
+        speedup_strs = [f"{b}:{s:.2f}x" for b, s in speedups.items()]
+        print(
+            f"{'=' * 80}\n{results['problem']} - Variant {idx}: fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
+        )
