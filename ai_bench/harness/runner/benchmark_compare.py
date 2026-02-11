@@ -188,7 +188,6 @@ def benchmark_problem(
 
     level, kernel_name = parts
 
-
     pytorch_model = None
 
     # Set seed for reproducible inputs
@@ -202,7 +201,7 @@ def benchmark_problem(
     while not completed:
         print(f"\n{'=' * 80}")
         logger.info(f"Running variant index: {variant_idx}")
-        
+
         variant_result = {
             "backends": {},
             "spec_flop": None,
@@ -239,7 +238,7 @@ def benchmark_problem(
                 logger.info(
                     f"Kernel: {spec_path.parent.name} / {spec_path.name} [{runner.backend}]"
                 )
-                
+
                 model = runner.init_model(model_obj, variants[variant_idx], inits)
                 if backend == str(ai_hc.Backend.PYTORCH_COMPILE):
                     model.compile(dynamic=False)
@@ -248,7 +247,9 @@ def benchmark_problem(
                     pytorch_model = model
 
                 # prepare inputs
-                inputs = ai_hc.get_inputs(variants[variant_idx], spec_inputs, device=runner.device)
+                inputs = ai_hc.get_inputs(
+                    variants[variant_idx], spec_inputs, device=runner.device
+                )
 
                 # correctness check, only if we have a reference PyTorch model and we're not currently benchmarking the PyTorch backend
                 if backend != str(ai_hc.Backend.PYTORCH) and pytorch_model:
@@ -281,15 +282,18 @@ def benchmark_problem(
                         )
 
                 # benchmark
-                kernel_stats = runner.benchmark_model(variants[variant_idx], model, inputs)
+                kernel_stats = runner.benchmark_model(
+                    variants[variant_idx], model, inputs
+                )
 
                 # Continue if desired configuration is not available or
                 # if there is nothing extra to report.
                 if not kernel_stats:
-                    logger.info(f"Warning: received no results for {backend} backend. (variant={variants[variant_idx]})")
+                    logger.info(
+                        f"Warning: received no results for {backend} backend. (variant={variants[variant_idx]})"
+                    )
                     continue
-                
-                
+
                 variant_result["backends"][str(backend)] = kernel_stats
 
             except Exception as e:
@@ -301,26 +305,22 @@ def benchmark_problem(
         if pytorch_res:
             baseline_time = pytorch_res.meas_us
             variant_result["speedups"] = {
-                b: baseline_time / r.meas_us for b, r in variant_result["backends"].items() if r
+                b: baseline_time / r.meas_us
+                for b, r in variant_result["backends"].items()
+                if r
             }
-        
+
         print_variant_results(variant_result, variant_idx)
-        
 
         if variant_idx + 1 >= len(variants):
             completed = True
             break
-        else:             
+        else:
             logger.info(f"Moving to next variant (idx={variant_idx + 1})")
             variant_idx += 1
-            
 
-    results = {
-        "problem": problem,
-        "device": str(device),
-        "variants": variant_results
-    }
-        
+    results = {"problem": problem, "device": str(device), "variants": variant_results}
+
     return results
 
 
@@ -351,6 +351,7 @@ def print_comparison(results: dict):
     print(f"{'=' * 80}")
     for idx, variant_result in enumerate(results.get("variants", [])):
         print_variant_results(variant_result, idx)
+
 
 def print_variant_results(results: dict, idx: int = 0):
     print(f"\n{'=' * 80}")
