@@ -313,13 +313,14 @@ def benchmark_problem(
                 if r
             }
 
+        logger.info("Perf summary:")
         print_variant_results_brief(variant_result, variant_idx)
 
         if variant_idx + 1 >= len(variants):
             completed = True
             break
         else:
-            logger.info(f"Moving to next variant (idx={variant_idx + 1})")
+            logger.info(f"-> Moving to next variant (idx={variant_idx + 1})")
             variant_idx += 1
 
     results = {"problem": problem, "device": str(device), "variants": variant_results}
@@ -347,20 +348,20 @@ def _fmt_cv(cv):
 
 def print_comparison(results: dict):
     """Pretty print comparison results."""
-    print("COMPARISON FINAL RESULTS:")
-    print(f"\n{'=' * 80}")
-    print(f"Problem: {results['problem']}")
-    print(f"Device:  {results['device']}")
-    print(f"{'=' * 80}")
+    logger.info("COMPARISON FINAL RESULTS:")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"Problem: {results['problem']}")
+    logger.info(f"Device:  {results['device']}")
+    logger.info(f"{'=' * 80}")
     for idx, variant_result in enumerate(results.get("variants", [])):
         print_variant_results(variant_result, idx)
 
 
 def print_variant_results(results: dict, idx: int = 0):
-    print(f"\n{'=' * 80}")
-    print(f"Variant {idx}:")
-    print(results["variant"])
-    print(f"{'=' * 80}")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"Variant {idx}:")
+    logger.info(results["variant"])
+    logger.info(f"{'=' * 80}")
     spec_flop, spec_mem = results.get("spec_flop"), results.get("spec_mem_bytes")
     if spec_flop or spec_mem:
         parts = []
@@ -368,7 +369,7 @@ def print_variant_results(results: dict, idx: int = 0):
             parts.append(f"FLOPs={_fmt_sci(spec_flop)}")
         if spec_mem:
             parts.append(f"Bytes={_fmt_sci(spec_mem)}")
-        print("Spec: " + "  ".join(parts))
+        logger.info("Spec: " + "  ".join(parts))
 
     speedups = results.get("speedups", {})
     have_bw = any(r and r.mem_bw for r in results["backends"].values())
@@ -381,53 +382,57 @@ def print_variant_results(results: dict, idx: int = 0):
     if not flops_unit:
         flops_unit = "FLOPS"
     if have_bw:
-        print(
-            f"\n{'Backend':<18} {'Time (μs)':>12} {flops_unit:>8} {'GB/s':>8} {'Speedup':>10}"
+        logger.info(
+            f"{'Backend':<18} {'Time (μs)':>12} {flops_unit:>8} {'GB/s':>8} {'Speedup':>10}"
         )
-        print("-" * 80)
+        logger.info("-" * 80)
     else:
-        print(f"\n{'Backend':<18} {'Time (μs)':>12} {flops_unit:>10} {'Speedup':>10}")
-        print("-" * 70)
+        logger.info(
+            f"{'Backend':<18} {'Time (μs)':>12} {flops_unit:>10} {'Speedup':>10}"
+        )
+        logger.info("-" * 70)
 
     for backend, res in results["backends"].items():
         if not res:
-            print(f"{backend:<18} {'ERROR: no results'}")
+            logger.info(f"{backend:<18} {'ERROR: no results'}")
             continue
         speedup_str = f"{speedups.get(backend, 1.0):.2f}x"
         flops_str = f"{res.flops:.2f}" if res.flops else "N/A"
 
         if have_bw:
             gbs_str = f"{res.mem_bw:.1f}" if res.mem_bw else "N/A"
-            print(
+            logger.info(
                 f"{backend:<18} {res.meas_us:>12.2f} {flops_str:>8} {gbs_str:>8} {speedup_str:>10}"
             )
         else:
-            print(
+            logger.info(
                 f"{backend:<18} {res.meas_us:>12.2f} {flops_str:>10} {speedup_str:>10}"
             )
 
-    print("-" * (80 if have_bw else 70))
+    logger.info("-" * (80 if have_bw else 70))
 
     valid = [(b, r) for b, r in results["backends"].items() if r]
     if valid:
         fastest = min(valid, key=lambda x: x[1].meas_us)
         slowest = max(valid, key=lambda x: x[1].meas_us)
-        print(f"\nFastest: {fastest[0]} ({fastest[1].meas_us:.2f} μs)")
+        logger.info(f"Fastest: {fastest[0]} ({fastest[1].meas_us:.2f} μs)")
         if len(valid) > 1:
-            print(
+            logger.info(
                 f"Max speedup: {slowest[1].meas_us / fastest[1].meas_us:.2f}x ({fastest[0]} vs {slowest[0]})"
             )
 
-    print(f"{'=' * (80 if have_bw else 70)}\n")
+    logger.info(f"{'=' * (80 if have_bw else 70)}")
 
 
 def print_comparison_brief(results: dict):
-    """Print brief one-line comparison."""
-    print("SUMMARY:")
-    print(f"{results['problem']}")
+    logger.info("COMPARISON FINAL RESULTS:")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"Problem: {results['problem']}")
+    logger.info(f"Device:  {results['device']}")
+    logger.info(f"{'=' * 80}")
     variant_results = results.get("variants", [])
     for idx, variant_result in enumerate(variant_results):
-        print(f"{'=' * 80}")
+        logger.info(f"{'=' * 80}")
         print_variant_results_brief(variant_result, idx)
 
 
@@ -438,5 +443,8 @@ def print_variant_results_brief(variant_result: dict, idx: int = 0):
             fastest, fastest_time = backend, res.meas_us
     speedups = variant_result.get("speedups", {})
     speedup_strs = [f"{b}: {s:.2f}x" for b, s in speedups.items()]
-    print(f"  Variant {idx}: {variant_result['variant']}")
-    print(f"  fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}")
+
+    logger.info(f"  Variant {idx}: {variant_result['variant']}")
+    logger.info(
+        f"  Fastest: {fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
+    )
