@@ -1,5 +1,8 @@
 """Benchmark comparison utilities for ai_bench."""
 
+from collections import defaultdict
+from dataclasses import dataclass
+from dataclasses import field
 from typing import List
 from typing import Optional
 
@@ -162,6 +165,26 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
     return is_close
 
 
+@dataclass
+class VariantResult:
+    """
+    Variant benchmark results.
+
+    Args:
+        variant: Specs' variant entry
+        backends: Performance stats of each measured backend
+        spec_flop: Number of floating point operations (FLOP)
+        spec_mem_bytes: Number of memory access bytes
+        speedups: Speedup of each measured backend
+    """
+
+    variant: defaultdict[dict] = field(default_factory=lambda: defaultdict(dict))
+    backends: defaultdict[dict] = field(default_factory=lambda: defaultdict(dict))
+    spec_flop: float | None = None
+    spec_mem_bytes: float | None = None
+    speedups: defaultdict[dict] = field(default_factory=lambda: defaultdict(dict))
+
+
 def benchmark_problem(
     problem: str,
     device: torch.device,
@@ -202,12 +225,7 @@ def benchmark_problem(
         logger.info(f"{'=' * 80}")
         logger.info(f"Running variant index: {variant_idx}")
 
-        variant_result = {
-            "backends": {},
-            "spec_flop": None,
-            "spec_mem_bytes": None,
-            "variant": None,
-        }
+        variant_result = VariantResult()
         variant_results.append(variant_result)
 
         for backend in backends:
@@ -296,20 +314,20 @@ def benchmark_problem(
                     )
                     continue
 
-                variant_result["backends"][str(backend)] = kernel_stats
-                variant_result["variant"] = variants[variant_idx]
+                variant_result.backends[str(backend)] = kernel_stats
+                variant_result.variant = variants[variant_idx]
 
             except Exception as e:
                 logger.info(f"error: {e}")
-                variant_result["backends"][str(backend)] = None
+                variant_result.backends[str(backend)] = None
 
-        pytorch_res = variant_result["backends"].get(str(ai_hc.Backend.PYTORCH))
+        pytorch_res = variant_result.backends.get(str(ai_hc.Backend.PYTORCH))
 
         if pytorch_res:
             baseline_time = pytorch_res.meas_us
-            variant_result["speedups"] = {
+            variant_result.speedups = {
                 b: baseline_time / r.meas_us
-                for b, r in variant_result["backends"].items()
+                for b, r in variant_result.backends.items()
                 if r
             }
 
@@ -346,23 +364,28 @@ def _fmt_cv(cv):
     return f"{cv_pct:.2f}% {indicator}"
 
 
-def print_comparison(results: dict):
-    """Pretty print comparison results."""
-    logger.info("COMPARISON FINAL RESULTS:")
-    logger.info(f"{'=' * 80}")
-    logger.info(f"Problem: {results['problem']}")
-    logger.info(f"Device:  {results['device']}")
-    logger.info(f"{'=' * 80}")
-    for idx, variant_result in enumerate(results.get("variants", [])):
-        print_variant_results(variant_result, idx)
+def print_variant_results_brief(variant_result: VariantResult, idx: int = 0):
+    """Pretty print variant results - brief version."""
+    fastest, fastest_time = None, float("inf")
+    for backend, res in variant_result.backends.items():
+        if res and res.meas_us > 0 and res.meas_us < fastest_time:
+            fastest, fastest_time = backend, res.meas_us
+    speedups = variant_result.speedups
+    speedup_strs = [f"{b}: {s:.2f}x" for b, s in speedups.items()]
+
+    logger.info(f"  Variant {idx}: {variant_result.variant}")
+    logger.info(
+        f"  Fastest: {fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
+    )
 
 
-def print_variant_results(results: dict, idx: int = 0):
+def print_variant_results(variant_result: VariantResult, idx: int = 0):
+    """Pretty print variant results."""
     logger.info(f"{'=' * 80}")
     logger.info(f"Variant {idx}:")
-    logger.info(results["variant"])
+    logger.info(variant_result.variant)
     logger.info(f"{'=' * 80}")
-    spec_flop, spec_mem = results.get("spec_flop"), results.get("spec_mem_bytes")
+    spec_flop, spec_mem = variant_result.spec_flop, variant_result.spec_mem_bytes
     if spec_flop or spec_mem:
         parts = []
         if spec_flop:
@@ -371,11 +394,11 @@ def print_variant_results(results: dict, idx: int = 0):
             parts.append(f"Bytes={_fmt_sci(spec_mem)}")
         logger.info("Spec: " + "  ".join(parts))
 
-    speedups = results.get("speedups", {})
-    have_bw = any(r and r.mem_bw for r in results["backends"].values())
+    speedups = variant_result.speedups
+    have_bw = any(r and r.mem_bw for r in variant_result.backends.values())
 
     flops_unit_list = [
-        r.flops_unit for r in results["backends"].values() if r is not None
+        r.flops_unit for r in variant_result.backends.values() if r is not None
     ]
     flops_unit = next((f for f in flops_unit_list if f is not None), None)
 
@@ -392,7 +415,7 @@ def print_variant_results(results: dict, idx: int = 0):
         )
         logger.info("-" * 70)
 
-    for backend, res in results["backends"].items():
+    for backend, res in variant_result.backends.items():
         if not res:
             logger.info(f"{backend:<18} {'ERROR: no results'}")
             continue
@@ -411,7 +434,7 @@ def print_variant_results(results: dict, idx: int = 0):
 
     logger.info("-" * (80 if have_bw else 70))
 
-    valid = [(b, r) for b, r in results["backends"].items() if r]
+    valid = [(b, r) for b, r in variant_result.backends.items() if r]
     if valid:
         fastest = min(valid, key=lambda x: x[1].meas_us)
         slowest = max(valid, key=lambda x: x[1].meas_us)
@@ -425,6 +448,7 @@ def print_variant_results(results: dict, idx: int = 0):
 
 
 def print_comparison_brief(results: dict):
+    """Pretty print comparison results - brief version."""
     logger.info("COMPARISON FINAL RESULTS:")
     logger.info(f"{'=' * 80}")
     logger.info(f"Problem: {results['problem']}")
@@ -436,15 +460,12 @@ def print_comparison_brief(results: dict):
         print_variant_results_brief(variant_result, idx)
 
 
-def print_variant_results_brief(variant_result: dict, idx: int = 0):
-    fastest, fastest_time = None, float("inf")
-    for backend, res in variant_result.get("backends", {}).items():
-        if res and res.meas_us > 0 and res.meas_us < fastest_time:
-            fastest, fastest_time = backend, res.meas_us
-    speedups = variant_result.get("speedups", {})
-    speedup_strs = [f"{b}: {s:.2f}x" for b, s in speedups.items()]
-
-    logger.info(f"  Variant {idx}: {variant_result['variant']}")
-    logger.info(
-        f"  Fastest: {fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
-    )
+def print_comparison(results: dict):
+    """Pretty print comparison results."""
+    logger.info("COMPARISON FINAL RESULTS:")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"Problem: {results['problem']}")
+    logger.info(f"Device:  {results['device']}")
+    logger.info(f"{'=' * 80}")
+    for idx, variant_result in enumerate(results.get("variants", [])):
+        print_variant_results(variant_result, idx)
