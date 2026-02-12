@@ -199,13 +199,14 @@ def benchmark_problem(
     variant_idx = 0
     variant_results = []
     while not completed:
-        print(f"\n{'=' * 80}")
+        logger.info(f"{'=' * 80}")
         logger.info(f"Running variant index: {variant_idx}")
 
         variant_result = {
             "backends": {},
             "spec_flop": None,
             "spec_mem_bytes": None,
+            "variant": None,
         }
         variant_results.append(variant_result)
 
@@ -238,6 +239,7 @@ def benchmark_problem(
                 logger.info(
                     f"Kernel: {spec_path.parent.name} / {spec_path.name} [{runner.backend}]"
                 )
+                logger.info(f"Variant: {variants[variant_idx]}")
 
                 model = runner.init_model(model_obj, variants[variant_idx], inits)
                 if backend == str(ai_hc.Backend.PYTORCH_COMPILE):
@@ -295,6 +297,7 @@ def benchmark_problem(
                     continue
 
                 variant_result["backends"][str(backend)] = kernel_stats
+                variant_result["variant"] = variants[variant_idx]
 
             except Exception as e:
                 logger.info(f"error: {e}")
@@ -310,7 +313,7 @@ def benchmark_problem(
                 if r
             }
 
-        print_variant_results(variant_result, variant_idx)
+        print_variant_results_brief(variant_result, variant_idx)
 
         if variant_idx + 1 >= len(variants):
             completed = True
@@ -355,7 +358,8 @@ def print_comparison(results: dict):
 
 def print_variant_results(results: dict, idx: int = 0):
     print(f"\n{'=' * 80}")
-    print(f"Variant {idx} results:")
+    print(f"Variant {idx}:")
+    print(results["variant"])
     print(f"{'=' * 80}")
     spec_flop, spec_mem = results.get("spec_flop"), results.get("spec_mem_bytes")
     if spec_flop or spec_mem:
@@ -420,14 +424,19 @@ def print_variant_results(results: dict, idx: int = 0):
 def print_comparison_brief(results: dict):
     """Print brief one-line comparison."""
     print("SUMMARY:")
+    print(f"{results['problem']}")
     variant_results = results.get("variants", [])
     for idx, variant_result in enumerate(variant_results):
-        fastest, fastest_time = None, float("inf")
-        for backend, res in variant_result.get("backends", {}).items():
-            if res and res.meas_us > 0 and res.meas_us < fastest_time:
-                fastest, fastest_time = backend, res.meas_us
-        speedups = variant_result.get("speedups", {})
-        speedup_strs = [f"{b}:{s:.2f}x" for b, s in speedups.items()]
-        print(
-            f"{'=' * 80}\n{results['problem']} - Variant {idx}: fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}"
-        )
+        print(f"{'=' * 80}")
+        print_variant_results_brief(variant_result, idx)
+
+
+def print_variant_results_brief(variant_result: dict, idx: int = 0):
+    fastest, fastest_time = None, float("inf")
+    for backend, res in variant_result.get("backends", {}).items():
+        if res and res.meas_us > 0 and res.meas_us < fastest_time:
+            fastest, fastest_time = backend, res.meas_us
+    speedups = variant_result.get("speedups", {})
+    speedup_strs = [f"{b}: {s:.2f}x" for b, s in speedups.items()]
+    print(f"  Variant {idx}: {variant_result['variant']}")
+    print(f"  fastest={fastest} ({fastest_time:.2f}μs) | {' '.join(speedup_strs)}")

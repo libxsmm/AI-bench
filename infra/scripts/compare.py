@@ -76,6 +76,7 @@ CV Stability: ★★★ (<1%) | ★★ (1-5%) | ★ (5-10%) | ⚠ (>10%)
     bench_group.add_argument("--rtol", default=1e-2, type=float)
     bench_group.add_argument("--atol", default=1e-5, type=float)
 
+    # TODO: Enable and propagate config.
     # bench_group = parser.add_argument_group("benchmarking options")
     # bench_group.add_argument("--time-warmup", action="store_true", default=True)
     # bench_group.add_argument("--no-time-warmup", action="store_true")
