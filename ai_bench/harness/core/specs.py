@@ -1,4 +1,8 @@
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:
+    from strenum import StrEnum
+
 from functools import cache
 from typing import Dict
 
@@ -104,7 +108,7 @@ def input_torch_dtype(input_entry: dict, variant: dict | None = None) -> torch.d
         torch data type
     """
     in_type = input_entry[InKey.TYPE]
-    if in_type in InInputKey:
+    if in_type in iter(InInputKey):
         match InInputKey(in_type):
             case InInputKey.INHERIT:
                 dtype = get_variant_torch_dtype(variant) if variant else None
