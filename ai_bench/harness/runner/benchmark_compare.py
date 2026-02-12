@@ -227,6 +227,7 @@ def benchmark_problem(
 
         variant_result = VariantResult()
         variant_results.append(variant_result)
+        variants = []
 
         for backend in backends:
             logger.info(f"backend: {backend}")
