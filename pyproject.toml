@@ -87,14 +87,14 @@ conflicts = [
   ],
 ]
 override-dependencies = [
-  "mlir-python-bindings==20260206+1ad20b942",
+  "mlir-python-bindings==20260211+f932646bf",
 ]
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch" }
 pytorch-triton = { index = "pytorch" }
-lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "d32d1cf" }
+lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "0dadb37" }
 mlir-python-bindings = { index = "eudsl" }
 
 [[tool.uv.index]]
