@@ -52,6 +52,9 @@ Examples:
 
   # Run comparison between PyTorch and Triton
   ai-bench-compare --problem level2/99_Matmul_GELU_Softmax --xpu --backends pytorch triton
+
+  # Override tolerances from command line (takes priority over spec values)
+  ai-bench-compare --problem level1/19_ReLU --xpu --rtol 1e-3 --atol 1e-6
         """,
     )
 
@@ -80,8 +83,18 @@ Examples:
     )
 
     bench_group = parser.add_argument_group("kernel validation options")
-    bench_group.add_argument("--rtol", default=1e-2, type=float)
-    bench_group.add_argument("--atol", default=1e-5, type=float)
+    bench_group.add_argument(
+        "--rtol",
+        default=None,
+        type=float,
+        help="Override relative tolerance (default: per-problem spec value, fallback 1e-2)",
+    )
+    bench_group.add_argument(
+        "--atol",
+        default=None,
+        type=float,
+        help="Override absolute tolerance (default: per-problem spec value, fallback 1e-5)",
+    )
 
     # TODO: Enable and propagate config.
     # bench_group = parser.add_argument_group("benchmarking options")

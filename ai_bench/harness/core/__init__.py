@@ -6,10 +6,12 @@ from .specs import InKey
 from .specs import SpecKey
 from .specs import VKey
 from .specs import apply_input_inits
+from .specs import get_atol
 from .specs import get_flop
 from .specs import get_inits
 from .specs import get_inputs
 from .specs import get_mem_bytes
+from .specs import get_rtol
 from .specs import get_torch_dtype
 from .specs import get_variant_torch_dtype
 from .specs import input_is_bool
@@ -28,10 +30,12 @@ __all__ = [
     "SpecKey",
     "VKey",
     "apply_input_inits",
+    "get_atol",
     "get_flop",
     "get_inits",
     "get_inputs",
     "get_mem_bytes",
+    "get_rtol",
     "get_torch_dtype",
     "get_variant_torch_dtype",
     "input_is_bool",

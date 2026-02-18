@@ -40,10 +40,12 @@ from ai_bench.harness.core import SpecKey
 from ai_bench.harness.core import VKey
 
 # Core functions
+from ai_bench.harness.core import get_atol
 from ai_bench.harness.core import get_flop
 from ai_bench.harness.core import get_inits
 from ai_bench.harness.core import get_inputs
 from ai_bench.harness.core import get_mem_bytes
+from ai_bench.harness.core import get_rtol
 from ai_bench.harness.core import get_torch_dtype
 from ai_bench.harness.core import get_variant_torch_dtype
 from ai_bench.harness.core import input_shape
@@ -80,10 +82,12 @@ __all__ = [
     "VKey",
     "__version__",
     "configure",
+    "get_atol",
     "get_flop",
     "get_inits",
     "get_inputs",
     "get_mem_bytes",
+    "get_rtol",
     "get_torch_dtype",
     "get_variant_torch_dtype",
     "input_shape",

@@ -65,6 +65,8 @@ class VKey(StrEnum):
     DIMS = "dims"
     FLOP = "flop"
     MEM_BYTES = "mem_bytes"
+    RTOL = "rtol"
+    ATOL = "atol"
 
 
 class Backend(StrEnum):
@@ -75,6 +77,11 @@ class Backend(StrEnum):
     TRITON = "triton"
     HELION = "helion"
     MLIR = "mlir"
+
+
+# Default tolerance values (match current hardcoded behavior).
+_DEFAULT_RTOL = 1e-2
+_DEFAULT_ATOL = 1e-5
 
 
 def input_shape(input_entry: dict, dims: Dict[str, int]) -> list[int]:
@@ -348,3 +355,29 @@ def get_mem_bytes(variant: dict) -> float | None:
         Number of bytes if available
     """
     return _eval_variant_formula(variant, VKey.MEM_BYTES)
+
+
+def get_rtol(variant: dict) -> float:
+    """Get relative tolerance for correctness checks.
+
+    Falls back to default (1e-2) when not specified in the spec.
+
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        Relative tolerance value
+    """
+    return variant.get(VKey.RTOL, _DEFAULT_RTOL)
+
+
+def get_atol(variant: dict) -> float:
+    """Get absolute tolerance for correctness checks.
+
+    Falls back to default (1e-5) when not specified in the spec.
+
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        Absolute tolerance value
+    """
+    return variant.get(VKey.ATOL, _DEFAULT_ATOL)

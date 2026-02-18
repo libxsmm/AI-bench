@@ -103,6 +103,8 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
     Args:
         original_output: Output from original kernel
         optimized_output: Output from optimized kernel
+        rtol: Relative tolerance
+        atol: Absolute tolerance
 
     Returns:
         True if outputs match within tolerance
@@ -189,11 +191,27 @@ def benchmark_problem(
     problem: str,
     device: torch.device,
     spec_type: ai_hc.SpecKey = ai_hc.SpecKey.V_BENCH_GPU,
-    rtol: float = 1e-2,
-    atol: float = 1e-5,
+    rtol: float | None = None,
+    atol: float | None = None,
     backends: Optional[List[ai_hc.Backend]] = None,
 ) -> dict:
-    """Benchmark a specific problem across multiple backends."""
+    """Benchmark a specific problem across multiple backends.
+
+    Tolerance resolution order (highest priority first):
+        1. Explicit rtol/atol arguments (CLI override)
+        2. Per-variant spec values (rtol/atol in YAML)
+        3. Default values (1e-2 / 1e-5)
+
+    Args:
+        problem: Problem identifier in 'level/kernel_name' format
+        device: Target device
+        spec_type: Type of problem spec to use
+        rtol: Override relative tolerance. If None, uses per-variant spec value.
+        atol: Override absolute tolerance. If None, uses per-variant spec value.
+        backends: List of backends to benchmark
+    Returns:
+        Dictionary with benchmark results
+    """
     if backends is None:
         backends = [
             ai_hc.Backend.PYTORCH,
@@ -291,15 +309,31 @@ def benchmark_problem(
                         cur_fn = model.forward
                         cur_output = cur_fn(*inputs_cur)
 
+                    # Resolve tolerances: CLI override > spec value > default
+                    effective_rtol = (
+                        rtol
+                        if rtol is not None
+                        else ai_hc.get_rtol(variants[variant_idx])
+                    )
+                    effective_atol = (
+                        atol
+                        if atol is not None
+                        else ai_hc.get_atol(variants[variant_idx])
+                    )
+
                     #  Compare outputs
-                    correct = check_correctness(pytorch_output, cur_output, rtol, atol)
+                    correct = check_correctness(
+                        pytorch_output, cur_output, effective_rtol, effective_atol
+                    )
                     if correct:
                         logger.info(
-                            f"\033[92m✔\033[0m  Correctness check PASSED for {backend} !"
+                            f"\033[92m✔\033[0m  Correctness check PASSED for {backend} "
+                            f"(rtol={effective_rtol:.1e}, atol={effective_atol:.1e})"
                         )
                     else:
                         logger.warning(
-                            f"\033[91m✘\033[0m  Correctness check FAILED for {backend} !"
+                            f"\033[91m✘\033[0m  Correctness check FAILED for {backend} "
+                            f"(rtol={effective_rtol:.1e}, atol={effective_atol:.1e})"
                         )
 
                 # benchmark
