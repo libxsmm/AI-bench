@@ -91,7 +91,7 @@ Using `ai-bench-compare` command, KernelBench performance can be compared across
 # Show help
 ai-bench-compare --help
 
-# Default comparison for the given problem on CPU (default)
+# Comparison for the given problem on CPU (default)
 ai-bench-compare --problem level1/1_Square_matrix_multiplication_
 
 # Compare PyTorch and Triton backends on XPU
