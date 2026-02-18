@@ -41,10 +41,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python compare.py --problem level1/23_Softmax --xpu
-  python compare.py --problem level1/23_Softmax --xpu --backends pytorch triton
+  # Run comparison on CPU
+  ai-bench-compare --problem level1/19_ReLU
 
-CV Stability: ★★★ (<1%) | ★★ (1-5%) | ★ (5-10%) | ⚠ (>10%)
+  # Run comparison on XPU
+  ai-bench-compare --problem level1/19_ReLU --xpu
+
+  # Run comparison on CUDA GPU
+  ai-bench-compare --problem level1/19_ReLU --cuda
+
+  # Run comparison between PyTorch and Triton
+  ai-bench-compare --problem level2/99_Matmul_GELU_Softmax --xpu --backends pytorch triton
         """,
     )
 

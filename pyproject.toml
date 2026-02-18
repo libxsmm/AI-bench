@@ -39,6 +39,7 @@ dependencies = [
 
 [project.scripts]
 ai-bench = "ai_bench.cli:main"
+ai-bench-compare = "ai_bench.cli_compare:main"
 
 [project.urls]
 Homepage = "https://github.com/libxsmm/AI-bench"

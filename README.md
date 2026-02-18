@@ -85,6 +85,19 @@ ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml
 ai-bench --kernel /path/to/kernel.py /path/to/spec.yaml --xpu
 ```
 
+Using `ai-bench-compare` command, KernelBench performance can be compared across multiple backends:
+
+```bash
+# Show help
+ai-bench-compare --help
+
+# Default comparison for the given problem on CPU (default)
+ai-bench-compare --problem level1/1_Square_matrix_multiplication_
+
+# Compare PyTorch and Triton backends on XPU
+ai-bench-compare --problem level2/99_Matmul_GELU_Softmax --backend pytorch triton --xpu
+```
+
 Optionally, custom CLI autocompletion is available for certain scripts. It can be activated using:
 ```bash
 activate-global-python-argcomplete --user
