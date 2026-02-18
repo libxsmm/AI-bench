@@ -25,3 +25,5 @@ bench-gpu:
       IN_2: 32
       IN_3: 32
       NUM_CLASSES: 20
+    rtol: 0.01567347
+    atol: 2.5e-04

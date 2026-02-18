@@ -27,3 +27,5 @@ bench-gpu:
       IN_2: 3
       IN_3: 224
       IN_4: 244
+    rtol: 8.2e-03
+    atol: 1.8e-04

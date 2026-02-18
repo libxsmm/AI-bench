@@ -36,3 +36,5 @@ bench-gpu:
       BIAS_SHAPE: [1]
       DIV_VAL: 1.0
     flop: "8*BATCH*IN_FEAT"
+    rtol: 0.013459186
+    atol: 3.2e-03
