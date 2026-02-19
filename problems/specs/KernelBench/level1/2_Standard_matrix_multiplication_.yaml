@@ -33,3 +33,5 @@ bench-gpu:
       K: 4096
     flop: "2*M*N*K"
     mem_bytes: "(M*K + K*N + M*N) * 2" # f16
+    rtol: 1.0e-03
+    atol: 1.0e-05

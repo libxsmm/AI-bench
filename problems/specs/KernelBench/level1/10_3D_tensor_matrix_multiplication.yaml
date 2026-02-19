@@ -25,3 +25,5 @@ bench-gpu:
       K: 2048
       L: 768
     flop: "2*N*M*L*K"
+    rtol: 1.0e-03
+    atol: 1.0e-05

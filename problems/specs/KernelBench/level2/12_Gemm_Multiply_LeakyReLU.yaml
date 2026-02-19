@@ -30,3 +30,5 @@ bench-gpu:
       MUL: 2.0
       NEG_SLOPE: 0.1
     flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
+    rtol: 1.3e-03
+    atol: 9.6e-04

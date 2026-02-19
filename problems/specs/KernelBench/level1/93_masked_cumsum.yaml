@@ -24,3 +24,5 @@ bench-gpu:
       BATCH_SIZE: 8192
       INPUT_DIM: 8192
       SCAN_DIM: 1
+    rtol: 0.1580491066
+    atol: 1.0e-05

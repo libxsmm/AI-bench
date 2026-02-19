@@ -24,3 +24,5 @@ bench-gpu:
       IN_FEAT: 4096
       OUT_FEAT: 4096
     flop: "2*BATCH*IN_FEAT*OUT_FEAT"
+    rtol: 9.8e-04
+    atol: 2.3e-04

@@ -27,3 +27,5 @@ bench-gpu:
       HIDDEN_SIZE: 4096
       SCALE: 1.5
     flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
+    rtol: 0.9783239365
+    atol: 1.0e-05

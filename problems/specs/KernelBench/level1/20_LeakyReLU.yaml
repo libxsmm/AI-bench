@@ -18,3 +18,5 @@ bench-gpu:
       BATCH: 1024
       DIM: 16384
     flop: "2*BATCH*DIM"
+    rtol: 1.0e-03
+    atol: 1.0e-05

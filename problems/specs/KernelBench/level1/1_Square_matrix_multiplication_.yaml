@@ -30,13 +30,19 @@ bench-gpu:
     dims:
       N: 1024
     flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05
   - params: [A, B]
     dtype: float16
     dims:
       N: 2048
     flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05
   - params: [A, B]
     dtype: float16
     dims:
       N: 4096
     flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05

@@ -25,3 +25,5 @@ bench-gpu:
       IN_SIZE: 2048
       LAYER_SIZES: [4096, 4096]
       OUT_SIZE: 2048
+    rtol: 4.9e-04
+    atol: 1.9e-04

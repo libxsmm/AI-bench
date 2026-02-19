@@ -21,3 +21,5 @@ bench-gpu:
       M: 8192
       N: 32
     flop: "2*M*M*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05

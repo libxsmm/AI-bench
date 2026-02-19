@@ -30,3 +30,5 @@ bench-gpu:
       SUB_VAL: 2.0
       MUL_VAL: 1.5
     flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    rtol: 1.0e-03
+    atol: 1.0e-05

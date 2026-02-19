@@ -33,3 +33,5 @@ bench-gpu:
       N_HEAD: 8
       ATTN_PDROP: 0.0
       RESID_PDROP: 0.0
+    rtol: 7.6e-04
+    atol: 3.8e-04

@@ -27,3 +27,5 @@ bench-gpu:
       DIM: 16384
     flop: "BATCH*DIM"
     mem_bytes: "(2*BATCH*DIM) * 2" # f16
+    rtol: 1.0e-03
+    atol: 1.0e-05
