@@ -75,9 +75,13 @@ class KernelBenchRunner(KernelRunner):
         if self.is_torch_backend():
             self.kernels = ai_utils.kernel_bench_dir() / "KernelBench"
         elif self.backend == ai_hc.Backend.TRITON:
-            self.kernels = ai_utils.triton_kernels_dir() / "KernelBench"
+            self.kernels = (
+                ai_utils.triton_kernels_dir() / self.device.type / "KernelBench"
+            )
         elif self.backend == ai_hc.Backend.HELION:
-            self.kernels = ai_utils.helion_kernels_dir() / "KernelBench"
+            self.kernels = (
+                ai_utils.helion_kernels_dir() / self.device.type / "KernelBench"
+            )
         elif self.backend == ai_hc.Backend.MLIR:
             self.kernels = (
                 ai_utils.mlir_kernels_dir() / self.device.type / "KernelBench"

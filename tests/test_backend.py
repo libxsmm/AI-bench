@@ -302,10 +302,10 @@ class TestKernelBenchRunnerExecution:
                 tmpdir / "third_party" / "KernelBench" / "KernelBench" / "level1"
             )
             triton_kernels_dir = (
-                tmpdir / "backends" / "triton" / "KernelBench" / "level1"
+                tmpdir / "backends" / "triton" / "cpu" / "KernelBench" / "level1"
             )
             helion_kernels_dir = (
-                tmpdir / "backends" / "helion" / "KernelBench" / "level1"
+                tmpdir / "backends" / "helion" / "cpu" / "KernelBench" / "level1"
             )
             mlir_cpu_kernels_dir = (
                 tmpdir / "backends" / "mlir" / "cpu" / "KernelBench" / "level1"
@@ -767,8 +767,12 @@ class TestIntegration:
             pytorch_dir = (
                 tmpdir / "third_party" / "KernelBench" / "KernelBench" / "level1"
             )
-            triton_dir = tmpdir / "backends" / "triton" / "KernelBench" / "level1"
-            helion_dir = tmpdir / "backends" / "helion" / "KernelBench" / "level1"
+            triton_dir = (
+                tmpdir / "backends" / "triton" / "cpu" / "KernelBench" / "level1"
+            )
+            helion_dir = (
+                tmpdir / "backends" / "helion" / "cpu" / "KernelBench" / "level1"
+            )
             mlir_dir = tmpdir / "backends" / "mlir" / "cpu" / "KernelBench" / "level1"
 
             specs_dir.mkdir(parents=True)
@@ -974,6 +978,7 @@ class Model(torch.nn.Module):
                 integration_setup
                 / "backends"
                 / "triton"
+                / "cpu"
                 / "KernelBench"
                 / "level1"
                 / "matmul.py"
@@ -982,6 +987,7 @@ class Model(torch.nn.Module):
                 integration_setup
                 / "backends"
                 / "helion"
+                / "cpu"
                 / "KernelBench"
                 / "level1"
                 / "matmul.py"

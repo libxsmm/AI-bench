@@ -11,7 +11,7 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 |:---:|:---:|:---:|:---:|:---:|
 | **CPU** | ✅ | ❌ | ❌ | ✅ |
 | **XPU** | ✅ | ✅ | ✅ | ❌ |
-| **CUDA** | ✅ | ⚠️ | ⚠️ | ❌ |
+| **CUDA** | ✅ | ✅ | ✅ | ❌ |
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 

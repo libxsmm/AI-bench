@@ -1,3 +1,8 @@
+# Example Helion XPU kernel
+# Source: helion matmul example
+# Status: Experimental / uncurated
+# Expectation: Correctness-first, performance not representative
+
 import helion
 import helion.language as hl
 import torch
