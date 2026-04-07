@@ -1,0 +1,35 @@
+import torch
+import torch.nn as nn
+
+import ai_bench.mlir
+
+
+@torch.compile(
+    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
+)
+class Model(nn.Module):
+    """
+    Simple model that performs mean reduction over a specific dimension.
+    """
+
+    def __init__(self, dim: int):
+        """
+        Initializes the model with the dimension to reduce over.
+
+        Args:
+            dim (int): The dimension to reduce over.
+        """
+        super(Model, self).__init__()
+        self.dim = dim
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Reduces the input tensor along the specified dimension by taking the mean.
+
+        Args:
+            x (torch.Tensor): Input tensor of arbitrary shape.
+
+        Returns:
+            torch.Tensor: Output tensor with reduced dimension. The shape of the output is the same as the input except for the reduced dimension which is removed.
+        """
+        return torch.mean(x, dim=self.dim)
