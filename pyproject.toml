@@ -52,13 +52,13 @@ cpu = [
 xpu = [
   "torch==2.9.1+xpu",
   "pytorch-triton-xpu",
-  "helion==0.2.9",
+  "helion==1.0.0",
 ]
 cuda = [
   "torch==2.9.1+cu128",
   "torchvision==0.24.1",
   "pytorch-triton",
-  "helion==0.2.9",
+  "helion==1.0.0",
 ]
 mlir = [
   "lighthouse[ingress_torch_mlir]",
