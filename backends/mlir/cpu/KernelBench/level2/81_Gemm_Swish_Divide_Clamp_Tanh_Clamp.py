@@ -1,0 +1,32 @@
+import torch
+import torch.nn as nn
+
+import ai_bench.mlir
+
+
+@torch.compile(
+    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
+)
+class Model(nn.Module):
+    """
+    Simple model that performs a gemm, swish, divide, clamp, tanh, and clamp operations.
+    """
+
+    def __init__(self, in_features, out_features, bias=True):
+        super(Model, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features, bias=bias)
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_features).
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_features).
+        """
+        x = self.gemm(x)
+        x = x * torch.sigmoid(x)  # Swish activation
+        x = x / 2.0
+        x = torch.clamp(x, min=-1.0, max=1.0)  # Clamp between -1 and 1
+        x = torch.tanh(x)  # Tanh activation
+        x = torch.clamp(x, min=-1.0, max=1.0)  # Clamp between -1 and 1
+        return x
