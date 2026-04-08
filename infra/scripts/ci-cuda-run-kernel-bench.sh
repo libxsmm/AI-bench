@@ -29,7 +29,7 @@ die_syntax() {
 BENCH_BACKEND=${BENCH_BACKEND_TORCH}
 RUN_MODE=${RUN_MODE_BENCH}
 
-while getopts "bm:" arg; do
+while getopts "b:m:" arg; do
   case ${arg} in
     b)
       if [ "${OPTARG}" == "${BENCH_BACKEND_TORCH}" ] || \
