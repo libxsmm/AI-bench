@@ -12,16 +12,24 @@ BENCH_BACKEND_TORCH_COMPILE="torch-compile"
 BENCH_BACKEND_TRITON="triton"
 BENCH_BACKEND_HELION="helion"
 
+# Run modes
+RUN_MODE_BENCH="bench"
+RUN_MODE_CI="ci"
+
+
 die_syntax() {
-  echo "Syntax: $0 [-b (${BENCH_BACKEND_TORCH}|${BENCH_BACKEND_TORCH_COMPILE}|${BENCH_BACKEND_TRITON}|${BENCH_BACKEND_HELION})]"
+  echo "Syntax: $0 [-b (${BENCH_BACKEND_TORCH}|${BENCH_BACKEND_TORCH_COMPILE}|${BENCH_BACKEND_TRITON}|${BENCH_BACKEND_HELION})] [-m (${RUN_MODE_BENCH}|${RUN_MODE_CI})]"
   echo ""
   echo "  -b: Optional, backend to use (default: torch)"
+  echo "  -m: Optional, run mode to use (default: bench)"
   exit 1
 }
 
 # Options
 BENCH_BACKEND=${BENCH_BACKEND_TORCH}
-while getopts "b:" arg; do
+RUN_MODE=${RUN_MODE_BENCH}
+
+while getopts "bm:" arg; do
   case ${arg} in
     b)
       if [ "${OPTARG}" == "${BENCH_BACKEND_TORCH}" ] || \
@@ -31,6 +39,15 @@ while getopts "b:" arg; do
         BENCH_BACKEND="${OPTARG}"
       else
         echo "Invalid backend: ${OPTARG}"
+        die_syntax
+      fi
+      ;;
+    m)
+      if [ "${OPTARG}" == "${RUN_MODE_BENCH}" ] || \
+         [ "${OPTARG}" == "${RUN_MODE_CI}" ]; then
+        RUN_MODE="${OPTARG}"
+      else
+        echo "Invalid run mode: ${OPTARG}"
         die_syntax
       fi
       ;;
@@ -58,7 +75,11 @@ echo ""
 # Run benchmark
 echo "--- Run KernelBench (${BENCH_BACKEND})"
 
-BENCH_FLAGS="--cuda --bench"
+BENCH_FLAGS="--cuda"
+
+if [[ "${RUN_MODE}" == "${RUN_MODE_BENCH}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --bench"
+fi
 
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --torch-compile"

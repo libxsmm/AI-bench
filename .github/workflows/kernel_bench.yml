@@ -3,6 +3,13 @@ name: KernelBench Perf
 on:
   workflow_dispatch:
     inputs:
+      RUN_MODE:
+        description: "Run mode"
+        type: choice
+        default: 'bench'
+        options:
+          - bench
+          - ci
       DEVICE_CPU:
         description: "Device: CPU"
         type: boolean
@@ -51,7 +58,7 @@ jobs:
 
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
-            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -b torch'"
+            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   CPU-MLIR:
     runs-on: pcl-tiergarten
@@ -63,7 +70,7 @@ jobs:
 
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
-            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -b mlir'"
+            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b mlir'"
 
   XPU-PyTorch:
     runs-on: pcl-tiergarten
@@ -75,7 +82,7 @@ jobs:
 
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b torch'"
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   XPU-PyTorch-Compile:
     runs-on: pcl-tiergarten
@@ -87,7 +94,7 @@ jobs:
 
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b torch-compile'"
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
 
   XPU-Triton:
     runs-on: pcl-tiergarten
@@ -99,7 +106,7 @@ jobs:
 
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b triton'"
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   XPU-Helion:
     runs-on: pcl-tiergarten
@@ -111,7 +118,7 @@ jobs:
 
       - name: Intel Arc B580
         run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -b helion'"
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
 
   CUDA-PyTorch:
     runs-on: pcl-tiergarten
@@ -123,7 +130,7 @@ jobs:
 
       - name: Nvidia A100
         run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -b torch'"
+            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   CUDA-Triton:
     runs-on: pcl-tiergarten
@@ -135,7 +142,7 @@ jobs:
 
       - name: Nvidia A100
         run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -b triton'"
+            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   CUDA-Helion:
     runs-on: pcl-tiergarten
@@ -147,4 +154,4 @@ jobs:
 
       - name: Nvidia A100
         run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -b helion'"
+            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
