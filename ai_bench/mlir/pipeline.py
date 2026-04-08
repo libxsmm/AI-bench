@@ -3,6 +3,21 @@ from mlir.passmanager import PassManager
 
 
 def cpu_pipeline(module: ir.Module) -> ir.Module:
+    """
+    The default lowering pipeline for CPU.
+    Lowers MLIR ops within the module to MLIR LLVM IR dialect.
+
+    The pipeline focuses on enabling end-to-end lowering for various
+    generic kernel modules.
+
+    Performance is currently secondary and not representative.
+
+    Args:
+        module: MLIR module coming from PyTorch importer.
+    Returns:
+        MLIR module with lowered IR.
+    """
+
     # Use standard C interface wrappers for functions.
     pm = PassManager("builtin.module", module.context)
     pm.add("func.func(llvm-request-c-wrappers)")
@@ -36,6 +51,7 @@ def cpu_pipeline(module: ir.Module) -> ir.Module:
     pm.add("cse")
     pm.add("canonicalize")
 
+    # IR is transformed in-place.
     pm.run(module.operation)
 
     return module
