@@ -94,6 +94,8 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]]; then
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --mlir"
+  MLIR_PACKAGE_PATH=$(${AI_BENCH_UV} run python -c "import mlir; print(mlir.__path__[0])")
+  export AIBENCH_MLIR_LIB_PATH=${MLIR_PACKAGE_PATH}/_mlir_libs/libmlir_c_runner_utils.so
 fi
 
 ${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}
