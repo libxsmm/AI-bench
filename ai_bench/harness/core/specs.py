@@ -239,13 +239,17 @@ def _get_logger():
 
 
 def get_inputs(
-    variant: dict, inputs: dict, device: torch.device | None = None
+    variant: dict,
+    inputs: dict,
+    device: torch.device | None = None,
+    channels_last: bool = False,
 ) -> list[torch.Tensor]:
     """Get torch tensors for given specs' config.
     Args:
         variant: Specs' variant entry
         inputs: Specs' inputs entry
         device: Desired device of the tensors
+        channels_last: If True, convert 4D/5D tensors to channels_last memory format
     Returns:
         list of torch tensors
     """
@@ -279,6 +283,11 @@ def get_inputs(
 
         if InKey.INITS in input_entry:
             tensor = apply_input_inits(tensor, input_entry[InKey.INITS])
+
+        if channels_last and tensor.ndim == 4:
+            tensor = tensor.to(memory_format=torch.channels_last)
+        elif channels_last and tensor.ndim == 5:
+            tensor = tensor.to(memory_format=torch.channels_last_3d)
 
         vals.append(tensor)
     return vals
