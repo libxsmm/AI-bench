@@ -1,9 +1,10 @@
 # ruff: noqa: E731
 import weakref
+
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
 
 # -----------------------------------------------------------------------------
 # Intel XPU Triton GEMM with packed RHS [K, N].

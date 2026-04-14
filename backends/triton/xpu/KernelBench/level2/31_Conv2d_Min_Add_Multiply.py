@@ -6,10 +6,10 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 64,  'BLOCK_N': 64,  'BLOCK_K': 64}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_OW': 64,  'BLOCK_N': 64,  'BLOCK_K': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64,  'BLOCK_K': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 64,  'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
+        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=4, num_stages=2),
+        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
+        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
+        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
     ],
     key=['H', 'W', 'C_IN', 'C_out', 'OH', 'OW'],
 )

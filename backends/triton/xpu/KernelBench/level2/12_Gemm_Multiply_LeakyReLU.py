@@ -6,7 +6,6 @@ import torch.nn.functional as F
 import triton
 import triton.language as tl
 
-
 # Keep Triton kernels present in the module for validation, but preserve the
 # faster vendor GEMM execution path for this large compute-bound workload.
 # Per Intel XPU constraints, grf_mode stays as a kernel constexpr only and is

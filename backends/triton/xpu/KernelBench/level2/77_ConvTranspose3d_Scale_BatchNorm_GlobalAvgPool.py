@@ -1,9 +1,7 @@
-import math
 import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
-
 
 batch_size = 16
 in_channels = 64

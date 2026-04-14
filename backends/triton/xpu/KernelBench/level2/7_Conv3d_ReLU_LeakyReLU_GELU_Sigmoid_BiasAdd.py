@@ -3,7 +3,6 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-
 # ---------------------------------------------------------------------------
 # Kernel 7: Conv3d(8->32, k=3, no padding) + ReLU + LeakyReLU + GELU + Sigmoid + BiasAdd
 #
@@ -11,6 +10,7 @@ import triton.language as tl
 # Note: relu then leaky_relu(0.01) on already-relu'd values = just relu.
 # Epilogue: conv_bias + relu + gelu + sigmoid + bias_add (per-channel)
 # ---------------------------------------------------------------------------
+
 
 @triton.autotune(
     configs=[

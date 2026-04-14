@@ -1,11 +1,11 @@
 # ruff: noqa: E731
 # KernelBench-compatible wrapper — Model class injected by codegen
 # The Triton kernel logic is unchanged from the original source.
-import sys
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
+
 
 # ----------------------------------------------------------------------
 # Triton kernel: ConvTranspose3d + Bias fusion
@@ -97,6 +97,7 @@ def _conv_transpose3d_bias_kernel(
     # Store result
     tl.store(y_ptrs, acc.to(tl.float32), mask=mask_out)
 
+
 def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """
     Triton wrapper for ConvTranspose3d + Bias.
@@ -130,6 +131,7 @@ def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -
     SYN, SYC, SYD, SYH, SYW = y.stride()
     # Launch grid
     n_elements = N * C_out * D_out * H_out * W_out
+
     def grid(meta):
         return (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
     _conv_transpose3d_bias_kernel[grid](
@@ -148,6 +150,7 @@ def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -
         num_warps=8, num_stages=2
     )
     return y
+
 
 # ----------------------------------------------------------------------
 # Triton kernel: Fused MaxPool3d(k2->k3) + Sum over channels
@@ -209,6 +212,7 @@ def _fused_maxpool3d_sum_channels(
                 offs_wo * out_stride_w)
     tl.store(out_ptrs, acc_sum.to(y_ptr.dtype.element_ty), mask=mask_wo)
 
+
 def fused_maxpool3d_sum_channels_triton(x: torch.Tensor) -> torch.Tensor:
     """
     Triton wrapper for fused MaxPool3d(k2->k3) + Sum channels.
@@ -248,6 +252,7 @@ def fused_maxpool3d_sum_channels_triton(x: torch.Tensor) -> torch.Tensor:
     )
     return y
 
+
 # ----------------------------------------------------------------------
 # Top-level wrapper
 # ----------------------------------------------------------------------
@@ -278,8 +283,10 @@ kernel_size = 5
 stride = 2
 padding = 2
 
+
 def get_inputs():
     return [torch.rand(batch_size, in_channels, depth, height, width)]
+
 
 def get_init_inputs():
     return [in_channels, out_channels, kernel_size, stride, padding]

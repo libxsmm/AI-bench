@@ -1,10 +1,10 @@
 # ruff: noqa: E731
-import sys
 import math
+
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
 
 
 def _conv_transpose3d_autotune_configs():

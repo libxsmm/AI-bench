@@ -1,16 +1,15 @@
 # ruff: noqa: E731
 # KernelBench-compatible wrapper — Model class injected by codegen
-import sys
 import torch
-import triton
-import triton.language as tl
 import torch.nn as nn
 import torch.nn.functional as F
-
+import triton
+import triton.language as tl
 
 # -------------------------------------------------------------------
 # Original Triton kernels retained for interface compatibility.
 # -------------------------------------------------------------------
+
 
 @triton.jit
 def _fused_conv3d_groupnorm_kernel(

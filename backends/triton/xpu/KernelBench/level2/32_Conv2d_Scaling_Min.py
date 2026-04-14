@@ -1,9 +1,10 @@
 import sys
+
 import torch
-import triton
-import triton.language as tl
 import torch.nn as nn
 import torch.nn.functional as F
+import triton
+import triton.language as tl
 
 
 def _channelmin_autotune_configs():

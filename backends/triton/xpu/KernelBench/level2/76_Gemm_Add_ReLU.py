@@ -1,9 +1,9 @@
 # ruff: noqa: E731
-import math
+
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
 
 
 @triton.autotune(

@@ -9,12 +9,13 @@ import triton.language as tl
 # They are not used on the optimized hot path.
 # -----------------------------------------------------------------------------
 _linear_configs = [
-    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32}, num_warps=8,  num_stages=3),
+    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32}, num_warps=8, num_stages=3),
     triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32}, num_warps=16, num_stages=3),
     triton.Config({'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32}, num_warps=16, num_stages=3),
-    triton.Config({'BLOCK_SIZE_M': 64,  'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64}, num_warps=8,  num_stages=3),
-    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64,  'BLOCK_SIZE_K': 64}, num_warps=8,  num_stages=3),
+    triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64}, num_warps=8, num_stages=3),
+    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 64}, num_warps=8, num_stages=3),
 ]
+
 
 @triton.autotune(configs=_linear_configs, key=["M", "N", "K"])
 @triton.jit
@@ -75,6 +76,7 @@ def linear_forward(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) ->
     stride_xm, stride_xk = x.stride()
     stride_wn, stride_wk = weight.stride()
     stride_ym, stride_yn = y.stride()
+
     def grid(meta):
         return (triton.cdiv(M, meta["BLOCK_SIZE_M"]), triton.cdiv(N, meta["BLOCK_SIZE_N"]))
     _linear_matmul_bias_kernel[grid](
@@ -94,6 +96,7 @@ _rowwise_configs = [
     triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=2),
     triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=2),
 ]
+
 
 @triton.autotune(configs=_rowwise_configs, key=["O"])
 @triton.jit
@@ -126,6 +129,7 @@ def rowwise_sum_forward(x: torch.Tensor) -> torch.Tensor:
         raise RuntimeError("Input must be on Intel XPU ('xpu').")
     B, O = x.shape
     y = torch.empty((B, 1), dtype=torch.float32, device=x.device)
+
     def grid(meta):
         return (B,)
     _rowwise_sum_kernel[grid](
@@ -143,12 +147,14 @@ def rowwise_sum_forward(x: torch.Tensor) -> torch.Tensor:
 # they are all identities. The final output is exactly the row-wise scalar above.
 # -----------------------------------------------------------------------------
 
+
 _colsum_configs = [
     triton.Config({'BLOCK_SIZE_K': 128}, num_warps=4, num_stages=2),
     triton.Config({'BLOCK_SIZE_K': 256}, num_warps=8, num_stages=2),
     triton.Config({'BLOCK_SIZE_K': 512}, num_warps=8, num_stages=2),
     triton.Config({'BLOCK_SIZE_K': 1024}, num_warps=16, num_stages=3),
 ]
+
 
 @triton.autotune(configs=_colsum_configs, key=["K"])
 @triton.jit
@@ -176,6 +182,7 @@ _biassum_configs = [
     triton.Config({'BLOCK_SIZE_O': 512}, num_warps=8, num_stages=2),
     triton.Config({'BLOCK_SIZE_O': 1024}, num_warps=8, num_stages=2),
 ]
+
 
 @triton.autotune(configs=_biassum_configs, key=["O"])
 @triton.jit
@@ -205,6 +212,7 @@ _dot_configs = [
     triton.Config({'BLOCK_SIZE_B': 8, 'BLOCK_SIZE_K': 512}, num_warps=16, num_stages=3),
     triton.Config({'BLOCK_SIZE_B': 8, 'BLOCK_SIZE_K': 1024}, num_warps=16, num_stages=3),
 ]
+
 
 @triton.autotune(configs=_dot_configs, key=["B", "K"])
 @triton.jit
@@ -244,6 +252,7 @@ def compute_weight_colsum(weight: torch.Tensor) -> torch.Tensor:
         raise ValueError("weight must be 2D [O, K]")
     O, K = weight.shape
     out = torch.empty((K,), device=weight.device, dtype=torch.float32)
+
     def grid(meta):
         return (triton.cdiv(K, meta["BLOCK_SIZE_K"]),)
     _weight_colsum_kernel[grid](

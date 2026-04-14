@@ -3,7 +3,6 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-
 # ---------------------------------------------------------------------------
 # Kernel 90: Conv3d(8->64, k=3, no padding) + LeakyReLU(0.2) + Add(sum_tensor) + Clamp(-1,1) + GELU
 #
@@ -11,6 +10,7 @@ import triton.language as tl
 # Epilogue: conv_bias + leaky_relu(0.2) + add sum_tensor(per-channel) + clamp(-1,1) + gelu
 # All elementwise, fully fusable in epilogue.
 # ---------------------------------------------------------------------------
+
 
 @triton.autotune(
     configs=[

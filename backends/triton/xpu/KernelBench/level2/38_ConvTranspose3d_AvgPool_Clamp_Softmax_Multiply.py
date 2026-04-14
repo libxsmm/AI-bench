@@ -1,8 +1,8 @@
 # ruff: noqa: E731
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
 
 
 # ---------------- Subgraph 1: avg_pool3d -> conv_transpose3d -> clamp ----------------

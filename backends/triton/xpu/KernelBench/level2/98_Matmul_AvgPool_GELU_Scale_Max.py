@@ -1,10 +1,8 @@
 # ruff: noqa: E731
 # KernelBench-compatible wrapper — original Triton kernels retained.
-import sys
-import math
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import triton
 import triton.language as tl
 

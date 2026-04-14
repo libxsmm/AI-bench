@@ -1,11 +1,11 @@
 # ruff: noqa: E731
 # KernelBench-compatible wrapper — keep all original Triton kernels available.
-import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import triton
 import triton.language as tl
+
 
 # -------------------------------------------------------------------------
 # Subgraph 1: ConvTranspose3d + bias + broadcast add

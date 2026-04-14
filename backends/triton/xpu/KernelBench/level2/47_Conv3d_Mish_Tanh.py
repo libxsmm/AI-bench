@@ -1,6 +1,6 @@
 # ruff: noqa: E731
 # KernelBench-compatible wrapper — Model class injected by codegen
-import sys
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

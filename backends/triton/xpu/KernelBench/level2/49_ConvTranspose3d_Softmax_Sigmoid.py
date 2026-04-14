@@ -1,10 +1,9 @@
 # ruff: noqa: E731
 # KernelBench-compatible wrapper — Model class injected by codegen
-import sys
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
 
 
 # ----------------------------------------

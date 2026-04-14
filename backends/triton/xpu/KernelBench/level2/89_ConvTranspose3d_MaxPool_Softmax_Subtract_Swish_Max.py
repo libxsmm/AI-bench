@@ -1,9 +1,8 @@
 # ruff: noqa: E731
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
-
 
 batch_size = 128
 in_channels = 3

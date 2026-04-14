@@ -16,7 +16,7 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 32}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 64,  'BLOCK_N': 64, 'BLOCK_K': 32}, num_warps=4, num_stages=2),
+        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 32}, num_warps=4, num_stages=2),
     ],
     key=['D', 'H', 'W', 'C_IN', 'C_OUT', 'OD', 'OH', 'OW'],
 )
@@ -108,7 +108,7 @@ def _conv3d_spatial_tiled(
 # ============================================================
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_W': 64,  'BLOCK_C': 64}, num_warps=8, num_stages=2),
+        triton.Config({'BLOCK_W': 64, 'BLOCK_C': 64}, num_warps=8, num_stages=2),
         triton.Config({'BLOCK_W': 128, 'BLOCK_C': 64}, num_warps=8, num_stages=2),
     ],
     key=['C', 'W_pool', 'H_pool', 'D_pool'],

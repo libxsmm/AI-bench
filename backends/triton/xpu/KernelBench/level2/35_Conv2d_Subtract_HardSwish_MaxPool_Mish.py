@@ -1,10 +1,9 @@
 # ruff: noqa: E731
-import sys
 import torch
-import triton
-import triton.language as tl
 import torch.nn as nn
 import torch.nn.functional as F
+import triton
+import triton.language as tl
 
 
 def _conv2d_xpu_autotune_configs():

@@ -1,8 +1,7 @@
-import math
 import torch
+import torch.nn as nn
 import triton
 import triton.language as tl
-import torch.nn as nn
 
 
 def _gemm_autotune_configs():

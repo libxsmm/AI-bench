@@ -1,5 +1,6 @@
 # ruff: noqa: E731
 import sys
+
 import torch
 import torch.nn as nn
 import triton
