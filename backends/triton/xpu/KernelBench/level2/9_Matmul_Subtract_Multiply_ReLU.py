@@ -73,6 +73,7 @@ def _gemm_xpu_autotune_configs():
 # - grf_mode kept as compiler constexpr only, not in triton.Config
 # =====================================
 
+
 @triton.autotune(
     configs=_gemm_xpu_autotune_configs(),
     key=["M", "N", "K"],
@@ -153,9 +154,17 @@ def _linear_fwd_bias_kernel_kahan(
 
 
 def _linear(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    assert isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    )
     assert x.device.type == "xpu" and w.device.type == "xpu" and b.device.type == "xpu"
-    assert x.dtype == torch.float16 and w.dtype == torch.float16 and b.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and w.dtype == torch.float16
+        and b.dtype == torch.float16
+    )
 
     M, Kx = x.shape
     N, Kw = w.shape
@@ -196,6 +205,7 @@ def _linear(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 # Uses cached [K, N] packed transpose of weight.
 # Kept separate so original kernel is preserved exactly.
 # =====================================
+
 
 @triton.autotune(
     configs=_gemm_xpu_autotune_configs(),
@@ -278,9 +288,17 @@ def _linear_fwd_bias_kernel_packed_wt(
 
 
 def _linear_packed(x: torch.Tensor, wt: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    assert isinstance(x, torch.Tensor) and isinstance(wt, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(wt, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    )
     assert x.device.type == "xpu" and wt.device.type == "xpu" and b.device.type == "xpu"
-    assert x.dtype == torch.float16 and wt.dtype == torch.float16 and b.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and wt.dtype == torch.float16
+        and b.dtype == torch.float16
+    )
 
     M, Kx = x.shape
     Kt, N = wt.shape
@@ -321,6 +339,7 @@ def _linear_packed(x: torch.Tensor, wt: torch.Tensor, b: torch.Tensor) -> torch.
 # Avoid device->host scalar sync in hot path.
 # Accept only Python scalars here.
 # =====================================
+
 
 @triton.jit
 def _affine_relu_kernel(
@@ -414,6 +433,7 @@ def _affine_relu(x: torch.Tensor, sub_scalar: float, mul_scalar: float) -> torch
 # Keep vendor GEMM as default per KB guidance.
 # Retain custom Triton GEMM paths for benchmark compliance and optional tuning.
 # =====================================
+
 
 def _linear_vendor(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return F.linear(x, w, b)
@@ -524,8 +544,12 @@ class Model(nn.Module):
             or self.linear.bias.dtype != torch.float16
             or (not self.linear.bias.is_contiguous())
         ):
-            self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.linear.weight.data = self.linear.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.linear.bias.data = self.linear.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self._params_prepared = True
             self._prepared_weight_obj = self.linear.weight
             self._prepared_bias_obj = self.linear.bias

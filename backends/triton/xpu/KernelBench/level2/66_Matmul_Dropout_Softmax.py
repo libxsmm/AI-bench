@@ -27,11 +27,19 @@ def get_init_inputs():
 # =============================================================================
 @triton.jit
 def _linear_dropout_softmax_kernel(
-    x_ptr, w_ptr, b_ptr, out_ptr,
-    N, K, C,
-    stride_xn, stride_xk,
-    stride_wm, stride_wk,
-    stride_on, stride_oc,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    out_ptr,
+    N,
+    K,
+    C,
+    stride_xn,
+    stride_xk,
+    stride_wm,
+    stride_wk,
+    stride_on,
+    stride_oc,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -91,7 +99,11 @@ def _linear_dropout_softmax_kernel(
 
         probs = tl.exp(acc - m_i[:, None]) / l_i[:, None]
         out_ptrs = out_ptr + (offs_m[:, None] * stride_on + offs_n[None, :] * stride_oc)
-        tl.store(out_ptrs, probs.to(out_ptr.dtype.element_ty), mask=mask_m[:, None] & mask_n[None, :])
+        tl.store(
+            out_ptrs,
+            probs.to(out_ptr.dtype.element_ty),
+            mask=mask_m[:, None] & mask_n[None, :],
+        )
 
 
 def _softmax_autotune_configs():
@@ -138,10 +150,14 @@ def _softmax_autotune_configs():
 )
 @triton.jit
 def _row_softmax_large_kernel(
-    x_ptr, y_ptr,
-    M, N,
-    stride_xm, stride_xn,
-    stride_ym, stride_yn,
+    x_ptr,
+    y_ptr,
+    M,
+    N,
+    stride_xm,
+    stride_xn,
+    stride_ym,
+    stride_yn,
     BLOCK_N: tl.constexpr,
     LOG2E: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -162,7 +178,9 @@ def _row_softmax_large_kernel(
         cols = start_n + offs_n
         mask = cols < N
         cols64 = cols.to(tl.int64)
-        vals = tl.load(row_start_x + cols64 * stride_xn, mask=mask, other=neg_inf).to(tl.float32)
+        vals = tl.load(row_start_x + cols64 * stride_xn, mask=mask, other=neg_inf).to(
+            tl.float32
+        )
         row_max = tl.maximum(row_max, tl.max(vals, axis=0))
 
     row_sum = tl.zeros((), tl.float32)
@@ -170,7 +188,9 @@ def _row_softmax_large_kernel(
         cols = start_n + offs_n
         mask = cols < N
         cols64 = cols.to(tl.int64)
-        vals = tl.load(row_start_x + cols64 * stride_xn, mask=mask, other=neg_inf).to(tl.float32)
+        vals = tl.load(row_start_x + cols64 * stride_xn, mask=mask, other=neg_inf).to(
+            tl.float32
+        )
         row_sum += tl.sum(tl.math.exp2((vals - row_max) * LOG2E), axis=0)
 
     inv_row_sum = 1.0 / row_sum
@@ -178,21 +198,37 @@ def _row_softmax_large_kernel(
         cols = start_n + offs_n
         mask = cols < N
         cols64 = cols.to(tl.int64)
-        vals = tl.load(row_start_x + cols64 * stride_xn, mask=mask, other=neg_inf).to(tl.float32)
+        vals = tl.load(row_start_x + cols64 * stride_xn, mask=mask, other=neg_inf).to(
+            tl.float32
+        )
         probs = tl.math.exp2((vals - row_max) * LOG2E) * inv_row_sum
-        tl.store(row_start_y + cols64 * stride_yn, probs.to(y_ptr.dtype.element_ty), mask=mask)
+        tl.store(
+            row_start_y + cols64 * stride_yn,
+            probs.to(y_ptr.dtype.element_ty),
+            mask=mask,
+        )
 
 
-def kernel_function(x, w, b, p=0.2, dim=1, training=False, dropout_p=None, softmax_dim=None):
+def kernel_function(
+    x, w, b, p=0.2, dim=1, training=False, dropout_p=None, softmax_dim=None
+):
     if dropout_p is not None:
         p = dropout_p
     if softmax_dim is not None:
         dim = softmax_dim
 
-    assert isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    )
     assert x.ndim == 2 and w.ndim == 2 and b.ndim == 1
     assert dim == 1
-    assert x.dtype == torch.float16 and w.dtype == torch.float16 and b.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and w.dtype == torch.float16
+        and b.dtype == torch.float16
+    )
 
     x_xpu = x.to(device="xpu", dtype=torch.float16).contiguous()
     w_xpu = w.to(device="xpu", dtype=torch.float16).contiguous()
@@ -204,10 +240,14 @@ def kernel_function(x, w, b, p=0.2, dim=1, training=False, dropout_p=None, softm
     y = torch.empty_like(logits)
 
     _row_softmax_large_kernel[(M,)](
-        logits, y,
-        M, N,
-        logits.stride(0), logits.stride(1),
-        y.stride(0), y.stride(1),
+        logits,
+        y,
+        M,
+        N,
+        logits.stride(0),
+        logits.stride(1),
+        y.stride(0),
+        y.stride(1),
         grf_mode="auto",
     )
     return y
@@ -238,11 +278,17 @@ class Model(nn.Module):
             bias.dtype,
         )
 
-        if self._cache_key == cache_key and self._packed_weight is not None and self._packed_bias is not None:
+        if (
+            self._cache_key == cache_key
+            and self._packed_weight is not None
+            and self._packed_bias is not None
+        ):
             return
 
         with torch.no_grad():
-            weight_xpu = weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            weight_xpu = (
+                weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            )
             bias_xpu = bias.detach().to(device="xpu", dtype=torch.float16).contiguous()
 
         self._packed_weight = weight_xpu

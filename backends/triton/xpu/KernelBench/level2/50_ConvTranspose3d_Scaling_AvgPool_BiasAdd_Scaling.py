@@ -17,25 +17,67 @@ bias_shape = (out_channels, 1, 1, 1)
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, scale1_val, scale2_val, bias_shape]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        scale1_val,
+        scale2_val,
+        bias_shape,
+    ]
 
 
 def get_inputs():
-    return [torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)]
+    return [
+        torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)
+    ]
 
 
 @triton.jit
 def _conv_transpose3d_mul1_kernel(
-    x_ptr, w_ptr, b_ptr, scale1_ptr, y_ptr,
-    N, C_IN, D_IN, H_IN, W_IN,
-    C_OUT, KD, KH, KW,
-    D_OUT, H_OUT, W_OUT,
-    STRIDE_D: tl.constexpr, STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_D: tl.constexpr, PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
-    w_stride_ci, w_stride_co, w_stride_kd, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
-    BLOCK_W: tl.constexpr, BLOCK_OC: tl.constexpr, NUM_WARPS: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    scale1_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    D_IN,
+    H_IN,
+    W_IN,
+    C_OUT,
+    KD,
+    KH,
+    KW,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    STRIDE_D: tl.constexpr,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_D: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
+    w_stride_ci,
+    w_stride_co,
+    w_stride_kd,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
+    BLOCK_W: tl.constexpr,
+    BLOCK_OC: tl.constexpr,
+    NUM_WARPS: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
     pid_w = tl.program_id(0)
@@ -84,12 +126,7 @@ def _conv_transpose3d_mul1_kernel(
                     + id_ * x_stride_d
                     + ih * x_stride_h
                 )
-                w_base = (
-                    w_ptr
-                    + ic * w_stride_ci
-                    + kd * w_stride_kd
-                    + kh * w_stride_kh
-                )
+                w_base = w_ptr + ic * w_stride_ci + kd * w_stride_kd + kh * w_stride_kh
 
                 for kw in tl.static_range(0, 3):
                     t_w = offs_w + PAD_W - kw
@@ -111,12 +148,7 @@ def _conv_transpose3d_mul1_kernel(
 
     acc = (acc + bias_vals[:, None]) * scale1_val
 
-    y_base = (
-        y_ptr
-        + n * y_stride_n
-        + od * y_stride_d
-        + oh * y_stride_h
-    )
+    y_base = y_ptr + n * y_stride_n + od * y_stride_d + oh * y_stride_h
     y_ptrs = y_base + offs_oc[:, None] * y_stride_c + offs_w[None, :] * y_stride_w
     store_mask = oc_mask[:, None] & w_mask[None, :]
     tl.store(y_ptrs, acc, mask=store_mask)
@@ -124,12 +156,29 @@ def _conv_transpose3d_mul1_kernel(
 
 @triton.jit
 def _avgpool3d_add_mul2_kernel(
-    x_ptr, bias2_ptr, scale2_ptr, y_ptr,
-    N, C, D, H, W,
-    D_OUT, H_OUT, W_OUT,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
+    x_ptr,
+    bias2_ptr,
+    scale2_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
     bias2_stride_c,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
     BLOCK_W: tl.constexpr,
     BLOCK_C: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -168,12 +217,18 @@ def _avgpool3d_add_mul2_kernel(
     for dd in tl.static_range(0, 2):
         for hh in tl.static_range(0, 2):
             ptr0 = x_base + dd * x_stride_d + hh * x_stride_h
-            v0 = tl.load(ptr0 + 0 * x_stride_w, mask=mask_c[:, None] & mask_w[None, :], other=0.0).to(tl.float32)
-            v1 = tl.load(ptr0 + 1 * x_stride_w, mask=mask_c[:, None] & mask_w[None, :], other=0.0).to(tl.float32)
+            v0 = tl.load(
+                ptr0 + 0 * x_stride_w, mask=mask_c[:, None] & mask_w[None, :], other=0.0
+            ).to(tl.float32)
+            v1 = tl.load(
+                ptr0 + 1 * x_stride_w, mask=mask_c[:, None] & mask_w[None, :], other=0.0
+            ).to(tl.float32)
             acc += v0 + v1
     acc *= 0.125
 
-    b = tl.load(bias2_ptr + offs_c * bias2_stride_c, mask=mask_c, other=0.0).to(tl.float32)
+    b = tl.load(bias2_ptr + offs_c * bias2_stride_c, mask=mask_c, other=0.0).to(
+        tl.float32
+    )
     scale2_val = tl.load(scale2_ptr).to(tl.float32)
     out = (acc + b[:, None]) * scale2_val
 
@@ -193,11 +248,25 @@ def kernel_function(x, conv_weight, conv_bias, scale1, bias2, scale2):
         raise RuntimeError("Intel XPU not available.")
 
     x_xpu = x if x.device.type == "xpu" else x.to("xpu", dtype=torch.float16)
-    conv_weight_xpu = conv_weight if conv_weight.device.type == "xpu" else conv_weight.to("xpu", dtype=torch.float16)
-    conv_bias_xpu = conv_bias if conv_bias.device.type == "xpu" else conv_bias.to("xpu", dtype=torch.float16)
-    scale1_xpu = scale1 if scale1.device.type == "xpu" else scale1.to("xpu", dtype=torch.float16)
-    bias2_xpu = bias2 if bias2.device.type == "xpu" else bias2.to("xpu", dtype=torch.float16)
-    scale2_xpu = scale2 if scale2.device.type == "xpu" else scale2.to("xpu", dtype=torch.float16)
+    conv_weight_xpu = (
+        conv_weight
+        if conv_weight.device.type == "xpu"
+        else conv_weight.to("xpu", dtype=torch.float16)
+    )
+    conv_bias_xpu = (
+        conv_bias
+        if conv_bias.device.type == "xpu"
+        else conv_bias.to("xpu", dtype=torch.float16)
+    )
+    scale1_xpu = (
+        scale1 if scale1.device.type == "xpu" else scale1.to("xpu", dtype=torch.float16)
+    )
+    bias2_xpu = (
+        bias2 if bias2.device.type == "xpu" else bias2.to("xpu", dtype=torch.float16)
+    )
+    scale2_xpu = (
+        scale2 if scale2.device.type == "xpu" else scale2.to("xpu", dtype=torch.float16)
+    )
 
     if x_xpu.dtype != torch.float16:
         x_xpu = x_xpu.to(torch.float16)
@@ -238,7 +307,9 @@ def kernel_function(x, conv_weight, conv_bias, scale1, bias2, scale2):
     H_OUT1 = (H_IN - 1) * stride_h - 2 * pad_h + dil[1] * (KH - 1) + out_pad[1] + 1
     W_OUT1 = (W_IN - 1) * stride_w - 2 * pad_w + dil[2] * (KW - 1) + out_pad[2] + 1
 
-    y1 = torch.empty((N, C_OUT, D_OUT1, H_OUT1, W_OUT1), device="xpu", dtype=torch.float16)
+    y1 = torch.empty(
+        (N, C_OUT, D_OUT1, H_OUT1, W_OUT1), device="xpu", dtype=torch.float16
+    )
 
     BLOCK_W0 = 64
     BLOCK_OC0 = 16
@@ -249,29 +320,59 @@ def kernel_function(x, conv_weight, conv_bias, scale1, bias2, scale2):
         triton.cdiv(C_OUT, BLOCK_OC0),
     )
     _conv_transpose3d_mul1_kernel[grid_conv](
-        x_xpu, conv_weight_xpu, conv_bias_xpu, scale1_xpu, y1,
-        N, C_IN, D_IN, H_IN, W_IN,
-        C_OUT, KD, KH, KW,
-        D_OUT1, H_OUT1, W_OUT1,
-        STRIDE_D=stride_d, STRIDE_H=stride_h, STRIDE_W=stride_w,
-        PAD_D=pad_d, PAD_H=pad_h, PAD_W=pad_w,
-        x_stride_n=x_xpu.stride(0), x_stride_c=x_xpu.stride(1),
-        x_stride_d=x_xpu.stride(2), x_stride_h=x_xpu.stride(3), x_stride_w=x_xpu.stride(4),
-        w_stride_ci=conv_weight_xpu.stride(0), w_stride_co=conv_weight_xpu.stride(1),
-        w_stride_kd=conv_weight_xpu.stride(2), w_stride_kh=conv_weight_xpu.stride(3),
+        x_xpu,
+        conv_weight_xpu,
+        conv_bias_xpu,
+        scale1_xpu,
+        y1,
+        N,
+        C_IN,
+        D_IN,
+        H_IN,
+        W_IN,
+        C_OUT,
+        KD,
+        KH,
+        KW,
+        D_OUT1,
+        H_OUT1,
+        W_OUT1,
+        STRIDE_D=stride_d,
+        STRIDE_H=stride_h,
+        STRIDE_W=stride_w,
+        PAD_D=pad_d,
+        PAD_H=pad_h,
+        PAD_W=pad_w,
+        x_stride_n=x_xpu.stride(0),
+        x_stride_c=x_xpu.stride(1),
+        x_stride_d=x_xpu.stride(2),
+        x_stride_h=x_xpu.stride(3),
+        x_stride_w=x_xpu.stride(4),
+        w_stride_ci=conv_weight_xpu.stride(0),
+        w_stride_co=conv_weight_xpu.stride(1),
+        w_stride_kd=conv_weight_xpu.stride(2),
+        w_stride_kh=conv_weight_xpu.stride(3),
         w_stride_kw=conv_weight_xpu.stride(4),
-        y_stride_n=y1.stride(0), y_stride_c=y1.stride(1),
-        y_stride_d=y1.stride(2), y_stride_h=y1.stride(3), y_stride_w=y1.stride(4),
-        BLOCK_W=BLOCK_W0, BLOCK_OC=BLOCK_OC0, NUM_WARPS=NUM_WARPS0,
+        y_stride_n=y1.stride(0),
+        y_stride_c=y1.stride(1),
+        y_stride_d=y1.stride(2),
+        y_stride_h=y1.stride(3),
+        y_stride_w=y1.stride(4),
+        BLOCK_W=BLOCK_W0,
+        BLOCK_OC=BLOCK_OC0,
+        NUM_WARPS=NUM_WARPS0,
         grf_mode="auto",
-        num_warps=NUM_WARPS0, num_stages=2,
+        num_warps=NUM_WARPS0,
+        num_stages=2,
     )
 
     N1, C1, D1, H1, W1 = y1.shape
     D_OUT2 = (D1 - 2) // 2 + 1
     H_OUT2 = (H1 - 2) // 2 + 1
     W_OUT2 = (W1 - 2) // 2 + 1
-    y2 = torch.empty((N1, C1, D_OUT2, H_OUT2, W_OUT2), device="xpu", dtype=torch.float16)
+    y2 = torch.empty(
+        (N1, C1, D_OUT2, H_OUT2, W_OUT2), device="xpu", dtype=torch.float16
+    )
 
     BLOCK_W1 = 64
     BLOCK_C1 = 8
@@ -280,24 +381,54 @@ def kernel_function(x, conv_weight, conv_bias, scale1, bias2, scale2):
         N1 * triton.cdiv(C1, BLOCK_C1) * D_OUT2 * H_OUT2,
     )
     _avgpool3d_add_mul2_kernel[grid_pool](
-        y1, bias2_xpu, scale2_xpu, y2,
-        N1, C1, D1, H1, W1,
-        D_OUT2, H_OUT2, W_OUT2,
-        y1.stride(0), y1.stride(1), y1.stride(2), y1.stride(3), y1.stride(4),
+        y1,
+        bias2_xpu,
+        scale2_xpu,
+        y2,
+        N1,
+        C1,
+        D1,
+        H1,
+        W1,
+        D_OUT2,
+        H_OUT2,
+        W_OUT2,
+        y1.stride(0),
+        y1.stride(1),
+        y1.stride(2),
+        y1.stride(3),
+        y1.stride(4),
         bias2_xpu.stride(0),
-        y2.stride(0), y2.stride(1), y2.stride(2), y2.stride(3), y2.stride(4),
+        y2.stride(0),
+        y2.stride(1),
+        y2.stride(2),
+        y2.stride(3),
+        y2.stride(4),
         BLOCK_W=BLOCK_W1,
         BLOCK_C=BLOCK_C1,
         grf_mode="auto",
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     )
     return y2
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, scale1, scale2, bias_shape):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        scale1,
+        scale2,
+        bias_shape,
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, stride=stride, padding=padding
+        )
         self.scale1 = nn.Parameter(torch.tensor(float(scale1), dtype=torch.float16))
         self.bias = nn.Parameter(torch.zeros(bias_shape, dtype=torch.float16))
         self.scale2 = nn.Parameter(torch.tensor(float(scale2), dtype=torch.float16))
@@ -308,9 +439,13 @@ class Model(nn.Module):
     def _move_to_xpu_once(self):
         if self._moved_to_xpu:
             return
-        self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+            "xpu", dtype=torch.float16
+        ).contiguous()
         if self.conv_transpose.bias is not None:
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         self.scale1.data = self.scale1.data.to("xpu", dtype=torch.float16).contiguous()
         self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()
         self.scale2.data = self.scale2.data.to("xpu", dtype=torch.float16).contiguous()

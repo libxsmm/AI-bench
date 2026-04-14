@@ -168,7 +168,9 @@ def _ensure_xpu_fp16_contiguous(t):
     return t
 
 
-def kernel_function(input, weight, bias, scalar=None, negative_slope=None, multiplier=None):
+def kernel_function(
+    input, weight, bias, scalar=None, negative_slope=None, multiplier=None
+):
     if scalar is None and multiplier is not None:
         scalar = multiplier
     scalar = 1.0 if scalar is None else float(scalar)
@@ -231,9 +233,9 @@ class Model(nn.Module):
             or self._cache_weight_version != weight_ver
         )
         if refresh_weight:
-            self._cached_weight_xpu = weight.detach().to(
-                device="xpu", dtype=torch.float16
-            ).contiguous()
+            self._cached_weight_xpu = (
+                weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            )
             self._cache_weight_src = weight
             self._cache_weight_version = weight_ver
 
@@ -246,9 +248,9 @@ class Model(nn.Module):
             or self._cache_bias_version != bias_ver
         )
         if refresh_bias:
-            self._cached_bias_xpu = bias.detach().to(
-                device="xpu", dtype=torch.float16
-            ).contiguous()
+            self._cached_bias_xpu = (
+                bias.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            )
             self._cache_bias_src = bias
             self._cache_bias_version = bias_ver
 

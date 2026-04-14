@@ -17,14 +17,39 @@ import triton.language as tl
 )
 @triton.jit
 def _conv3d_hardswish_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_IN, D, H, W,
-    C_OUT, D_OUT, H_OUT, W_OUT,
-    SXN, SXC, SXD, SXH, SXW,
-    SWO, SWC, SWD, SWH, SWW,
-    SYN, SYC, SYD, SYH, SYW,
-    Kd: tl.constexpr, Kh: tl.constexpr, Kw: tl.constexpr,
-    BLOCK_W: tl.constexpr, BLOCK_CO: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    D,
+    H,
+    W,
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    SXN,
+    SXC,
+    SXD,
+    SXH,
+    SXW,
+    SWO,
+    SWC,
+    SWD,
+    SWH,
+    SWW,
+    SYN,
+    SYC,
+    SYD,
+    SYH,
+    SYW,
+    Kd: tl.constexpr,
+    Kh: tl.constexpr,
+    Kw: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_CO: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
     pid_w = tl.program_id(axis=0)
@@ -91,17 +116,36 @@ def _conv3d_hardswish_kernel(
     acc = acc * (t * (1.0 / 6.0))
 
     y_base = y_ptr + n_idx_i64 * SYN + d_out_i64 * SYD + h_out_i64 * SYH
-    y_ptrs = y_base + offs_co[:, None].to(tl.int64) * SYC + offs_w[None, :].to(tl.int64) * SYW
-    tl.store(y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=mask_co[:, None] & mask_w[None, :])
+    y_ptrs = (
+        y_base
+        + offs_co[:, None].to(tl.int64) * SYC
+        + offs_w[None, :].to(tl.int64) * SYW
+    )
+    tl.store(
+        y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=mask_co[:, None] & mask_w[None, :]
+    )
 
 
 @triton.jit
 def _groupnorm_ncdhw_kernel(
-    x_ptr, y_ptr, weight_ptr, bias_ptr,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    N, C, D, H, W,
-    NUM_GROUPS, CPG,
-    eps, BLOCK_SIZE: tl.constexpr,
+    x_ptr,
+    y_ptr,
+    weight_ptr,
+    bias_ptr,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    N,
+    C,
+    D,
+    H,
+    W,
+    NUM_GROUPS,
+    CPG,
+    eps,
+    BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
     n = pid // NUM_GROUPS
@@ -148,15 +192,27 @@ def _groupnorm_ncdhw_kernel(
         beta = tl.load(bias_ptr + ch_idx, mask=mask, other=0.0).to(tl.float32)
 
         y_f32 = y_f32 * gamma + beta
-        tl.store(y_base + offs.to(tl.int64), y_f32.to(y_ptr.dtype.element_ty), mask=mask)
+        tl.store(
+            y_base + offs.to(tl.int64), y_f32.to(y_ptr.dtype.element_ty), mask=mask
+        )
 
 
 @triton.jit
 def _reduce_mean_dhw_kernel(
-    x_ptr, out_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    out_stride_n, out_stride_c,
+    x_ptr,
+    out_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
     BLOCK_W: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
@@ -178,12 +234,17 @@ def _reduce_mean_dhw_kernel(
             for w0 in tl.range(0, W, BLOCK_W):
                 offs = w0 + offs_w
                 mask = offs < W
-                vals = tl.load(row_base + offs.to(tl.int64) * stride_w, mask=mask, other=0.0)
+                vals = tl.load(
+                    row_base + offs.to(tl.int64) * stride_w, mask=mask, other=0.0
+                )
                 acc += tl.sum(vals.to(tl.float32), axis=0)
 
     denom = tl.full((), D * H * W, dtype=tl.float32)
     mean_val = acc / denom
-    tl.store(out_ptr + n_i64 * out_stride_n + c_i64 * out_stride_c, mean_val.to(out_ptr.dtype.element_ty))
+    tl.store(
+        out_ptr + n_i64 * out_stride_n + c_i64 * out_stride_c,
+        mean_val.to(out_ptr.dtype.element_ty),
+    )
 
 
 def kernel_function(
@@ -196,23 +257,43 @@ def kernel_function(
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU not available.")
 
-    x_xpu = x if x.device.type == "xpu" and x.dtype == torch.float16 else x.to("xpu", dtype=torch.float16)
+    x_xpu = (
+        x
+        if x.device.type == "xpu" and x.dtype == torch.float16
+        else x.to("xpu", dtype=torch.float16)
+    )
     if not x_xpu.is_contiguous():
         x_xpu = x_xpu.contiguous()
 
-    conv_w_xpu = conv_w if conv_w.device.type == "xpu" and conv_w.dtype == torch.float16 else conv_w.to("xpu", dtype=torch.float16)
+    conv_w_xpu = (
+        conv_w
+        if conv_w.device.type == "xpu" and conv_w.dtype == torch.float16
+        else conv_w.to("xpu", dtype=torch.float16)
+    )
     if not conv_w_xpu.is_contiguous():
         conv_w_xpu = conv_w_xpu.contiguous()
 
-    conv_b_xpu = conv_b if conv_b.device.type == "xpu" and conv_b.dtype == torch.float16 else conv_b.to("xpu", dtype=torch.float16)
+    conv_b_xpu = (
+        conv_b
+        if conv_b.device.type == "xpu" and conv_b.dtype == torch.float16
+        else conv_b.to("xpu", dtype=torch.float16)
+    )
     if not conv_b_xpu.is_contiguous():
         conv_b_xpu = conv_b_xpu.contiguous()
 
-    gn_weight_xpu = gn_weight if gn_weight.device.type == "xpu" and gn_weight.dtype == torch.float16 else gn_weight.to("xpu", dtype=torch.float16)
+    gn_weight_xpu = (
+        gn_weight
+        if gn_weight.device.type == "xpu" and gn_weight.dtype == torch.float16
+        else gn_weight.to("xpu", dtype=torch.float16)
+    )
     if not gn_weight_xpu.is_contiguous():
         gn_weight_xpu = gn_weight_xpu.contiguous()
 
-    gn_bias_xpu = gn_bias if gn_bias.device.type == "xpu" and gn_bias.dtype == torch.float16 else gn_bias.to("xpu", dtype=torch.float16)
+    gn_bias_xpu = (
+        gn_bias
+        if gn_bias.device.type == "xpu" and gn_bias.dtype == torch.float16
+        else gn_bias.to("xpu", dtype=torch.float16)
+    )
     if not gn_bias_xpu.is_contiguous():
         gn_bias_xpu = gn_bias_xpu.contiguous()
 
@@ -225,7 +306,9 @@ def kernel_function(
     H_out = H - Kh + 1
     W_out = W - Kw + 1
 
-    y1 = torch.empty((N, C_out, D_out, H_out, W_out), device=x_xpu.device, dtype=torch.float16)
+    y1 = torch.empty(
+        (N, C_out, D_out, H_out, W_out), device=x_xpu.device, dtype=torch.float16
+    )
 
     SXN, SXC, SXD, SXH, SXW = x_xpu.stride()
     SWO, SWC, SWD, SWH, SWW = conv_w_xpu.stride()
@@ -237,13 +320,37 @@ def kernel_function(
         N * triton.cdiv(C_out, 16),
     )
     _conv3d_hardswish_kernel[grid_conv](
-        x_xpu, conv_w_xpu, conv_b_xpu, y1,
-        N, C_in, D, H, W,
-        C_out, D_out, H_out, W_out,
-        SXN, SXC, SXD, SXH, SXW,
-        SWO, SWC, SWD, SWH, SWW,
-        SYN, SYC, SYD, SYH, SYW,
-        Kd=Kd, Kh=Kh, Kw=Kw,
+        x_xpu,
+        conv_w_xpu,
+        conv_b_xpu,
+        y1,
+        N,
+        C_in,
+        D,
+        H,
+        W,
+        C_out,
+        D_out,
+        H_out,
+        W_out,
+        SXN,
+        SXC,
+        SXD,
+        SXH,
+        SXW,
+        SWO,
+        SWC,
+        SWD,
+        SWH,
+        SWW,
+        SYN,
+        SYC,
+        SYD,
+        SYH,
+        SYW,
+        Kd=Kd,
+        Kh=Kh,
+        Kw=Kw,
         grf_mode="auto",
     )
 
@@ -256,10 +363,22 @@ def kernel_function(
     y2 = torch.empty_like(y1)
     sn, sc, sd, sh, sw = y1.stride()
     _groupnorm_ncdhw_kernel[(N2 * num_groups,)](
-        y1, y2, gn_weight_xpu, gn_bias_xpu,
-        sn, sc, sd, sh, sw,
-        N2, C2, D2, H2, W2,
-        num_groups, CPG,
+        y1,
+        y2,
+        gn_weight_xpu,
+        gn_bias_xpu,
+        sn,
+        sc,
+        sd,
+        sh,
+        sw,
+        N2,
+        C2,
+        D2,
+        H2,
+        W2,
+        num_groups,
+        CPG,
         float(1e-5),
         BLOCK_SIZE=1024,
         num_warps=8,
@@ -270,10 +389,20 @@ def kernel_function(
     sN, sC, sD, sH, sW = y2.stride()
     oN, oC = y3.stride()
     _reduce_mean_dhw_kernel[(N2 * C2,)](
-        y2, y3,
-        N2, C2, D2, H2, W2,
-        sN, sC, sD, sH, sW,
-        oN, oC,
+        y2,
+        y3,
+        N2,
+        C2,
+        D2,
+        H2,
+        W2,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
         BLOCK_W=32,
         num_warps=8,
         num_stages=2,
@@ -305,24 +434,44 @@ class Model(nn.Module):
         self._xpu_prepared = False
 
     def _prepare_for_xpu(self):
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.conv.weight.data = self.conv.weight.data.contiguous()
 
         if self.conv.bias is not None:
-            if self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv.bias.device.type != "xpu"
+                or self.conv.bias.dtype != torch.float16
+            ):
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             else:
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 
-        if self.group_norm.weight.device.type != "xpu" or self.group_norm.weight.dtype != torch.float16:
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.group_norm.weight.device.type != "xpu"
+            or self.group_norm.weight.dtype != torch.float16
+        ):
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.group_norm.weight.data = self.group_norm.weight.data.contiguous()
 
-        if self.group_norm.bias.device.type != "xpu" or self.group_norm.bias.dtype != torch.float16:
-            self.group_norm.bias.data = self.group_norm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.group_norm.bias.device.type != "xpu"
+            or self.group_norm.bias.dtype != torch.float16
+        ):
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.group_norm.bias.data = self.group_norm.bias.data.contiguous()
 

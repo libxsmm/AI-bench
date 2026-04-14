@@ -35,8 +35,8 @@ def _reduce_min_autotune_configs():
             configs.append(
                 triton.Config(
                     {
-                        'BLOCK_W': block_w,
-                        'BLOCK_D': block_d,
+                        "BLOCK_W": block_w,
+                        "BLOCK_D": block_d,
                     },
                     num_warps=num_warps,
                     num_stages=num_stages,
@@ -62,7 +62,7 @@ def _softmax_autotune_configs():
             configs.append(
                 triton.Config(
                     {
-                        'BLOCK_M': block_m,
+                        "BLOCK_M": block_m,
                     },
                     num_warps=num_warps,
                     num_stages=num_stages,
@@ -77,14 +77,39 @@ def _softmax_autotune_configs():
 # --------------------------------------
 @triton.jit
 def _conv3d_ncdhw_bias_kernel(
-    x_ptr, w_ptr, b_ptr, o_ptr,
-    N, C_IN, D, H, W,
-    C_OUT, D_OUT, H_OUT, W_OUT,
-    sxn, sxc, sxd, sxh, sxw,
-    swn, swc, swd, swh, sww,
-    son, soc, sod, soh, sow,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
-    BLOCK_CO: tl.constexpr, BLOCK_X: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    o_ptr,
+    N,
+    C_IN,
+    D,
+    H,
+    W,
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    sxn,
+    sxc,
+    sxd,
+    sxh,
+    sxw,
+    swn,
+    swc,
+    swd,
+    swh,
+    sww,
+    son,
+    soc,
+    sod,
+    soh,
+    sow,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    BLOCK_CO: tl.constexpr,
+    BLOCK_X: tl.constexpr,
 ):
     pid_nzy = tl.program_id(0)
     pid_co = tl.program_id(1)
@@ -153,9 +178,13 @@ def _conv3d_ncdhw_bias_kernel(
     tl.store(o_ptrs, out, mask=store_mask)
 
 
-def conv3d_ncdhw_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    assert x.device.type == 'xpu', "x must be on XPU"
-    assert w.device == x.device and b.device == x.device, "w and b must be on same device"
+def conv3d_ncdhw_bias(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor
+) -> torch.Tensor:
+    assert x.device.type == "xpu", "x must be on XPU"
+    assert w.device == x.device and b.device == x.device, (
+        "w and b must be on same device"
+    )
     assert x.ndim == 5 and w.ndim == 5 and b.ndim == 1, "Invalid tensor ranks"
     N, C_IN, D, H, W = x.shape
     C_OUT, C_IN_w, KD, KH, KW = w.shape
@@ -178,20 +207,46 @@ def conv3d_ncdhw_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torc
     def grid(meta):
         return (
             N * D_OUT * H_OUT,
-            triton.cdiv(C_OUT, meta['BLOCK_CO']),
-            triton.cdiv(W_OUT, meta['BLOCK_X']),
+            triton.cdiv(C_OUT, meta["BLOCK_CO"]),
+            triton.cdiv(W_OUT, meta["BLOCK_X"]),
         )
 
     _conv3d_ncdhw_bias_kernel[grid](
-        x, w, b, o,
-        N, C_IN, D, H, W,
-        C_OUT, D_OUT, H_OUT, W_OUT,
-        sxn, sxc, sxd, sxh, sxw,
-        swn, swc, swd, swh, sww,
-        son, soc, sod, soh, sow,
-        KD=KD, KH=KH, KW=KW,
-        BLOCK_CO=BLOCK_CO, BLOCK_X=BLOCK_X,
-        num_warps=8, num_stages=2,
+        x,
+        w,
+        b,
+        o,
+        N,
+        C_IN,
+        D,
+        H,
+        W,
+        C_OUT,
+        D_OUT,
+        H_OUT,
+        W_OUT,
+        sxn,
+        sxc,
+        sxd,
+        sxh,
+        sxw,
+        swn,
+        swc,
+        swd,
+        swh,
+        sww,
+        son,
+        soc,
+        sod,
+        soh,
+        sow,
+        KD=KD,
+        KH=KH,
+        KW=KW,
+        BLOCK_CO=BLOCK_CO,
+        BLOCK_X=BLOCK_X,
+        num_warps=8,
+        num_stages=2,
     )
     return o
 
@@ -201,15 +256,28 @@ def conv3d_ncdhw_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torc
 # --------------------------------------
 @triton.autotune(
     configs=_reduce_min_autotune_configs(),
-    key=['D', 'W'],
+    key=["D", "W"],
 )
 @triton.jit
 def _reduce_min_dim2_kernel(
-    x_ptr, out_ptr,
-    N, C, D, H, W,
-    strideN, strideC, strideD, strideH, strideW,
-    ostrideN, ostrideC, ostrideH, ostrideW,
-    BLOCK_W: tl.constexpr, BLOCK_D: tl.constexpr,
+    x_ptr,
+    out_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    strideN,
+    strideC,
+    strideD,
+    strideH,
+    strideW,
+    ostrideN,
+    ostrideC,
+    ostrideH,
+    ostrideW,
+    BLOCK_W: tl.constexpr,
+    BLOCK_D: tl.constexpr,
 ):
     pid_rows = tl.program_id(0)
     pid_cols = tl.program_id(1)
@@ -245,7 +313,7 @@ def _reduce_min_dim2_kernel(
 
 
 def reduce_min_dim2(x: torch.Tensor) -> torch.Tensor:
-    assert x.device.type == 'xpu', "x must be on XPU"
+    assert x.device.type == "xpu", "x must be on XPU"
     assert x.ndim == 5, "Expected 5D input"
     assert x.dtype == torch.float16, "Expected float16"
 
@@ -255,13 +323,25 @@ def reduce_min_dim2(x: torch.Tensor) -> torch.Tensor:
     sN, sC, sD, sH, sW = x.stride()
     oN, oC, oH, oW = out.stride()
 
-    grid = lambda meta: (N * C * H, triton.cdiv(W, meta['BLOCK_W']))
+    grid = lambda meta: (N * C * H, triton.cdiv(W, meta["BLOCK_W"]))
 
     _reduce_min_dim2_kernel[grid](
-        x, out,
-        N, C, D, H, W,
-        sN, sC, sD, sH, sW,
-        oN, oC, oH, oW,
+        x,
+        out,
+        N,
+        C,
+        D,
+        H,
+        W,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
+        oH,
+        oW,
     )
     return out
 
@@ -271,14 +351,22 @@ def reduce_min_dim2(x: torch.Tensor) -> torch.Tensor:
 # --------------------------------------
 @triton.autotune(
     configs=_softmax_autotune_configs(),
-    key=['C', 'M'],
+    key=["C", "M"],
 )
 @triton.jit
 def _softmax_nchw_dim1_kernel(
-    x_ptr, y_ptr,
-    N, C, H, W,
-    stride_n, stride_c, stride_h, stride_w,
-    HW, M,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    HW,
+    M,
     BLOCK_M: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -318,8 +406,8 @@ def _softmax_nchw_dim1_kernel(
 
 def softmax_nchw_dim1(x: torch.Tensor) -> torch.Tensor:
     assert isinstance(x, torch.Tensor)
-    assert hasattr(torch, 'xpu') and torch.xpu.is_available(), "XPU not available"
-    assert x.device.type == 'xpu', "x must be on XPU"
+    assert hasattr(torch, "xpu") and torch.xpu.is_available(), "XPU not available"
+    assert x.device.type == "xpu", "x must be on XPU"
     assert x.ndim == 4, "Expected 4D input"
 
     N, C, H, W = x.shape
@@ -329,13 +417,21 @@ def softmax_nchw_dim1(x: torch.Tensor) -> torch.Tensor:
     M = N * HW
 
     def grid(meta):
-        return (triton.cdiv(M, meta['BLOCK_M']),)
+        return (triton.cdiv(M, meta["BLOCK_M"]),)
 
     _softmax_nchw_dim1_kernel[grid](
-        x, y,
-        N, C, H, W,
-        stride_n, stride_c, stride_h, stride_w,
-        HW, M,
+        x,
+        y,
+        N,
+        C,
+        H,
+        W,
+        stride_n,
+        stride_c,
+        stride_h,
+        stride_w,
+        HW,
+        M,
     )
     return y
 
@@ -348,20 +444,20 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.
     """
     End-to-end forward: vendor Conv3D -> Triton ReduceMin(dim=2) -> Triton Softmax(dim=1)
     """
-    assert hasattr(torch, 'xpu') and torch.xpu.is_available(), "XPU not available"
+    assert hasattr(torch, "xpu") and torch.xpu.is_available(), "XPU not available"
 
-    if x.device.type != 'xpu' or x.dtype != torch.float16:
-        x_xpu = x.to('xpu', dtype=torch.float16)
+    if x.device.type != "xpu" or x.dtype != torch.float16:
+        x_xpu = x.to("xpu", dtype=torch.float16)
     else:
         x_xpu = x
 
-    if w.device.type != 'xpu' or w.dtype != torch.float16:
-        w_xpu = w.to('xpu', dtype=torch.float16).contiguous()
+    if w.device.type != "xpu" or w.dtype != torch.float16:
+        w_xpu = w.to("xpu", dtype=torch.float16).contiguous()
     else:
         w_xpu = w.contiguous()
 
-    if b.device.type != 'xpu' or b.dtype != torch.float16:
-        b_xpu = b.to('xpu', dtype=torch.float16).contiguous()
+    if b.device.type != "xpu" or b.dtype != torch.float16:
+        b_xpu = b.to("xpu", dtype=torch.float16).contiguous()
     else:
         b_xpu = b.contiguous()
 
@@ -375,7 +471,7 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.
 # Self-test
 # --------------------------------------
 def run_test():
-    if not hasattr(torch, 'xpu') or not torch.xpu.is_available():
+    if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         print("XPU device not available, skipping test.")
         sys.exit(0)
 
@@ -387,7 +483,7 @@ def run_test():
     kernel_size = 3
 
     conv_ref = torch.nn.Conv3d(in_channels, out_channels, kernel_size, bias=True)
-    conv_ref.to('cpu').float()
+    conv_ref.to("cpu").float()
 
     x_cpu = torch.randn(batch_size, in_channels, D, H, W, dtype=torch.float16)
     w_cpu = conv_ref.weight.detach().clone().to(torch.float16)
@@ -397,9 +493,9 @@ def run_test():
     ref_min = torch.min(ref, dim=2)[0]
     ref_soft = torch.softmax(ref_min, dim=1)
 
-    x_xpu = x_cpu.to('xpu', dtype=torch.float16)
-    w_xpu = w_cpu.to('xpu', dtype=torch.float16)
-    b_xpu = b_cpu.to('xpu', dtype=torch.float16)
+    x_xpu = x_cpu.to("xpu", dtype=torch.float16)
+    w_xpu = w_cpu.to("xpu", dtype=torch.float16)
+    b_xpu = b_cpu.to("xpu", dtype=torch.float16)
 
     out = kernel_function(x_xpu, w_xpu, b_xpu)
     out_cpu = out.cpu()
@@ -436,17 +532,27 @@ class Model(nn.Module):
         self.dim = dim
 
     def forward(self, x):
-        if x.device.type != 'xpu' or x.dtype != torch.float16:
-            x = x.to('xpu', dtype=torch.float16)
+        if x.device.type != "xpu" or x.dtype != torch.float16:
+            x = x.to("xpu", dtype=torch.float16)
 
-        if self.conv.weight.device.type != 'xpu' or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to('xpu', dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.conv.weight.data = self.conv.weight.data.contiguous()
 
         if self.conv.bias is not None:
-            if self.conv.bias.device.type != 'xpu' or self.conv.bias.dtype != torch.float16:
-                self.conv.bias.data = self.conv.bias.data.to('xpu', dtype=torch.float16).contiguous()
+            if (
+                self.conv.bias.device.type != "xpu"
+                or self.conv.bias.dtype != torch.float16
+            ):
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             else:
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 

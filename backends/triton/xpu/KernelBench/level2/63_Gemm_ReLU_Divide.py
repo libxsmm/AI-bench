@@ -286,30 +286,54 @@ def _normalize_divisor(divisor):
     if isinstance(divisor, (int, float)):
         divisor_val = float(divisor)
     else:
-        raise TypeError("divisor must be a Python int or float to avoid device-host sync")
+        raise TypeError(
+            "divisor must be a Python int or float to avoid device-host sync"
+        )
     if divisor_val == 0.0:
         raise ValueError("divisor must be non-zero")
     return divisor_val
 
 
 def kernel_function(x, weight, bias, divisor, weight_is_packed_kn=False):
-    assert isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor) and isinstance(bias, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    )
 
     divisor_val = _normalize_divisor(divisor)
 
-    x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (
-        x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()
-    ) else x
-    b_xpu = bias.to("xpu", dtype=torch.float16).contiguous() if (
-        bias.device.type != "xpu" or bias.dtype != torch.float16 or not bias.is_contiguous()
-    ) else bias
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16).contiguous()
+        if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous())
+        else x
+    )
+    b_xpu = (
+        bias.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            bias.device.type != "xpu"
+            or bias.dtype != torch.float16
+            or not bias.is_contiguous()
+        )
+        else bias
+    )
 
     if weight_is_packed_kn:
-        w_t_xpu = weight.to("xpu", dtype=torch.float16).contiguous() if (
-            weight.device.type != "xpu" or weight.dtype != torch.float16 or not weight.is_contiguous()
-        ) else weight
+        w_t_xpu = (
+            weight.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                weight.device.type != "xpu"
+                or weight.dtype != torch.float16
+                or not weight.is_contiguous()
+            )
+            else weight
+        )
     else:
-        if weight.device.type == "xpu" and weight.dtype == torch.float16 and weight.is_contiguous():
+        if (
+            weight.device.type == "xpu"
+            and weight.dtype == torch.float16
+            and weight.is_contiguous()
+        ):
             w_t_xpu = weight.t().contiguous()
         else:
             w_t_xpu = weight.to("xpu", dtype=torch.float16).t().contiguous()
@@ -325,7 +349,9 @@ def kernel_function(x, weight, bias, divisor, weight_is_packed_kn=False):
     inv_divisor = 1.0 / divisor_val
 
     def grid_gemm(meta):
-        return (triton.cdiv(M_dim, meta["BLOCK_M"]) * triton.cdiv(N_dim, meta["BLOCK_N"]),)
+        return (
+            triton.cdiv(M_dim, meta["BLOCK_M"]) * triton.cdiv(N_dim, meta["BLOCK_N"]),
+        )
 
     _linear_relu_div_kernel[grid_gemm](
         x_xpu,
@@ -370,7 +396,9 @@ class Model(nn.Module):
 
     def _ensure_xpu_params(self):
         if not self._xpu_params_ready:
-            weight_xpu = self.gemm.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            weight_xpu = self.gemm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             bias_xpu = self.gemm.bias.data.to("xpu", dtype=torch.float16).contiguous()
 
             self.gemm.weight.data = weight_xpu

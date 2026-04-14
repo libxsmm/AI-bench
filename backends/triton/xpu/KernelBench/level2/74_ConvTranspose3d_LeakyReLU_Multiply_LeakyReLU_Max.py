@@ -86,15 +86,40 @@ def _pool_autotune_configs():
 )
 @triton.jit
 def _convtranspose3d_leakyrelu_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_IN, C_OUT,
-    D_IN, H_IN, W_IN,
-    D_OUT, H_OUT, W_OUT,
-    STRIDE_D, STRIDE_H, STRIDE_W,
-    PAD_D, PAD_H, PAD_W,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
-    w_stride_ci, w_stride_co, w_stride_kd, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    C_OUT,
+    D_IN,
+    H_IN,
+    W_IN,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    STRIDE_D,
+    STRIDE_H,
+    STRIDE_W,
+    PAD_D,
+    PAD_H,
+    PAD_W,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
+    w_stride_ci,
+    w_stride_co,
+    w_stride_kd,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
     NEG_SLOPE: tl.constexpr,
     BLOCK_CO: tl.constexpr,
     BLOCK_W: tl.constexpr,
@@ -164,11 +189,15 @@ def _convtranspose3d_leakyrelu_kernel(
                             mask_vec = mask_w & cond_w & (iw_in >= 0) & (iw_in < W_IN)
 
                             x_ptrs = x_h_base + iw_in.to(tl.int64) * x_stride_w
-                            x_vals = tl.load(x_ptrs, mask=mask_vec, other=0.0).to(tl.float32)
+                            x_vals = tl.load(x_ptrs, mask=mask_vec, other=0.0).to(
+                                tl.float32
+                            )
 
                             w_base = w_kh_base + tl.full((), kw, tl.int64) * w_stride_kw
                             w_ptrs = w_base + offs_co64 * w_stride_co
-                            w_vals = tl.load(w_ptrs, mask=mask_co, other=0.0).to(tl.float32)
+                            w_vals = tl.load(w_ptrs, mask=mask_co, other=0.0).to(
+                                tl.float32
+                            )
 
                             acc += w_vals[:, None] * x_vals[None, :]
 
@@ -177,9 +206,7 @@ def _convtranspose3d_leakyrelu_kernel(
     acc = tl.where(acc >= 0, acc, acc * NEG_SLOPE)
 
     y_ptrs = (
-        y_row_base
-        + offs_co64[:, None] * y_stride_c
-        + offs_w64[None, :] * y_stride_w
+        y_row_base + offs_co64[:, None] * y_stride_c + offs_w64[None, :] * y_stride_w
     )
     store_mask = mask_co[:, None] & mask_w[None, :]
     tl.store(y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=store_mask)
@@ -194,9 +221,19 @@ def _convtranspose3d_leakyrelu_kernel(
 )
 @triton.jit
 def _mul_leakyrelu_5d_kernel(
-    x_ptr, w_ptr, out_ptr,
-    N, C, D, H, W,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
+    x_ptr,
+    w_ptr,
+    out_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
     w_stride_c,
     neg_slope,
     n_elements,
@@ -244,11 +281,26 @@ def _mul_leakyrelu_5d_kernel(
 )
 @triton.jit
 def _maxpool3d_k2s2_p0_rowwise(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    OD, OH, OW,
-    strideN, strideC, strideD, strideH, strideW,
-    out_strideN, out_strideC, out_strideD, out_strideH, out_strideW,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    OD,
+    OH,
+    OW,
+    strideN,
+    strideC,
+    strideD,
+    strideH,
+    strideW,
+    out_strideN,
+    out_strideC,
+    out_strideD,
+    out_strideH,
+    out_strideW,
     BLOCK_OW: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -282,35 +334,51 @@ def _maxpool3d_k2s2_p0_rowwise(
     id064 = tl.full((), id0, tl.int64)
     ih064 = tl.full((), ih0, tl.int64)
 
-    ptr000 = x_ptr + (base_nc + id064 * strideD + ih064 * strideH + (iw064 + 0) * strideW)
+    ptr000 = x_ptr + (
+        base_nc + id064 * strideD + ih064 * strideH + (iw064 + 0) * strideW
+    )
     mask000 = ow_mask & tl.full(ow_mask.shape, d0_in & h0_in, tl.int1) & ((iw0 + 0) < W)
     maxv = tl.load(ptr000, mask=mask000, other=neg_inf)
 
-    ptr001 = x_ptr + (base_nc + id064 * strideD + ih064 * strideH + (iw064 + 1) * strideW)
+    ptr001 = x_ptr + (
+        base_nc + id064 * strideD + ih064 * strideH + (iw064 + 1) * strideW
+    )
     mask001 = ow_mask & tl.full(ow_mask.shape, d0_in & h0_in, tl.int1) & ((iw0 + 1) < W)
     maxv = tl.maximum(maxv, tl.load(ptr001, mask=mask001, other=neg_inf))
 
-    ptr010 = x_ptr + (base_nc + id064 * strideD + (ih064 + 1) * strideH + (iw064 + 0) * strideW)
+    ptr010 = x_ptr + (
+        base_nc + id064 * strideD + (ih064 + 1) * strideH + (iw064 + 0) * strideW
+    )
     mask010 = ow_mask & tl.full(ow_mask.shape, d0_in & h1_in, tl.int1) & ((iw0 + 0) < W)
     maxv = tl.maximum(maxv, tl.load(ptr010, mask=mask010, other=neg_inf))
 
-    ptr011 = x_ptr + (base_nc + id064 * strideD + (ih064 + 1) * strideH + (iw064 + 1) * strideW)
+    ptr011 = x_ptr + (
+        base_nc + id064 * strideD + (ih064 + 1) * strideH + (iw064 + 1) * strideW
+    )
     mask011 = ow_mask & tl.full(ow_mask.shape, d0_in & h1_in, tl.int1) & ((iw0 + 1) < W)
     maxv = tl.maximum(maxv, tl.load(ptr011, mask=mask011, other=neg_inf))
 
-    ptr100 = x_ptr + (base_nc + (id064 + 1) * strideD + ih064 * strideH + (iw064 + 0) * strideW)
+    ptr100 = x_ptr + (
+        base_nc + (id064 + 1) * strideD + ih064 * strideH + (iw064 + 0) * strideW
+    )
     mask100 = ow_mask & tl.full(ow_mask.shape, d1_in & h0_in, tl.int1) & ((iw0 + 0) < W)
     maxv = tl.maximum(maxv, tl.load(ptr100, mask=mask100, other=neg_inf))
 
-    ptr101 = x_ptr + (base_nc + (id064 + 1) * strideD + ih064 * strideH + (iw064 + 1) * strideW)
+    ptr101 = x_ptr + (
+        base_nc + (id064 + 1) * strideD + ih064 * strideH + (iw064 + 1) * strideW
+    )
     mask101 = ow_mask & tl.full(ow_mask.shape, d1_in & h0_in, tl.int1) & ((iw0 + 1) < W)
     maxv = tl.maximum(maxv, tl.load(ptr101, mask=mask101, other=neg_inf))
 
-    ptr110 = x_ptr + (base_nc + (id064 + 1) * strideD + (ih064 + 1) * strideH + (iw064 + 0) * strideW)
+    ptr110 = x_ptr + (
+        base_nc + (id064 + 1) * strideD + (ih064 + 1) * strideH + (iw064 + 0) * strideW
+    )
     mask110 = ow_mask & tl.full(ow_mask.shape, d1_in & h1_in, tl.int1) & ((iw0 + 0) < W)
     maxv = tl.maximum(maxv, tl.load(ptr110, mask=mask110, other=neg_inf))
 
-    ptr111 = x_ptr + (base_nc + (id064 + 1) * strideD + (ih064 + 1) * strideH + (iw064 + 1) * strideW)
+    ptr111 = x_ptr + (
+        base_nc + (id064 + 1) * strideD + (ih064 + 1) * strideH + (iw064 + 1) * strideW
+    )
     mask111 = ow_mask & tl.full(ow_mask.shape, d1_in & h1_in, tl.int1) & ((iw0 + 1) < W)
     maxv = tl.maximum(maxv, tl.load(ptr111, mask=mask111, other=neg_inf))
 
@@ -340,7 +408,9 @@ def _all_ones_multiplier(multiplier: torch.Tensor) -> bool:
 # ---------------------------------------------------------------------
 # Composite kernel_function
 # ---------------------------------------------------------------------
-def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplier: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplier: torch.Tensor
+) -> torch.Tensor:
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("XPU device is not available")
 
@@ -356,7 +426,9 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplie
     x_xpu = x if x.device.type == "xpu" else x.to("xpu")
     w_xpu = w if w.device.type == "xpu" else w.to("xpu")
     b_xpu = b if b.device.type == "xpu" else b.to("xpu")
-    multiplier_xpu = multiplier if multiplier.device.type == "xpu" else multiplier.to("xpu")
+    multiplier_xpu = (
+        multiplier if multiplier.device.type == "xpu" else multiplier.to("xpu")
+    )
 
     N, C_in, D_in, H_in, W_in = x_xpu.shape
     Ci_w, Co_w, Kd, Kh, Kw = w_xpu.shape
@@ -372,7 +444,9 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplie
     H_out = (H_in - 1) * Sh - 2 * Ph + (Kh - 1) + Oph + 1
     W_out = (W_in - 1) * Sw - 2 * Pw + (Kw - 1) + Opw + 1
 
-    y1 = torch.empty((N, C_out, D_out, H_out, W_out), device=x_xpu.device, dtype=x_xpu.dtype)
+    y1 = torch.empty(
+        (N, C_out, D_out, H_out, W_out), device=x_xpu.device, dtype=x_xpu.dtype
+    )
     x_strides = x_xpu.stride()
     w_strides = w_xpu.stride()
     y1_strides = y1.stride()
@@ -383,17 +457,44 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplie
         triton.cdiv(C_out, META["BLOCK_CO"]),
     )
     _convtranspose3d_leakyrelu_kernel[grid1](
-        x_xpu, w_xpu, b_xpu, y1,
-        N, C_in, C_out,
-        D_in, H_in, W_in,
-        D_out, H_out, W_out,
-        Sd, Sh, Sw,
-        Pd, Ph, Pw,
-        x_strides[0], x_strides[1], x_strides[2], x_strides[3], x_strides[4],
-        w_strides[0], w_strides[1], w_strides[2], w_strides[3], w_strides[4],
-        y1_strides[0], y1_strides[1], y1_strides[2], y1_strides[3], y1_strides[4],
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        y1,
+        N,
+        C_in,
+        C_out,
+        D_in,
+        H_in,
+        W_in,
+        D_out,
+        H_out,
+        W_out,
+        Sd,
+        Sh,
+        Sw,
+        Pd,
+        Ph,
+        Pw,
+        x_strides[0],
+        x_strides[1],
+        x_strides[2],
+        x_strides[3],
+        x_strides[4],
+        w_strides[0],
+        w_strides[1],
+        w_strides[2],
+        w_strides[3],
+        w_strides[4],
+        y1_strides[0],
+        y1_strides[1],
+        y1_strides[2],
+        y1_strides[3],
+        y1_strides[4],
         NEG_SLOPE=0.2,
-        K_D=Kd, K_H=Kh, K_W=Kw,
+        K_D=Kd,
+        K_H=Kh,
+        K_W=Kw,
         grf_mode="auto",
     )
 
@@ -409,9 +510,19 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplie
 
         grid2 = lambda META: (triton.cdiv(n_elements, META["BLOCK_SIZE"]),)
         _mul_leakyrelu_5d_kernel[grid2](
-            y1, multiplier_xpu, out2,
-            N2, C2, D2, H2, W2,
-            x2_strides[0], x2_strides[1], x2_strides[2], x2_strides[3], x2_strides[4],
+            y1,
+            multiplier_xpu,
+            out2,
+            N2,
+            C2,
+            D2,
+            H2,
+            W2,
+            x2_strides[0],
+            x2_strides[1],
+            x2_strides[2],
+            x2_strides[3],
+            x2_strides[4],
             w_stride_c,
             0.2,
             n_elements,
@@ -428,11 +539,26 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplie
 
     grid3 = lambda META: (rows, triton.cdiv(OW, META["BLOCK_OW"]))
     _maxpool3d_k2s2_p0_rowwise[grid3](
-        x3, y3,
-        N3, C3, D3, H3, W3,
-        OD, OH, OW,
-        sN, sC, sD, sH, sW,
-        oN, oC, oD, oH, oW,
+        x3,
+        y3,
+        N3,
+        C3,
+        D3,
+        H3,
+        W3,
+        OD,
+        OH,
+        OW,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
+        oD,
+        oH,
+        oW,
         grf_mode="auto",
     )
     return y3
@@ -454,11 +580,28 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, multiplier_shape]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        multiplier_shape,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, multiplier_shape):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        multiplier_shape,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
             in_channels,
@@ -475,12 +618,27 @@ class Model(nn.Module):
     def forward(self, x):
         if x.device.type != "xpu" or x.dtype != torch.float16:
             x = x.to("xpu", dtype=torch.float16)
-        if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != torch.float16:
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.multiplier.device.type != "xpu" or self.multiplier.dtype != torch.float16:
-            self.multiplier.data = self.multiplier.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv_transpose.weight.device.type != "xpu"
+            or self.conv_transpose.weight.dtype != torch.float16
+        ):
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.conv_transpose.bias.device.type != "xpu"
+            or self.conv_transpose.bias.dtype != torch.float16
+        ):
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.multiplier.device.type != "xpu"
+            or self.multiplier.dtype != torch.float16
+        ):
+            self.multiplier.data = self.multiplier.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
 
         return kernel_function(
             x,

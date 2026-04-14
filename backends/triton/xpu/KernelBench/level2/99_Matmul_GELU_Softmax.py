@@ -228,7 +228,9 @@ def _softmax_inplace_rowwise(
     for off_n in tl.range(0, N, BLOCK_N):
         cols = off_n + tl.arange(0, BLOCK_N)
         mask = cols < N
-        vals = tl.load(row_ptr + cols * stride_n, mask=mask, other=-float("inf")).to(tl.float32)
+        vals = tl.load(row_ptr + cols * stride_n, mask=mask, other=-float("inf")).to(
+            tl.float32
+        )
         vals = tl.where(mask, vals, -float("inf"))
         m_val = tl.maximum(m_val, tl.max(vals, axis=0))
 
@@ -236,7 +238,9 @@ def _softmax_inplace_rowwise(
     for off_n in tl.range(0, N, BLOCK_N):
         cols = off_n + tl.arange(0, BLOCK_N)
         mask = cols < N
-        vals = tl.load(row_ptr + cols * stride_n, mask=mask, other=-float("inf")).to(tl.float32)
+        vals = tl.load(row_ptr + cols * stride_n, mask=mask, other=-float("inf")).to(
+            tl.float32
+        )
         e = tl.math.exp2((vals - m_val) * LOG2E)
         e = tl.where(mask, e, 0.0)
         l_val += tl.sum(e, axis=0)
@@ -254,9 +258,21 @@ def kernel_function(x, w, b):
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU is required but not available.")
 
-    x_xpu = x if (x.device.type == "xpu" and x.dtype == torch.float16) else x.to("xpu", dtype=torch.float16)
-    w_xpu = w if (w.device.type == "xpu" and w.dtype == torch.float16) else w.to("xpu", dtype=torch.float16)
-    b_xpu = b if (b.device.type == "xpu" and b.dtype == torch.float16) else b.to("xpu", dtype=torch.float16)
+    x_xpu = (
+        x
+        if (x.device.type == "xpu" and x.dtype == torch.float16)
+        else x.to("xpu", dtype=torch.float16)
+    )
+    w_xpu = (
+        w
+        if (w.device.type == "xpu" and w.dtype == torch.float16)
+        else w.to("xpu", dtype=torch.float16)
+    )
+    b_xpu = (
+        b
+        if (b.device.type == "xpu" and b.dtype == torch.float16)
+        else b.to("xpu", dtype=torch.float16)
+    )
 
     x_xpu = x_xpu.contiguous()
     w_xpu = w_xpu.contiguous()
@@ -268,7 +284,9 @@ def kernel_function(x, w, b):
     M, Kx = x_xpu.shape
     N, Kw = w_xpu.shape
     if Kx != Kw or b_xpu.shape[0] != N:
-        raise RuntimeError(f"Shape mismatch: x({x_xpu.shape}), w({w_xpu.shape}), b({b_xpu.shape})")
+        raise RuntimeError(
+            f"Shape mismatch: x({x_xpu.shape}), w({w_xpu.shape}), b({b_xpu.shape})"
+        )
 
     logits = F.linear(x_xpu, w_xpu, b_xpu)
     out = torch.empty((M, N), device="xpu", dtype=torch.float16)
@@ -311,9 +329,13 @@ class Model(nn.Module):
     def _prepare_parameters(self):
         if self._prepared:
             return
-        self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        self.linear.weight.data = self.linear.weight.data.to(
+            "xpu", dtype=torch.float16
+        ).contiguous()
         if self.linear.bias is not None:
-            self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.linear.bias.data = self.linear.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         self._prepared = True
 
     def forward(self, x):
@@ -322,6 +344,10 @@ class Model(nn.Module):
 
         self._prepare_parameters()
 
-        x_xpu = x if (x.device.type == "xpu" and x.dtype == torch.float16) else x.to("xpu", dtype=torch.float16)
+        x_xpu = (
+            x
+            if (x.device.type == "xpu" and x.dtype == torch.float16)
+            else x.to("xpu", dtype=torch.float16)
+        )
         x_xpu = x_xpu.contiguous()
         return kernel_function(x_xpu, self.linear.weight, self.linear.bias)

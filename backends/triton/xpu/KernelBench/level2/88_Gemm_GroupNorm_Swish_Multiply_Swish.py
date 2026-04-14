@@ -17,27 +17,23 @@ def _fused_linear_configs():
         (64, 32, 32, 1, 4, 2),
         (64, 32, 64, 1, 4, 2),
         (64, 32, 32, 2, 4, 2),
-
         # Medium tiles
         (128, 32, 16, 1, 8, 2),
         (128, 32, 32, 1, 8, 2),
         (128, 32, 64, 1, 8, 2),
         (128, 32, 32, 2, 8, 2),
         (128, 32, 64, 2, 8, 3),
-
         # Large XPU-oriented tiles
         (256, 32, 16, 1, 16, 2),
         (256, 32, 32, 1, 16, 3),
         (256, 32, 64, 1, 16, 2),
         (256, 32, 16, 2, 16, 2),
         (256, 32, 32, 2, 16, 3),
-
         # 32-warp variants required / often strong on Intel XPU
         (256, 32, 16, 1, 32, 3),
         (256, 32, 32, 1, 32, 3),
         (256, 32, 64, 1, 32, 2),
         (256, 32, 32, 2, 32, 3),
-
         # Include a 256x256-style large-tile family as requested for XPU.
         # Here BLOCK_N remains 32 for correctness, so the "large tile" is along M
         # with 32 warps and large K slices.
@@ -66,11 +62,22 @@ def _fused_linear_configs():
 )
 @triton.jit
 def _fused_linear_gn_swish_mul_swish(
-    x_ptr, w_ptr, b_ptr, gn_w_ptr, gn_b_ptr, mul_w_ptr, y_ptr,
-    N, I, O,
-    stride_xm, stride_xk,
-    stride_wo, stride_wk,
-    stride_ym, stride_yc,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    gn_w_ptr,
+    gn_b_ptr,
+    mul_w_ptr,
+    y_ptr,
+    N,
+    I,
+    O,
+    stride_xm,
+    stride_xk,
+    stride_wo,
+    stride_wk,
+    stride_ym,
+    stride_yc,
     EPS: tl.constexpr,
     GROUP_SIZE: tl.constexpr,
     BLOCK_M: tl.constexpr,
@@ -158,10 +165,15 @@ def _fused_linear_gn_swish_mul_swish(
 
 @triton.jit
 def _mul_weight_swish_kernel(
-    x_ptr, w_ptr, y_ptr,
-    N, C,
-    stride_xn, stride_xc,
-    stride_yn, stride_yc,
+    x_ptr,
+    w_ptr,
+    y_ptr,
+    N,
+    C,
+    stride_xn,
+    stride_xc,
+    stride_yn,
+    stride_yc,
     IS_BF16: tl.constexpr,
     BLOCK_SIZE_C: tl.constexpr,
 ):
@@ -234,11 +246,22 @@ def kernel_function(x, w, b, gn_weight, gn_bias, multiply_weight):
     )
 
     _fused_linear_gn_swish_mul_swish[grid](
-        x_xpu, w_xpu, b_xpu, gn_weight_xpu, gn_bias_xpu, multiply_weight_xpu, y,
-        N, I, O,
-        x_xpu.stride(0), x_xpu.stride(1),
-        w_xpu.stride(0), w_xpu.stride(1),
-        y.stride(0), y.stride(1),
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        gn_weight_xpu,
+        gn_bias_xpu,
+        multiply_weight_xpu,
+        y,
+        N,
+        I,
+        O,
+        x_xpu.stride(0),
+        x_xpu.stride(1),
+        w_xpu.stride(0),
+        w_xpu.stride(1),
+        y.stride(0),
+        y.stride(1),
         EPS=1e-5,
         GROUP_SIZE=GROUP_SIZE,
         grf_mode="auto",
@@ -273,28 +296,50 @@ class Model(nn.Module):
         if x.device.type != "xpu" or x.dtype != torch.float16:
             x = x.to("xpu", dtype=torch.float16)
 
-        if self.gemm.weight.device.type != "xpu" or self.gemm.weight.dtype != torch.float16:
-            self.gemm.weight.data = self.gemm.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.gemm.weight.device.type != "xpu"
+            or self.gemm.weight.dtype != torch.float16
+        ):
+            self.gemm.weight.data = self.gemm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.gemm.weight.data = self.gemm.weight.data.contiguous()
 
         if self.gemm.bias.device.type != "xpu" or self.gemm.bias.dtype != torch.float16:
-            self.gemm.bias.data = self.gemm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.gemm.bias.data = self.gemm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.gemm.bias.data = self.gemm.bias.data.contiguous()
 
-        if self.group_norm.weight.device.type != "xpu" or self.group_norm.weight.dtype != torch.float16:
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.group_norm.weight.device.type != "xpu"
+            or self.group_norm.weight.dtype != torch.float16
+        ):
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.group_norm.weight.data = self.group_norm.weight.data.contiguous()
 
-        if self.group_norm.bias.device.type != "xpu" or self.group_norm.bias.dtype != torch.float16:
-            self.group_norm.bias.data = self.group_norm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.group_norm.bias.device.type != "xpu"
+            or self.group_norm.bias.dtype != torch.float16
+        ):
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.group_norm.bias.data = self.group_norm.bias.data.contiguous()
 
-        if self.multiply_weight.device.type != "xpu" or self.multiply_weight.dtype != torch.float16:
-            self.multiply_weight.data = self.multiply_weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.multiply_weight.device.type != "xpu"
+            or self.multiply_weight.dtype != torch.float16
+        ):
+            self.multiply_weight.data = self.multiply_weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.multiply_weight.data = self.multiply_weight.data.contiguous()
 

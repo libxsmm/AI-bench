@@ -7,16 +7,24 @@ import triton.language as tl
 # Keep the original Triton GEMM kernel as required by the benchmark/tooling.
 # Rewritten to use block pointers for tiled 2D accesses.
 FUSED_CONFIGS = [
-    triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128, 'BLOCK_K': 32}, num_stages=3, num_warps=8),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32}, num_stages=4, num_warps=8),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_stages=4, num_warps=8),
-    triton.Config({'BLOCK_M': 256, 'BLOCK_N': 64, 'BLOCK_K': 32}, num_stages=3, num_warps=16),
+    triton.Config(
+        {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32}, num_stages=3, num_warps=8
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_stages=4, num_warps=8
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_stages=4, num_warps=8
+    ),
+    triton.Config(
+        {"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 32}, num_stages=3, num_warps=16
+    ),
 ]
 
 
 @triton.autotune(
     configs=FUSED_CONFIGS,
-    key=['M', 'N', 'K'],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def _fused_linear_swish_kernel(
@@ -24,12 +32,19 @@ def _fused_linear_swish_kernel(
     w_ptr,
     b_ptr,
     y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yn,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yn,
     scale,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -97,7 +112,9 @@ def _swish_scale_kernel(
     tl.store(y_ptr + offs, y.to(y_ptr.dtype.element_ty), mask=mask)
 
 
-def _ensure_xpu_contiguous(t: torch.Tensor, dtype: torch.dtype | None = None) -> torch.Tensor:
+def _ensure_xpu_contiguous(
+    t: torch.Tensor, dtype: torch.dtype | None = None
+) -> torch.Tensor:
     target_dtype = t.dtype if dtype is None else dtype
     if t.device.type != "xpu" or t.dtype != target_dtype:
         t = t.to("xpu", dtype=target_dtype)
@@ -106,7 +123,9 @@ def _ensure_xpu_contiguous(t: torch.Tensor, dtype: torch.dtype | None = None) ->
     return t
 
 
-def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, scaling_factor: float) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, scaling_factor: float
+) -> torch.Tensor:
     """
     Preferred runtime path:
     - vendor GEMM for the compute-dominant contraction
@@ -172,17 +191,25 @@ class Model(nn.Module):
 
     def _ensure_params_on_xpu(self, dtype: torch.dtype):
         if self._xpu_ready_dtype != dtype:
-            self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=dtype).contiguous()
-            self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=dtype).contiguous()
+            self.linear.weight.data = self.linear.weight.data.to(
+                "xpu", dtype=dtype
+            ).contiguous()
+            self.linear.bias.data = self.linear.bias.data.to(
+                "xpu", dtype=dtype
+            ).contiguous()
             self._xpu_ready_dtype = dtype
         else:
             if self.linear.weight.device.type != "xpu":
-                self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=dtype).contiguous()
+                self.linear.weight.data = self.linear.weight.data.to(
+                    "xpu", dtype=dtype
+                ).contiguous()
             elif not self.linear.weight.data.is_contiguous():
                 self.linear.weight.data = self.linear.weight.data.contiguous()
 
             if self.linear.bias.device.type != "xpu":
-                self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=dtype).contiguous()
+                self.linear.bias.data = self.linear.bias.data.to(
+                    "xpu", dtype=dtype
+                ).contiguous()
             elif not self.linear.bias.data.is_contiguous():
                 self.linear.bias.data = self.linear.bias.data.contiguous()
 

@@ -13,7 +13,16 @@ class Model(torch.nn.Module):
     Model that performs a convolution, subtraction, tanh activation,
     subtraction and average pooling.
     """
-    def __init__(self, in_channels, out_channels, kernel_size, subtract1_value, subtract2_value, kernel_size_pool):
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        subtract1_value,
+        subtract2_value,
+        kernel_size_pool,
+    ):
         super(Model, self).__init__()
         self.conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size)
         self.subtract1_value = subtract1_value
@@ -28,9 +37,13 @@ class Model(torch.nn.Module):
             x = x.contiguous()
 
         if not self._params_on_xpu:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             if self.conv.bias is not None:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             self._params_on_xpu = True
         else:
             if not self.conv.weight.is_contiguous():
@@ -39,8 +52,11 @@ class Model(torch.nn.Module):
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 
         return kernel_function(
-            x, self.conv.weight, self.conv.bias,
-            self.subtract1_value, self.subtract2_value
+            x,
+            self.conv.weight,
+            self.conv.bias,
+            self.subtract1_value,
+            self.subtract2_value,
         )
 
 
@@ -59,28 +75,61 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, subtract1_value, subtract2_value, kernel_size_pool]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        subtract1_value,
+        subtract2_value,
+        kernel_size_pool,
+    ]
 
 
 # ----------------------------------------
 # Keep original Triton kernels present for compatibility
 # ----------------------------------------
 CONFIGS = [
-    triton.Config({'BLOCK_CO': 32, 'BLOCK_WO': 32, 'BLOCK_CI': 32}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_CO': 64, 'BLOCK_WO': 16, 'BLOCK_CI': 32}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_CO': 32, 'BLOCK_WO': 64, 'BLOCK_CI': 32}, num_warps=16, num_stages=2),
+    triton.Config(
+        {"BLOCK_CO": 32, "BLOCK_WO": 32, "BLOCK_CI": 32}, num_warps=8, num_stages=2
+    ),
+    triton.Config(
+        {"BLOCK_CO": 64, "BLOCK_WO": 16, "BLOCK_CI": 32}, num_warps=8, num_stages=2
+    ),
+    triton.Config(
+        {"BLOCK_CO": 32, "BLOCK_WO": 64, "BLOCK_CI": 32}, num_warps=16, num_stages=2
+    ),
 ]
 
 
-@triton.autotune(configs=CONFIGS, key=['C_OUT', 'W_OUT'])
+@triton.autotune(configs=CONFIGS, key=["C_OUT", "W_OUT"])
 @triton.jit
 def _conv2d_nchw_k3s1_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_IN, H, W, C_OUT, H_OUT, W_OUT,
-    SXN, SXC, SXH, SXW,
-    SWO, SWI, SWKH, SWKW,
-    SYN, SYC, SYH, SYW,
-    BLOCK_CO: tl.constexpr, BLOCK_WO: tl.constexpr, BLOCK_CI: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    H,
+    W,
+    C_OUT,
+    H_OUT,
+    W_OUT,
+    SXN,
+    SXC,
+    SXH,
+    SXW,
+    SWO,
+    SWI,
+    SWKH,
+    SWKW,
+    SYN,
+    SYC,
+    SYH,
+    SYW,
+    BLOCK_CO: tl.constexpr,
+    BLOCK_WO: tl.constexpr,
+    BLOCK_CI: tl.constexpr,
 ):
     pid_co = tl.program_id(0)
     pid_wo = tl.program_id(1)
@@ -103,18 +152,37 @@ def _conv2d_nchw_k3s1_bias_kernel(
             hi = ho + ky
             hi_valid = hi < H
             for kx in range(0, 3):
-                w_ptrs = w_ptr + offs_co[:, None] * SWO + ci_idx[None, :] * SWI + ky * SWKH + kx * SWKW
+                w_ptrs = (
+                    w_ptr
+                    + offs_co[:, None] * SWO
+                    + ci_idx[None, :] * SWI
+                    + ky * SWKH
+                    + kx * SWKW
+                )
                 w_mask = co_mask[:, None] & ci_mask[None, :]
                 w_sub = tl.load(w_ptrs, mask=w_mask, other=0.0)
 
-                x_ptrs = x_ptr + n * SXN + ci_idx[:, None] * SXC + hi * SXH + (offs_wo[None, :] + kx) * SXW
-                x_mask = ci_mask[:, None] & wo_mask[None, :] & hi_valid & ((offs_wo[None, :] + kx) < W)
+                x_ptrs = (
+                    x_ptr
+                    + n * SXN
+                    + ci_idx[:, None] * SXC
+                    + hi * SXH
+                    + (offs_wo[None, :] + kx) * SXW
+                )
+                x_mask = (
+                    ci_mask[:, None]
+                    & wo_mask[None, :]
+                    & hi_valid
+                    & ((offs_wo[None, :] + kx) < W)
+                )
                 x_sub = tl.load(x_ptrs, mask=x_mask, other=0.0)
                 acc = tl.dot(w_sub, x_sub, acc)
         ci0 += BLOCK_CI
     b = tl.load(b_ptr + offs_co, mask=co_mask, other=0.0).to(tl.float32)
     acc = acc + b[:, None]
-    y_ptrs = y_ptr + n * SYN + offs_co[:, None] * SYC + ho * SYH + offs_wo[None, :] * SYW
+    y_ptrs = (
+        y_ptr + n * SYN + offs_co[:, None] * SYC + ho * SYH + offs_wo[None, :] * SYW
+    )
     y_mask = co_mask[:, None] & wo_mask[None, :]
     if y_ptr.dtype.element_ty == tl.bfloat16:
         out = acc.to(tl.bfloat16)
@@ -146,10 +214,24 @@ def _affine_tanh_affine_kernel(
 
 @triton.jit
 def _avgpool2d_2x2_s2_nchw_kernel(
-    x_ptr, y_ptr, N, C, H, W, OH, OW,
-    stride_n, stride_c, stride_h, stride_w,
-    out_stride_n, out_stride_c, out_stride_h, out_stride_w,
-    BLOCK_OH: tl.constexpr, BLOCK_OW: tl.constexpr
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    OH,
+    OW,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_h,
+    out_stride_w,
+    BLOCK_OH: tl.constexpr,
+    BLOCK_OW: tl.constexpr,
 ):
     pid_ow = tl.program_id(0)
     pid_oh = tl.program_id(1)
@@ -183,7 +265,12 @@ def _avgpool2d_2x2_s2_nchw_kernel(
     v01 = tl.load(ptr01, mask=mask01, other=0.0)
     v10 = tl.load(ptr10, mask=mask10, other=0.0)
     v11 = tl.load(ptr11, mask=mask11, other=0.0)
-    acc = (v00.to(tl.float32) + v01.to(tl.float32) + v10.to(tl.float32) + v11.to(tl.float32)) * 0.25
+    acc = (
+        v00.to(tl.float32)
+        + v01.to(tl.float32)
+        + v10.to(tl.float32)
+        + v11.to(tl.float32)
+    ) * 0.25
     out_ptrs = base_out + offs_oh_2d * out_stride_h + offs_ow_2d * out_stride_w
     out_mask = oh_mask[:, None] & ow_mask[None, :]
     tl.store(out_ptrs, acc.to(y_ptr.dtype.element_ty), mask=out_mask)
@@ -195,22 +282,35 @@ def _avgpool2d_2x2_s2_nchw_kernel(
 # Sequential accumulation reduces register pressure.
 # ----------------------------------------
 TANH_POOL_CONFIGS = [
-    triton.Config({'BLOCK_OH': 8, 'BLOCK_OW': 16}, num_warps=4, num_stages=1),
-    triton.Config({'BLOCK_OH': 8, 'BLOCK_OW': 32}, num_warps=4, num_stages=1),
-    triton.Config({'BLOCK_OH': 16, 'BLOCK_OW': 16}, num_warps=8, num_stages=1),
-    triton.Config({'BLOCK_OH': 16, 'BLOCK_OW': 32}, num_warps=8, num_stages=1),
+    triton.Config({"BLOCK_OH": 8, "BLOCK_OW": 16}, num_warps=4, num_stages=1),
+    triton.Config({"BLOCK_OH": 8, "BLOCK_OW": 32}, num_warps=4, num_stages=1),
+    triton.Config({"BLOCK_OH": 16, "BLOCK_OW": 16}, num_warps=8, num_stages=1),
+    triton.Config({"BLOCK_OH": 16, "BLOCK_OW": 32}, num_warps=8, num_stages=1),
 ]
 
 
-@triton.autotune(configs=TANH_POOL_CONFIGS, key=['OH', 'OW'])
+@triton.autotune(configs=TANH_POOL_CONFIGS, key=["OH", "OW"])
 @triton.jit
 def _tanh_avgpool2d_2x2_s2_kernel(
-    x_ptr, y_ptr,
-    C, H, W, OH, OW,
-    stride_n, stride_c, stride_h, stride_w,
-    out_stride_n, out_stride_c, out_stride_h, out_stride_w,
-    subtract1, subtract2,
-    BLOCK_OH: tl.constexpr, BLOCK_OW: tl.constexpr
+    x_ptr,
+    y_ptr,
+    C,
+    H,
+    W,
+    OH,
+    OW,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_h,
+    out_stride_w,
+    subtract1,
+    subtract2,
+    BLOCK_OH: tl.constexpr,
+    BLOCK_OW: tl.constexpr,
 ):
     pid_ow = tl.program_id(0)
     pid_oh = tl.program_id(1)
@@ -279,13 +379,29 @@ def fused_tanh_avgpool2d_2x2_s2(x: torch.Tensor, subtract1: float, subtract2: fl
     sN, sC, sH, sW = x.stride()
     oN, oC, oH, oW = y.stride()
 
-    grid = lambda META: (triton.cdiv(OW, META['BLOCK_OW']), triton.cdiv(OH, META['BLOCK_OH']), N * C)
+    grid = lambda META: (
+        triton.cdiv(OW, META["BLOCK_OW"]),
+        triton.cdiv(OH, META["BLOCK_OH"]),
+        N * C,
+    )
     _tanh_avgpool2d_2x2_s2_kernel[grid](
-        x, y,
-        C, H, W, OH, OW,
-        sN, sC, sH, sW,
-        oN, oC, oH, oW,
-        float(subtract1), float(subtract2),
+        x,
+        y,
+        C,
+        H,
+        W,
+        OH,
+        OW,
+        sN,
+        sC,
+        sH,
+        sW,
+        oN,
+        oC,
+        oH,
+        oW,
+        float(subtract1),
+        float(subtract2),
     )
     return y
 
@@ -293,11 +409,13 @@ def fused_tanh_avgpool2d_2x2_s2(x: torch.Tensor, subtract1: float, subtract2: fl
 # ----------------------------------------
 # Top-level optimized path
 # ----------------------------------------
-def kernel_function(x: torch.Tensor,
-                    weight: torch.Tensor,
-                    bias: torch.Tensor,
-                    subtract1: float,
-                    subtract2: float) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    bias: torch.Tensor,
+    subtract1: float,
+    subtract2: float,
+) -> torch.Tensor:
     if x.device.type != "xpu" or x.dtype != torch.float16:
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
     elif not x.is_contiguous():
@@ -342,4 +460,11 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, subtract1_value, subtract2_value, kernel_size_pool]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        subtract1_value,
+        subtract2_value,
+        kernel_size_pool,
+    ]

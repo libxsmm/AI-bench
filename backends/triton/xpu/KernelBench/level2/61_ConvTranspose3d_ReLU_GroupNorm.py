@@ -108,10 +108,18 @@ def _conv_transpose3d_kernel(
                     )
                     in_mask = mask_sp & in_bounds
 
-                    x_ptrs = x_ptr + base_xci + id_ * stride_xd + ih_ * stride_xh + iw_ * stride_xw
+                    x_ptrs = (
+                        x_ptr
+                        + base_xci
+                        + id_ * stride_xd
+                        + ih_ * stride_xh
+                        + iw_ * stride_xw
+                    )
                     x_vals = tl.load(x_ptrs, mask=in_mask, other=0.0).to(tl.float32)
 
-                    base_w = base_wci + kd * stride_wkd + kh * stride_wkh + kw * stride_wkw
+                    base_w = (
+                        base_wci + kd * stride_wkd + kh * stride_wkh + kw * stride_wkw
+                    )
                     w_ptrs = w_ptr + base_w + offs_co * stride_wco
                     w_vals = tl.load(w_ptrs, mask=mask_co, other=0.0).to(tl.float32)
 
@@ -199,13 +207,43 @@ def kernel_function(x, conv_w, gn_weight, gn_bias, num_groups=8, eps=1e-5):
         if not isinstance(t, torch.Tensor):
             raise TypeError("All weights must be torch.Tensors")
 
-    x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()) else x
-    conv_w_xpu = conv_w.to("xpu", dtype=torch.float16).contiguous() if (conv_w.device.type != "xpu" or conv_w.dtype != torch.float16 or not conv_w.is_contiguous()) else conv_w
-    gn_weight_xpu = gn_weight.to("xpu", dtype=torch.float16).contiguous() if (gn_weight.device.type != "xpu" or gn_weight.dtype != torch.float16 or not gn_weight.is_contiguous()) else gn_weight
-    gn_bias_xpu = gn_bias.to("xpu", dtype=torch.float16).contiguous() if (gn_bias.device.type != "xpu" or gn_bias.dtype != torch.float16 or not gn_bias.is_contiguous()) else gn_bias
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16).contiguous()
+        if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous())
+        else x
+    )
+    conv_w_xpu = (
+        conv_w.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            conv_w.device.type != "xpu"
+            or conv_w.dtype != torch.float16
+            or not conv_w.is_contiguous()
+        )
+        else conv_w
+    )
+    gn_weight_xpu = (
+        gn_weight.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            gn_weight.device.type != "xpu"
+            or gn_weight.dtype != torch.float16
+            or not gn_weight.is_contiguous()
+        )
+        else gn_weight
+    )
+    gn_bias_xpu = (
+        gn_bias.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            gn_bias.device.type != "xpu"
+            or gn_bias.dtype != torch.float16
+            or not gn_bias.is_contiguous()
+        )
+        else gn_bias
+    )
 
     if x_xpu.ndim != 5 or conv_w_xpu.ndim != 5:
-        raise ValueError("x must be 5D [N,Cin,D,H,W], conv_w must be 5D [Cin,Cout,kD,kH,kW]")
+        raise ValueError(
+            "x must be 5D [N,Cin,D,H,W], conv_w must be 5D [Cin,Cout,kD,kH,kW]"
+        )
 
     N, C_in, D, H, W = x_xpu.shape
     w_cin, C_out, kD, kH, kW = conv_w_xpu.shape
@@ -281,7 +319,9 @@ def get_init_inputs():
 class Model(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, groups, bias=False):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=2, padding=1)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, stride=2, padding=1
+        )
         self.group_norm = nn.GroupNorm(groups, out_channels)
         self.bias = bias
 
@@ -320,13 +360,25 @@ class Model(nn.Module):
         )
 
         if need_conv:
-            self._conv_weight_xpu = self.conv_transpose.weight.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._conv_weight_xpu = (
+                self.conv_transpose.weight.detach()
+                .to("xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._conv_weight_version = conv_ver
         if need_gnw:
-            self._gn_weight_xpu = self.group_norm.weight.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._gn_weight_xpu = (
+                self.group_norm.weight.detach()
+                .to("xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._gn_weight_version = gnw_ver
         if need_gnb:
-            self._gn_bias_xpu = self.group_norm.bias.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._gn_bias_xpu = (
+                self.group_norm.bias.detach()
+                .to("xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._gn_bias_version = gnb_ver
 
     def forward(self, x):

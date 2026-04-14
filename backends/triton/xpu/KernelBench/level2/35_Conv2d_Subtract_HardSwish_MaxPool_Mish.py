@@ -76,12 +76,29 @@ def _pointwise_xpu_autotune_configs():
 )
 @triton.jit
 def _conv2d_nchw_3x3_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_in, H, W, C_out,
-    H_out, W_out,
-    stride_xn, stride_xc, stride_xh, stride_xw,
-    stride_wo, stride_wi, stride_wkh, stride_wkw,
-    stride_yn, stride_yc, stride_yh, stride_yw,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_in,
+    H,
+    W,
+    C_out,
+    H_out,
+    W_out,
+    stride_xn,
+    stride_xc,
+    stride_xh,
+    stride_xw,
+    stride_wo,
+    stride_wi,
+    stride_wkh,
+    stride_wkw,
+    stride_yn,
+    stride_yc,
+    stride_yh,
+    stride_yw,
     USE_BF16: tl.constexpr,
     BLOCK_OC: tl.constexpr,
     BLOCK_OW: tl.constexpr,
@@ -172,7 +189,10 @@ def _conv2d_nchw_3x3_bias_kernel(
 )
 @triton.jit
 def _hardswish_sub_kernel(
-    x_ptr, y_ptr, n_elements, subtract_value,
+    x_ptr,
+    y_ptr,
+    n_elements,
+    subtract_value,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -193,10 +213,22 @@ def _hardswish_sub_kernel(
 )
 @triton.jit
 def _maxpool2d_mish_kernel(
-    x_ptr, y_ptr,
-    N, C, H, W, OUT_H, OUT_W,
-    stride_n, stride_c, stride_h, stride_w,
-    out_stride_n, out_stride_c, out_stride_h, out_stride_w,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    OUT_H,
+    OUT_W,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_h,
+    out_stride_w,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -223,7 +255,9 @@ def _maxpool2d_mish_kernel(
     v00 = tl.load(x_ptr + base_in, mask=mask, other=neg_inf).to(tl.float32)
     v01 = tl.load(x_ptr + base_in + stride_w, mask=mask, other=neg_inf).to(tl.float32)
     v10 = tl.load(x_ptr + base_in + stride_h, mask=mask, other=neg_inf).to(tl.float32)
-    v11 = tl.load(x_ptr + base_in + stride_h + stride_w, mask=mask, other=neg_inf).to(tl.float32)
+    v11 = tl.load(x_ptr + base_in + stride_h + stride_w, mask=mask, other=neg_inf).to(
+        tl.float32
+    )
 
     pooled = tl.maximum(tl.maximum(v00, v01), tl.maximum(v10, v11))
 
@@ -250,10 +284,22 @@ def _maxpool2d_mish_kernel(
 )
 @triton.jit
 def _fused_pool_hardswish_mish_kernel(
-    x_ptr, y_ptr,
-    N, C, H, W, OUT_H, OUT_W,
-    stride_n, stride_c, stride_h, stride_w,
-    out_stride_n, out_stride_c, out_stride_h, out_stride_w,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    OUT_H,
+    OUT_W,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_h,
+    out_stride_w,
     subtract_value,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -282,7 +328,9 @@ def _fused_pool_hardswish_mish_kernel(
     v00 = tl.load(x_ptr + base_in, mask=mask, other=neg_inf).to(tl.float32)
     v01 = tl.load(x_ptr + base_in + stride_w, mask=mask, other=neg_inf).to(tl.float32)
     v10 = tl.load(x_ptr + base_in + stride_h, mask=mask, other=neg_inf).to(tl.float32)
-    v11 = tl.load(x_ptr + base_in + stride_h + stride_w, mask=mask, other=neg_inf).to(tl.float32)
+    v11 = tl.load(x_ptr + base_in + stride_h + stride_w, mask=mask, other=neg_inf).to(
+        tl.float32
+    )
 
     z00 = v00 - subtract_value
     z01 = v01 - subtract_value
@@ -318,8 +366,14 @@ def _fused_pool_hardswish_mish_kernel(
     tl.store(out_ptrs, out.to(y_ptr.dtype.element_ty), mask=mask)
 
 
-def _conv2d_bias_triton(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
-    if not (isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor) and isinstance(bias, torch.Tensor)):
+def _conv2d_bias_triton(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("Expected x, weight, bias as torch.Tensors")
     if x.device.type != "xpu":
         raise RuntimeError("x must be on device='xpu'")
@@ -348,11 +402,29 @@ def _conv2d_bias_triton(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tenso
         triton.cdiv(C_out, META["BLOCK_OC"]),
     )
     _conv2d_nchw_3x3_bias_kernel[grid](
-        x, weight, bias, y,
-        N, C_in, H, W, C_out, H_out, W_out,
-        sxn, sxc, sxh, sxw,
-        sW_o, sW_i, sW_kh, sW_kw,
-        syn, syc, syh, syw,
+        x,
+        weight,
+        bias,
+        y,
+        N,
+        C_in,
+        H,
+        W,
+        C_out,
+        H_out,
+        W_out,
+        sxn,
+        sxc,
+        sxh,
+        sxw,
+        sW_o,
+        sW_i,
+        sW_kh,
+        sW_kw,
+        syn,
+        syc,
+        syh,
+        syw,
         USE_BF16=use_bf16,
         grf_mode="auto",
     )
@@ -365,13 +437,20 @@ def _sub_hardswish_triton(x: torch.Tensor, subtract_value) -> torch.Tensor:
     if not x.is_contiguous():
         x = x.contiguous()
 
-    sv = float(subtract_value.item()) if isinstance(subtract_value, torch.Tensor) else float(subtract_value)
+    sv = (
+        float(subtract_value.item())
+        if isinstance(subtract_value, torch.Tensor)
+        else float(subtract_value)
+    )
     y = torch.empty_like(x)
     n_elements = x.numel()
 
     grid = lambda META: (triton.cdiv(n_elements, META["BLOCK_SIZE"]),)
     _hardswish_sub_kernel[grid](
-        x, y, n_elements, sv,
+        x,
+        y,
+        n_elements,
+        sv,
         grf_mode="auto",
     )
     return y
@@ -389,16 +468,30 @@ def _maxpool2d_mish_triton(x: torch.Tensor) -> torch.Tensor:
 
     grid = lambda META: (N * C, triton.cdiv(OUT_H * OUT_W, META["BLOCK_SIZE"]))
     _maxpool2d_mish_kernel[grid](
-        x, y,
-        N, C, H, W, OUT_H, OUT_W,
-        x.stride(0), x.stride(1), x.stride(2), x.stride(3),
-        y.stride(0), y.stride(1), y.stride(2), y.stride(3),
+        x,
+        y,
+        N,
+        C,
+        H,
+        W,
+        OUT_H,
+        OUT_W,
+        x.stride(0),
+        x.stride(1),
+        x.stride(2),
+        x.stride(3),
+        y.stride(0),
+        y.stride(1),
+        y.stride(2),
+        y.stride(3),
         grf_mode="auto",
     )
     return y
 
 
-def _vendor_conv2d_bias(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+def _vendor_conv2d_bias(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
     return F.conv2d(x, weight, bias, stride=1, padding=0)
 
 
@@ -412,21 +505,39 @@ def _fused_pool_hardswish_mish_triton(x: torch.Tensor, subtract_value) -> torch.
     OUT_H, OUT_W = H // 2, W // 2
     y = torch.empty((N, C, OUT_H, OUT_W), device=x.device, dtype=x.dtype)
 
-    sv = float(subtract_value.item()) if isinstance(subtract_value, torch.Tensor) else float(subtract_value)
+    sv = (
+        float(subtract_value.item())
+        if isinstance(subtract_value, torch.Tensor)
+        else float(subtract_value)
+    )
 
     grid = lambda META: (N * C, triton.cdiv(OUT_H * OUT_W, META["BLOCK_SIZE"]))
     _fused_pool_hardswish_mish_kernel[grid](
-        x, y,
-        N, C, H, W, OUT_H, OUT_W,
-        x.stride(0), x.stride(1), x.stride(2), x.stride(3),
-        y.stride(0), y.stride(1), y.stride(2), y.stride(3),
+        x,
+        y,
+        N,
+        C,
+        H,
+        W,
+        OUT_H,
+        OUT_W,
+        x.stride(0),
+        x.stride(1),
+        x.stride(2),
+        x.stride(3),
+        y.stride(0),
+        y.stride(1),
+        y.stride(2),
+        y.stride(3),
         sv,
         grf_mode="auto",
     )
     return y
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, subtract_value) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, subtract_value
+) -> torch.Tensor:
     if x.device.type != "xpu" or x.dtype != torch.float16:
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
     else:
@@ -465,7 +576,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, subtract_value, pool_kernel_size):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, subtract_value, pool_kernel_size
+    ):
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
         self.subtract_value = subtract_value
@@ -481,7 +594,9 @@ class Model(nn.Module):
             or self._cached_weight_xpu.dtype != torch.float16
             or self._cached_weight_xpu.shape != weight.shape
         ):
-            self._cached_weight_xpu = weight.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._cached_weight_xpu = (
+                weight.detach().to("xpu", dtype=torch.float16).contiguous()
+            )
 
         if self.conv.bias is not None:
             bias = self.conv.bias
@@ -491,7 +606,9 @@ class Model(nn.Module):
                 or self._cached_bias_xpu.dtype != torch.float16
                 or self._cached_bias_xpu.shape != bias.shape
             ):
-                self._cached_bias_xpu = bias.detach().to("xpu", dtype=torch.float16).contiguous()
+                self._cached_bias_xpu = (
+                    bias.detach().to("xpu", dtype=torch.float16).contiguous()
+                )
         else:
             self._cached_bias_xpu = None
 
@@ -502,4 +619,6 @@ class Model(nn.Module):
             x = x.contiguous()
 
         self._ensure_xpu_params()
-        return kernel_function(x, self._cached_weight_xpu, self._cached_bias_xpu, self.subtract_value)
+        return kernel_function(
+            x, self._cached_weight_xpu, self._cached_bias_xpu, self.subtract_value
+        )

@@ -14,21 +14,48 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
     ],
-    key=['D', 'H', 'W', 'C_IN', 'C_OUT', 'OD', 'OH', 'OW'],
+    key=["D", "H", "W", "C_IN", "C_OUT", "OD", "OH", "OW"],
 )
 @triton.jit
 def _conv3d_leakyrelu_sum_clamp_gelu_kernel(
-    x_ptr, w_ptr, b_ptr, sum_ptr, y_ptr,
-    N_batch, D, H, W, OD, OH, OW,
-    sx_n, sx_d, sx_h,
-    sw_kd, sw_kh, sw_kw, sw_ci, sw_co,
-    sy_n, sy_d, sy_h,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
-    C_IN: tl.constexpr, C_OUT: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    sum_ptr,
+    y_ptr,
+    N_batch,
+    D,
+    H,
+    W,
+    OD,
+    OH,
+    OW,
+    sx_n,
+    sx_d,
+    sx_h,
+    sw_kd,
+    sw_kh,
+    sw_kw,
+    sw_ci,
+    sw_co,
+    sy_n,
+    sy_d,
+    sy_h,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    C_IN: tl.constexpr,
+    C_OUT: tl.constexpr,
 ):
     n = tl.program_id(0)
     pid_dh = tl.program_id(1)
@@ -47,14 +74,20 @@ def _conv3d_leakyrelu_sum_clamp_gelu_kernel(
             for kw in range(KW):
                 w_start = ow0 + kw
                 x_bp = tl.make_block_ptr(
-                    base=x_dh_base, shape=(W, C_IN),
-                    strides=(C_IN, 1), offsets=(w_start, 0),
-                    block_shape=(BLOCK_OW, BLOCK_K), order=(1, 0),
+                    base=x_dh_base,
+                    shape=(W, C_IN),
+                    strides=(C_IN, 1),
+                    offsets=(w_start, 0),
+                    block_shape=(BLOCK_OW, BLOCK_K),
+                    order=(1, 0),
                 )
                 w_bp = tl.make_block_ptr(
                     base=w_ptr + kd * sw_kd + kh * sw_kh + kw * sw_kw,
-                    shape=(C_IN, C_OUT), strides=(sw_ci, sw_co),
-                    offsets=(0, 0), block_shape=(BLOCK_K, BLOCK_N), order=(1, 0),
+                    shape=(C_IN, C_OUT),
+                    strides=(sw_ci, sw_co),
+                    offsets=(0, 0),
+                    block_shape=(BLOCK_K, BLOCK_N),
+                    order=(1, 0),
                 )
                 for c0 in range(0, C_IN, BLOCK_K):
                     xt = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
@@ -87,9 +120,12 @@ def _conv3d_leakyrelu_sum_clamp_gelu_kernel(
     y_dh_base = y_ptr + n * sy_n + od * sy_d + oh * sy_h
     y_valid = OW - ow0
     y_bp = tl.make_block_ptr(
-        base=y_dh_base, shape=(y_valid, C_OUT),
-        strides=(C_OUT, 1), offsets=(0, 0),
-        block_shape=(BLOCK_OW, BLOCK_N), order=(1, 0),
+        base=y_dh_base,
+        shape=(y_valid, C_OUT),
+        strides=(C_OUT, 1),
+        offsets=(0, 0),
+        block_shape=(BLOCK_OW, BLOCK_N),
+        order=(1, 0),
     )
     tl.store(y_bp, acc.to(tl.float16), boundary_check=(0, 1))
 
@@ -144,18 +180,44 @@ class Model(nn.Module):
         OH = H_x - KH + 1
         OW = W_x - KW + 1
 
-        y = torch.empty((N, C_out, OD, OH, OW), device=x.device,
-                         dtype=torch.float16, memory_format=torch.channels_last_3d)
+        y = torch.empty(
+            (N, C_out, OD, OH, OW),
+            device=x.device,
+            dtype=torch.float16,
+            memory_format=torch.channels_last_3d,
+        )
         y_ndhwc = y.permute(0, 2, 3, 4, 1)
 
-        grid = lambda meta: (N, OD * OH, triton.cdiv(OW, meta['BLOCK_OW']))
+        grid = lambda meta: (N, OD * OH, triton.cdiv(OW, meta["BLOCK_OW"]))
 
         _conv3d_leakyrelu_sum_clamp_gelu_kernel[grid](
-            x_ndhwc, self._w, self._b, self._st, y_ndhwc,
-            N, D_x, H_x, W_x, OD, OH, OW,
-            x_ndhwc.stride(0), x_ndhwc.stride(1), x_ndhwc.stride(2),
-            self._w.stride(0), self._w.stride(1), self._w.stride(2), self._w.stride(3), self._w.stride(4),
-            y_ndhwc.stride(0), y_ndhwc.stride(1), y_ndhwc.stride(2),
-            KD=KD, KH=KH, KW=KW, C_IN=C_in, C_OUT=C_out,
+            x_ndhwc,
+            self._w,
+            self._b,
+            self._st,
+            y_ndhwc,
+            N,
+            D_x,
+            H_x,
+            W_x,
+            OD,
+            OH,
+            OW,
+            x_ndhwc.stride(0),
+            x_ndhwc.stride(1),
+            x_ndhwc.stride(2),
+            self._w.stride(0),
+            self._w.stride(1),
+            self._w.stride(2),
+            self._w.stride(3),
+            self._w.stride(4),
+            y_ndhwc.stride(0),
+            y_ndhwc.stride(1),
+            y_ndhwc.stride(2),
+            KD=KD,
+            KH=KH,
+            KW=KW,
+            C_IN=C_in,
+            C_OUT=C_out,
         )
         return y

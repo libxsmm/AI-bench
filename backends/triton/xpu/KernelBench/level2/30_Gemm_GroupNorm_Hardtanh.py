@@ -7,12 +7,36 @@ import triton.language as tl
 
 def _configs():
     return [
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4}, num_warps=16, num_stages=3),
-        triton.Config({'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 2}, num_warps=16, num_stages=3),
-        triton.Config({'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 2}, num_warps=32, num_stages=3),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=32,
+            num_stages=3,
+        ),
     ]
 
 
@@ -29,9 +53,12 @@ def _fused_gemm_gn_hardtanh(
     C_IN,
     C_OUT,
     G,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yc,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yc,
     EPS: tl.constexpr,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
@@ -102,11 +129,11 @@ def _fused_gemm_gn_hardtanh(
 
 def _gn_configs():
     return [
-        triton.Config({'BLOCK_M': 1, 'BLOCK_C': 256}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_M': 2, 'BLOCK_C': 256}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_M': 4, 'BLOCK_C': 256}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_M': 1, 'BLOCK_C': 512}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_M': 2, 'BLOCK_C': 512}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_M": 1, "BLOCK_C": 256}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_M": 2, "BLOCK_C": 256}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_M": 4, "BLOCK_C": 256}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_M": 1, "BLOCK_C": 512}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_M": 2, "BLOCK_C": 512}, num_warps=16, num_stages=2),
     ]
 
 
@@ -120,8 +147,10 @@ def _groupnorm_affine_hardtanh_kernel(
     N,
     C_OUT,
     GROUP_SIZE,
-    stride_im, stride_ic,
-    stride_om, stride_oc,
+    stride_im,
+    stride_ic,
+    stride_om,
+    stride_oc,
     EPS: tl.constexpr,
     HARDTANH_MIN: tl.constexpr,
     HARDTANH_MAX: tl.constexpr,
@@ -183,7 +212,11 @@ def kernel_function(input, gemm_weight, gemm_bias, gn_weight, gn_bias):
     if not isinstance(input, torch.Tensor):
         raise RuntimeError("input must be a torch.Tensor")
 
-    x_xpu = input if input.device.type == "xpu" and input.dtype == torch.float16 else input.to("xpu", dtype=torch.float16)
+    x_xpu = (
+        input
+        if input.device.type == "xpu" and input.dtype == torch.float16
+        else input.to("xpu", dtype=torch.float16)
+    )
     x_xpu = x_xpu.contiguous()
     dev = x_xpu.device
 
@@ -209,7 +242,9 @@ def kernel_function(input, gemm_weight, gemm_bias, gn_weight, gn_bias):
     N, C_in = x_xpu.shape
     C_out, C_in_w = w_xpu.shape
     if C_in_w != C_in:
-        raise RuntimeError("Incompatible shapes: gemm_weight.shape[1] != input.shape[1]")
+        raise RuntimeError(
+            "Incompatible shapes: gemm_weight.shape[1] != input.shape[1]"
+        )
     if b_xpu.shape[0] != C_out or gw_xpu.shape[0] != C_out or gb_xpu.shape[0] != C_out:
         raise RuntimeError("Bias and affine parameter lengths must match C_out")
 
@@ -230,11 +265,22 @@ def kernel_function(input, gemm_weight, gemm_bias, gn_weight, gn_bias):
         return (triton.cdiv(N, meta["BLOCK_M"]) * triton.cdiv(C_out, meta["BLOCK_N"]),)
 
     _fused_gemm_gn_hardtanh[gemm_grid](
-        x_xpu, w_xpu, b_xpu, gw_xpu, gb_xpu, gemm_out,
-        N, C_in, C_out, G,
-        stride_xm, stride_xk,
-        stride_wn, stride_wk,
-        stride_gm, stride_gc,
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        gw_xpu,
+        gb_xpu,
+        gemm_out,
+        N,
+        C_in,
+        C_out,
+        G,
+        stride_xm,
+        stride_xk,
+        stride_wn,
+        stride_wk,
+        stride_gm,
+        stride_gc,
         EPS=1e-5,
         GROUP_SIZE=group_size,
     )
@@ -243,10 +289,17 @@ def kernel_function(input, gemm_weight, gemm_bias, gn_weight, gn_bias):
         return (triton.cdiv(N, meta["BLOCK_M"]), G)
 
     _groupnorm_affine_hardtanh_kernel[gn_grid](
-        gemm_out, gw_xpu, gb_xpu, y,
-        N, C_out, group_size,
-        stride_gm, stride_gc,
-        stride_ym, stride_yc,
+        gemm_out,
+        gw_xpu,
+        gb_xpu,
+        y,
+        N,
+        C_out,
+        group_size,
+        stride_gm,
+        stride_gc,
+        stride_ym,
+        stride_yc,
         EPS=1e-5,
         HARDTANH_MIN=-2.0,
         HARDTANH_MAX=2.0,
@@ -271,7 +324,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_features, out_features, num_groups, hardtanh_min, hardtanh_max):
+    def __init__(
+        self, in_features, out_features, num_groups, hardtanh_min, hardtanh_max
+    ):
         super().__init__()
         self.gemm = nn.Linear(in_features, out_features)
         self.group_norm = nn.GroupNorm(num_groups, out_features)
@@ -289,29 +344,65 @@ class Model(nn.Module):
         self._gn_bias_version = -1
 
     def _ensure_xpu_params(self, device):
-        if device.type != 'xpu':
-            device = torch.device('xpu')
+        if device.type != "xpu":
+            device = torch.device("xpu")
 
-        if self._weight_cache is None or self._cache_device != device or self._weight_version != self.gemm.weight._version:
-            self._weight_cache = self.gemm.weight.detach().to(device=device, dtype=torch.float16).contiguous()
+        if (
+            self._weight_cache is None
+            or self._cache_device != device
+            or self._weight_version != self.gemm.weight._version
+        ):
+            self._weight_cache = (
+                self.gemm.weight.detach()
+                .to(device=device, dtype=torch.float16)
+                .contiguous()
+            )
             self._weight_version = self.gemm.weight._version
 
-        if self._bias_cache is None or self._cache_device != device or self._bias_version != self.gemm.bias._version:
-            self._bias_cache = self.gemm.bias.detach().to(device=device, dtype=torch.float16).contiguous()
+        if (
+            self._bias_cache is None
+            or self._cache_device != device
+            or self._bias_version != self.gemm.bias._version
+        ):
+            self._bias_cache = (
+                self.gemm.bias.detach()
+                .to(device=device, dtype=torch.float16)
+                .contiguous()
+            )
             self._bias_version = self.gemm.bias._version
 
-        if self._gn_weight_cache is None or self._cache_device != device or self._gn_weight_version != self.group_norm.weight._version:
-            self._gn_weight_cache = self.group_norm.weight.detach().to(device=device, dtype=torch.float16).contiguous()
+        if (
+            self._gn_weight_cache is None
+            or self._cache_device != device
+            or self._gn_weight_version != self.group_norm.weight._version
+        ):
+            self._gn_weight_cache = (
+                self.group_norm.weight.detach()
+                .to(device=device, dtype=torch.float16)
+                .contiguous()
+            )
             self._gn_weight_version = self.group_norm.weight._version
 
-        if self._gn_bias_cache is None or self._cache_device != device or self._gn_bias_version != self.group_norm.bias._version:
-            self._gn_bias_cache = self.group_norm.bias.detach().to(device=device, dtype=torch.float16).contiguous()
+        if (
+            self._gn_bias_cache is None
+            or self._cache_device != device
+            or self._gn_bias_version != self.group_norm.bias._version
+        ):
+            self._gn_bias_cache = (
+                self.group_norm.bias.detach()
+                .to(device=device, dtype=torch.float16)
+                .contiguous()
+            )
             self._gn_bias_version = self.group_norm.bias._version
 
         self._cache_device = device
 
     def forward(self, x):
-        x_xpu = x if x.device.type == 'xpu' and x.dtype == torch.float16 else x.to('xpu', dtype=torch.float16)
+        x_xpu = (
+            x
+            if x.device.type == "xpu" and x.dtype == torch.float16
+            else x.to("xpu", dtype=torch.float16)
+        )
         x_xpu = x_xpu.contiguous()
         self._ensure_xpu_params(x_xpu.device)
         return kernel_function(

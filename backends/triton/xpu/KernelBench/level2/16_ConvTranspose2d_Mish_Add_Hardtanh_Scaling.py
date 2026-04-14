@@ -14,11 +14,25 @@ def _conv_transpose2d_fwd_row(
     w_ptr,
     b_ptr,
     y_ptr,
-    N, C_in, H_in, W_in,
-    C_out, H_out, W_out,
-    x_sN, x_sC, x_sH, x_sW,
-    w_sCI, w_sCO, w_sKH, w_sKW,
-    y_sN, y_sC, y_sH, y_sW,
+    N,
+    C_in,
+    H_in,
+    W_in,
+    C_out,
+    H_out,
+    W_out,
+    x_sN,
+    x_sC,
+    x_sH,
+    x_sW,
+    w_sCI,
+    w_sCO,
+    w_sKH,
+    w_sKW,
+    y_sN,
+    y_sC,
+    y_sH,
+    y_sW,
     K_H: tl.constexpr,
     K_W: tl.constexpr,
     STRIDE_H: tl.constexpr,
@@ -58,7 +72,9 @@ def _conv_transpose2d_fwd_row(
                     m = mask_w & cond_w & (wi >= 0) & (wi < W_in)
                     x_ptrs = x_ptr + n * x_sN + ci * x_sC + hi * x_sH + wi * x_sW
                     x_vals = tl.load(x_ptrs, mask=m, other=0.0)
-                    w_val = tl.load(w_ptr + ci * w_sCI + co * w_sCO + kh * w_sKH + kw * w_sKW)
+                    w_val = tl.load(
+                        w_ptr + ci * w_sCI + co * w_sCO + kh * w_sKH + kw * w_sKW
+                    )
                     acc += x_vals * w_val
 
     b_val = tl.load(b_ptr + co)
@@ -74,14 +90,25 @@ def _conv_transpose2d_fwd_row_blocked_co(
     w_ptr,
     b_ptr,
     y_ptr,
-
-    N, C_in, H_in, W_in,
-    C_out, H_out, W_out,
-
-    x_sN, x_sC, x_sH, x_sW,
-    w_sCI, w_sCO, w_sKH, w_sKW,
-    y_sN, y_sC, y_sH, y_sW,
-
+    N,
+    C_in,
+    H_in,
+    W_in,
+    C_out,
+    H_out,
+    W_out,
+    x_sN,
+    x_sC,
+    x_sH,
+    x_sW,
+    w_sCI,
+    w_sCO,
+    w_sKH,
+    w_sKW,
+    y_sN,
+    y_sC,
+    y_sH,
+    y_sW,
     K_H: tl.constexpr,
     K_W: tl.constexpr,
     STRIDE_H: tl.constexpr,
@@ -90,7 +117,6 @@ def _conv_transpose2d_fwd_row_blocked_co(
     PAD_W: tl.constexpr,
     DIL_H: tl.constexpr,
     DIL_W: tl.constexpr,
-
     BLOCK_W: tl.constexpr,
     BLOCK_CO: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -128,8 +154,16 @@ def _conv_transpose2d_fwd_row_blocked_co(
                     x_ptrs = x_ptr + n * x_sN + ci * x_sC + hi * x_sH + wi * x_sW
                     x_vals = tl.load(x_ptrs, mask=m, other=0.0).to(tl.float32)
 
-                    w_ptrs = w_ptr + ci * w_sCI + co[:, None] * w_sCO + kh * w_sKH + kw * w_sKW
-                    w_vals = tl.load(w_ptrs, mask=mask_co[:, None], other=0.0).to(tl.float32)
+                    w_ptrs = (
+                        w_ptr
+                        + ci * w_sCI
+                        + co[:, None] * w_sCO
+                        + kh * w_sKH
+                        + kw * w_sKW
+                    )
+                    w_vals = tl.load(w_ptrs, mask=mask_co[:, None], other=0.0).to(
+                        tl.float32
+                    )
 
                     acc += w_vals * x_vals[None, :]
 
@@ -137,10 +171,14 @@ def _conv_transpose2d_fwd_row_blocked_co(
     acc += b_vals[:, None]
 
     y_ptrs = y_ptr + n * y_sN + co[:, None] * y_sC + ho * y_sH + offs_w[None, :] * y_sW
-    tl.store(y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=mask_co[:, None] & mask_w[None, :])
+    tl.store(
+        y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=mask_co[:, None] & mask_w[None, :]
+    )
 
 
-def conv_transpose2d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, output_size=None) -> torch.Tensor:
+def conv_transpose2d_triton(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, output_size=None
+) -> torch.Tensor:
     """
     High-throughput transposed convolution path via vendor convolution.
     """
@@ -228,7 +266,9 @@ def _fill_constant_kernel(
     tl.store(y_ptr + offs, value.to(y_ptr.dtype.element_ty), mask=mask)
 
 
-def mish_add_hardtanh_scale_triton(x: torch.Tensor, add_value: float, scale: float) -> torch.Tensor:
+def mish_add_hardtanh_scale_triton(
+    x: torch.Tensor, add_value: float, scale: float
+) -> torch.Tensor:
     if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
         raise RuntimeError("Intel XPU not available.")
     if x.device.type != "xpu":
@@ -246,7 +286,9 @@ def mish_add_hardtanh_scale_triton(x: torch.Tensor, add_value: float, scale: flo
 
     if scale == 0.0:
         _fill_constant_kernel[grid](
-            y, n, 0.0,
+            y,
+            n,
+            0.0,
             BLOCK_SIZE=BLOCK_SIZE,
             num_warps=8,
             num_stages=1,
@@ -256,7 +298,9 @@ def mish_add_hardtanh_scale_triton(x: torch.Tensor, add_value: float, scale: flo
     min_mish = -0.308843
     if add_value <= (-1.0 - min_mish):
         _fill_constant_kernel[grid](
-            y, n, -scale,
+            y,
+            n,
+            -scale,
             BLOCK_SIZE=BLOCK_SIZE,
             num_warps=8,
             num_stages=1,
@@ -264,7 +308,9 @@ def mish_add_hardtanh_scale_triton(x: torch.Tensor, add_value: float, scale: flo
         return y
     if add_value >= (1.0 - min_mish):
         _fill_constant_kernel[grid](
-            y, n, scale,
+            y,
+            n,
+            scale,
             BLOCK_SIZE=BLOCK_SIZE,
             num_warps=8,
             num_stages=1,
@@ -272,7 +318,9 @@ def mish_add_hardtanh_scale_triton(x: torch.Tensor, add_value: float, scale: flo
         return y
 
     _mish_add_hardtanh_mul_kernel[grid](
-        x, y, n,
+        x,
+        y,
+        n,
         add_value,
         -1.0,
         1.0,
@@ -284,7 +332,9 @@ def mish_add_hardtanh_scale_triton(x: torch.Tensor, add_value: float, scale: flo
     return y
 
 
-def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, add_value: float, scale: float) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, add_value: float, scale: float
+) -> torch.Tensor:
     if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
         raise RuntimeError("Intel XPU not available.")
     tmp = conv_transpose2d_triton(x, w, b)
@@ -309,15 +359,38 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, add_value, scale]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        add_value,
+        scale,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, add_value, scale):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        add_value,
+        scale,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose2d(
-            in_channels, out_channels, kernel_size,
-            stride=stride, padding=padding, output_padding=output_padding
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
         )
         self.add_value = add_value
         self.scale = scale
@@ -364,7 +437,9 @@ class Model(nn.Module):
             or self._cached_weight_xpu.dtype != torch.float16
             or not self._cached_weight_xpu.is_contiguous()
         ):
-            self._cached_weight_xpu = w.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._cached_weight_xpu = (
+                w.detach().to("xpu", dtype=torch.float16).contiguous()
+            )
             self._cached_weight_version = w_ver
 
         b_ver = int(b._version)
@@ -375,7 +450,9 @@ class Model(nn.Module):
             or self._cached_bias_xpu.dtype != torch.float16
             or not self._cached_bias_xpu.is_contiguous()
         ):
-            self._cached_bias_xpu = b.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._cached_bias_xpu = (
+                b.detach().to("xpu", dtype=torch.float16).contiguous()
+            )
             self._cached_bias_version = b_ver
 
     def forward(self, x):
@@ -397,7 +474,9 @@ class Model(nn.Module):
             BLOCK_SIZE = 1024
             grid = (triton.cdiv(n, BLOCK_SIZE),)
             _fill_constant_kernel[grid](
-                y, n, float(self._epilogue_constant_value),
+                y,
+                n,
+                float(self._epilogue_constant_value),
                 BLOCK_SIZE=BLOCK_SIZE,
                 num_warps=8,
                 num_stages=1,

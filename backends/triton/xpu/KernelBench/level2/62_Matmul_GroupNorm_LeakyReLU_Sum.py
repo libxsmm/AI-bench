@@ -17,12 +17,20 @@ def _fused_linear_gn_leaky_kernel(
     gamma_ptr,
     beta_ptr,
     y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wm, stride_wk,
-    stride_ym, stride_yn,
-    eps, negative_slope,
-    BLOCK_M: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_N: tl.constexpr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wm,
+    stride_wk,
+    stride_ym,
+    stride_yn,
+    eps,
+    negative_slope,
+    BLOCK_M: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    BLOCK_N: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -66,17 +74,26 @@ def _fused_linear_gn_leaky_kernel(
     out = out * 2.0
 
     y_ptrs = y_ptr + offs_m[:, None] * stride_ym + offs_n[None, :] * stride_yn
-    tl.store(y_ptrs, out.to(y_ptr.dtype.element_ty), mask=mask_m[:, None] & mask_n[None, :])
+    tl.store(
+        y_ptrs, out.to(y_ptr.dtype.element_ty), mask=mask_m[:, None] & mask_n[None, :]
+    )
 
 
 @triton.jit
 def _add_2d_kernel(
-    x_ptr, y_ptr, out_ptr,
-    M, N,
-    stride_xm, stride_xn,
-    stride_ym, stride_yn,
-    stride_om, stride_on,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr,
+    x_ptr,
+    y_ptr,
+    out_ptr,
+    M,
+    N,
+    stride_xm,
+    stride_xn,
+    stride_ym,
+    stride_yn,
+    stride_om,
+    stride_on,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -98,14 +115,18 @@ def _add_2d_kernel(
 
 @triton.jit
 def _groupnorm_leaky_scale2_kernel_grouped(
-    x_ptr,           # [M, N]
-    gamma_ptr,       # [N]
-    beta_ptr,        # [N]
-    y_ptr,           # [M, N]
-    M, N,
-    stride_xm, stride_xn,
-    stride_ym, stride_yn,
-    eps, negative_slope,
+    x_ptr,  # [M, N]
+    gamma_ptr,  # [N]
+    beta_ptr,  # [N]
+    y_ptr,  # [M, N]
+    M,
+    N,
+    stride_xm,
+    stride_xn,
+    stride_ym,
+    stride_yn,
+    eps,
+    negative_slope,
     GROUP_SIZE: tl.constexpr,
     BLOCK_M: tl.constexpr,
     ROW_GROUP: tl.constexpr,
@@ -172,14 +193,18 @@ def _groupnorm_leaky_scale2_kernel_grouped(
 
 @triton.jit
 def _groupnorm_leaky_scale2_kernel_grouped_noboundary(
-    x_ptr,           # [M, N]
-    gamma_ptr,       # [N]
-    beta_ptr,        # [N]
-    y_ptr,           # [M, N]
-    M, N,
-    stride_xm, stride_xn,
-    stride_ym, stride_yn,
-    eps, negative_slope,
+    x_ptr,  # [M, N]
+    gamma_ptr,  # [N]
+    beta_ptr,  # [N]
+    y_ptr,  # [M, N]
+    M,
+    N,
+    stride_xm,
+    stride_xn,
+    stride_ym,
+    stride_yn,
+    eps,
+    negative_slope,
     GROUP_SIZE: tl.constexpr,
     BLOCK_M: tl.constexpr,
     ROW_GROUP: tl.constexpr,
@@ -298,11 +323,18 @@ def kernel_function(
     # This removes boundary checks and reduces address/control overhead.
     if (M % BLOCK_M == 0) and (N % group_size == 0):
         _groupnorm_leaky_scale2_kernel_grouped_noboundary[(total_programs,)](
-            lin, gw_xpu, gb_xpu, out,
-            M, N,
-            stride_xm, stride_xn,
-            stride_ym, stride_yn,
-            eps, negative_slope,
+            lin,
+            gw_xpu,
+            gb_xpu,
+            out,
+            M,
+            N,
+            stride_xm,
+            stride_xn,
+            stride_ym,
+            stride_yn,
+            eps,
+            negative_slope,
             GROUP_SIZE=group_size,
             BLOCK_M=BLOCK_M,
             ROW_GROUP=ROW_GROUP,
@@ -311,11 +343,18 @@ def kernel_function(
         )
     else:
         _groupnorm_leaky_scale2_kernel_grouped[(total_programs,)](
-            lin, gw_xpu, gb_xpu, out,
-            M, N,
-            stride_xm, stride_xn,
-            stride_ym, stride_yn,
-            eps, negative_slope,
+            lin,
+            gw_xpu,
+            gb_xpu,
+            out,
+            M,
+            N,
+            stride_xm,
+            stride_xn,
+            stride_ym,
+            stride_yn,
+            eps,
+            negative_slope,
             GROUP_SIZE=group_size,
             BLOCK_M=BLOCK_M,
             ROW_GROUP=ROW_GROUP,
@@ -340,7 +379,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, input_size, hidden_size, num_groups, eps=1e-5, negative_slope=0.01):
+    def __init__(
+        self, input_size, hidden_size, num_groups, eps=1e-5, negative_slope=0.01
+    ):
         super().__init__()
         self.linear = nn.Linear(input_size, hidden_size)
         self.group_norm = nn.GroupNorm(num_groups, hidden_size, eps=eps)
@@ -367,19 +408,35 @@ class Model(nn.Module):
         gb_ver = int(self.group_norm.bias._version)
 
         if self._linear_weight_xpu is None or self._linear_weight_version != lw_ver:
-            self._linear_weight_xpu = self.linear.weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            self._linear_weight_xpu = (
+                self.linear.weight.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._linear_weight_version = lw_ver
 
         if self._linear_bias_xpu is None or self._linear_bias_version != lb_ver:
-            self._linear_bias_xpu = self.linear.bias.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            self._linear_bias_xpu = (
+                self.linear.bias.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._linear_bias_version = lb_ver
 
         if self._gn_weight_xpu is None or self._gn_weight_version != gw_ver:
-            self._gn_weight_xpu = self.group_norm.weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            self._gn_weight_xpu = (
+                self.group_norm.weight.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._gn_weight_version = gw_ver
 
         if self._gn_bias_xpu is None or self._gn_bias_version != gb_ver:
-            self._gn_bias_xpu = self.group_norm.bias.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            self._gn_bias_xpu = (
+                self.group_norm.bias.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._gn_bias_version = gb_ver
 
     def forward(self, x):

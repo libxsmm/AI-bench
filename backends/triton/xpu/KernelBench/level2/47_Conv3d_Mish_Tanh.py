@@ -96,14 +96,40 @@ def _mish_tanh_autotune_configs():
 )
 @triton.jit
 def _conv3d_ncdhw_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_IN, D_IN, H_IN, W_IN,
-    C_OUT, D_OUT, H_OUT, W_OUT,
-    stride_xn, stride_xc, stride_xd, stride_xh, stride_xw,
-    stride_woc, stride_wc, stride_wkd, stride_wkh, stride_wkw,
-    stride_yn, stride_yc, stride_yd, stride_yh, stride_yw,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
-    BLOCK_OC: tl.constexpr, BLOCK_OW: tl.constexpr, C_BLOCK: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    D_IN,
+    H_IN,
+    W_IN,
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    stride_xn,
+    stride_xc,
+    stride_xd,
+    stride_xh,
+    stride_xw,
+    stride_woc,
+    stride_wc,
+    stride_wkd,
+    stride_wkh,
+    stride_wkw,
+    stride_yn,
+    stride_yc,
+    stride_yd,
+    stride_yh,
+    stride_yw,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    BLOCK_OC: tl.constexpr,
+    BLOCK_OW: tl.constexpr,
+    C_BLOCK: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
     pid0 = tl.program_id(0)
@@ -200,7 +226,9 @@ def _conv3d_ncdhw_bias_kernel(
 def _conv3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     assert x.ndim == 5 and w.ndim == 5 and b.ndim == 1, "Invalid ranks"
     assert x.device.type == "xpu", "Input must be on XPU"
-    assert w.device == x.device and b.device == x.device, "w and b must be on same device"
+    assert w.device == x.device and b.device == x.device, (
+        "w and b must be on same device"
+    )
     N, C_in, D_in, H_in, W_in = x.shape
     C_out, Cw_in, Kd, Kh, Kw = w.shape
     assert C_in == Cw_in, "Channel mismatch"
@@ -223,13 +251,37 @@ def _conv3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.T
     )
 
     _conv3d_ncdhw_bias_kernel[grid](
-        x, w, b, y,
-        N, C_in, D_in, H_in, W_in,
-        C_out, D_out, H_out, W_out,
-        sxn, sxc, sxd, sxh, sxw,
-        swoc, swc, swkd, swkh, swkw,
-        syn, syc, syd, syh, syw,
-        KD=Kd, KH=Kh, KW=Kw,
+        x,
+        w,
+        b,
+        y,
+        N,
+        C_in,
+        D_in,
+        H_in,
+        W_in,
+        C_out,
+        D_out,
+        H_out,
+        W_out,
+        sxn,
+        sxc,
+        sxd,
+        sxh,
+        sxw,
+        swoc,
+        swc,
+        swkd,
+        swkh,
+        swkw,
+        syn,
+        syc,
+        syd,
+        syh,
+        syw,
+        KD=Kd,
+        KH=Kh,
+        KW=Kw,
         grf_mode="auto",
     )
     return y
@@ -248,7 +300,9 @@ def _conv3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.T
 )
 @triton.jit
 def _mish_tanh_kernel(
-    x_ptr, y_ptr, n_elements,
+    x_ptr,
+    y_ptr,
+    n_elements,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -284,7 +338,9 @@ def _mish_tanh_triton(x: torch.Tensor) -> torch.Tensor:
     n = x.numel()
     grid = lambda meta: (triton.cdiv(n, meta["BLOCK_SIZE"]),)
     _mish_tanh_kernel[grid](
-        x, out, n,
+        x,
+        out,
+        n,
         grf_mode="auto",
     )
     return out
@@ -334,7 +390,9 @@ def get_init_inputs():
 class Model(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
         super().__init__()
-        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.conv = nn.Conv3d(
+            in_channels, out_channels, kernel_size, stride=stride, padding=padding
+        )
         self._xpu_prepared = False
 
     def prepare_for_xpu(self):
@@ -349,14 +407,18 @@ class Model(nn.Module):
                 or self.conv.weight.dtype != torch.float16
                 or not self.conv.weight.is_contiguous()
             ):
-                self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+                self.conv.weight.data = self.conv.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
 
             if self.conv.bias is not None and (
                 self.conv.bias.device.type != "xpu"
                 or self.conv.bias.dtype != torch.float16
                 or not self.conv.bias.is_contiguous()
             ):
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
 
         self._xpu_prepared = True
 

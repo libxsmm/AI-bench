@@ -15,17 +15,38 @@ def _conv_transpose2d_bias_scale_kernel(
     w_ptr,
     b_ptr,
     y_ptr,
-    N, Ci, H, W, Co, Hout, Wout,
-    sxn, sxc, sxh, sxw,
-    swci, swco, swkh, swkw,
-    syn, syc, syh, syw,
+    N,
+    Ci,
+    H,
+    W,
+    Co,
+    Hout,
+    Wout,
+    sxn,
+    sxc,
+    sxh,
+    sxw,
+    swci,
+    swco,
+    swkh,
+    swkw,
+    syn,
+    syc,
+    syh,
+    syw,
     scale,
     NUM_TILES_W: tl.constexpr,
-    STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_H: tl.constexpr, DIL_W: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr,
-    OC_BLOCK: tl.constexpr, BLOCK_H: tl.constexpr, BLOCK_W: tl.constexpr,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    OC_BLOCK: tl.constexpr,
+    BLOCK_H: tl.constexpr,
+    BLOCK_W: tl.constexpr,
 ):
     pid_hw = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -76,13 +97,7 @@ def _conv_transpose2d_bias_scale_kernel(
                 )
                 x_tile = tl.load(x_ptrs, mask=valid_hw, other=0.0)
 
-                w_ptrs = (
-                    w_ptr
-                    + ic * swci
-                    + offs_oc * swco
-                    + kh * swkh
-                    + kw * swkw
-                )
+                w_ptrs = w_ptr + ic * swci + offs_oc * swco + kh * swkh + kw * swkw
                 w_vec = tl.load(w_ptrs, mask=oc_mask, other=0.0)
 
                 acc += w_vec[:, None, None] * x_tile[None, :, :]
@@ -96,10 +111,9 @@ def _conv_transpose2d_bias_scale_kernel(
     tl.store(y_ptrs, acc.to(tl.float32), mask=out_mask)
 
 
-def conv_transpose_bias_scale_triton(x: torch.Tensor,
-                                     w: torch.Tensor,
-                                     b: torch.Tensor,
-                                     multiplier: float):
+def conv_transpose_bias_scale_triton(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, multiplier: float
+):
     if x.device.type != "xpu":
         raise RuntimeError("Place inputs on device='xpu'.")
     N, Ci, H, W = x.shape
@@ -125,19 +139,44 @@ def conv_transpose_bias_scale_triton(x: torch.Tensor,
     grid = (num_tiles_h * num_tiles_w, N, num_tiles_oc)
 
     _conv_transpose2d_bias_scale_kernel[grid](
-        x, w, b if b is not None else None, y,
-        N, Ci, H, W, Co, Hout, Wout,
-        sxn, sxc, sxh, sxw,
-        swci, swco, swkh, swkw,
-        syn, syc, syh, syw,
+        x,
+        w,
+        b if b is not None else None,
+        y,
+        N,
+        Ci,
+        H,
+        W,
+        Co,
+        Hout,
+        Wout,
+        sxn,
+        sxc,
+        sxh,
+        sxw,
+        swci,
+        swco,
+        swkh,
+        swkw,
+        syn,
+        syc,
+        syh,
+        syw,
         float(multiplier),
         NUM_TILES_W=num_tiles_w,
-        STRIDE_H=2, STRIDE_W=2,
-        PAD_H=1, PAD_W=1,
-        DIL_H=1, DIL_W=1,
-        KH=Kh, KW=Kw,
-        OC_BLOCK=OC_BLOCK, BLOCK_H=BLOCK_H, BLOCK_W=BLOCK_W,
-        num_warps=8, num_stages=2,
+        STRIDE_H=2,
+        STRIDE_W=2,
+        PAD_H=1,
+        PAD_W=1,
+        DIL_H=1,
+        DIL_W=1,
+        KH=Kh,
+        KW=Kw,
+        OC_BLOCK=OC_BLOCK,
+        BLOCK_H=BLOCK_H,
+        BLOCK_W=BLOCK_W,
+        num_warps=8,
+        num_stages=2,
     )
     return y
 
@@ -147,11 +186,24 @@ def conv_transpose_bias_scale_triton(x: torch.Tensor,
 # Kept for compliance/reference.
 # ----------------------------
 @triton.jit
-def _gap2d_hw_kernel(x_ptr, y_ptr,
-                     N, C, H, W,
-                     stride_n, stride_c, stride_h, stride_w,
-                     out_stride_n, out_stride_c, out_stride_h, out_stride_w,
-                     BLOCK_H: tl.constexpr, BLOCK_W: tl.constexpr):
+def _gap2d_hw_kernel(
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_h,
+    out_stride_w,
+    BLOCK_H: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+):
     pid = tl.program_id(axis=0)
     n = pid // C
     c = pid % C
@@ -191,12 +243,24 @@ def gap2d_triton(x: torch.Tensor):
     BLOCK_H = 32
     BLOCK_W = 128
     _gap2d_hw_kernel[grid](
-        x, y,
-        N, C, H, W,
-        stride_n, stride_c, stride_h, stride_w,
-        out_stride_n, out_stride_c, out_stride_h, out_stride_w,
-        BLOCK_H=BLOCK_H, BLOCK_W=BLOCK_W,
-        num_warps=8, num_stages=2,
+        x,
+        y,
+        N,
+        C,
+        H,
+        W,
+        stride_n,
+        stride_c,
+        stride_h,
+        stride_w,
+        out_stride_n,
+        out_stride_c,
+        out_stride_h,
+        out_stride_w,
+        BLOCK_H=BLOCK_H,
+        BLOCK_W=BLOCK_W,
+        num_warps=8,
+        num_stages=2,
     )
     return y
 
@@ -220,38 +284,87 @@ def _reduce_sum_hw_configs():
 
 def _contract_xsum_wsum_configs():
     return [
-        triton.Config({"BLOCK_N": 16, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_N": 16, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_N": 16, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_N": 16, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_N": 16, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=1),
-
-        triton.Config({"BLOCK_N": 32, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_N": 32, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_N": 32, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=16, num_stages=1),
-        triton.Config({"BLOCK_N": 32, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=1),
-
-        triton.Config({"BLOCK_N": 64, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_CO": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_CO": 128, "BLOCK_K": 64}, num_warps=8, num_stages=2),
-
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=16, num_stages=1),
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2),
-
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 256, "BLOCK_K": 16}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_CO": 256, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 256, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 256, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-
-        triton.Config({"BLOCK_N": 256, "BLOCK_CO": 256, "BLOCK_K": 16}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_N": 256, "BLOCK_CO": 256, "BLOCK_K": 32}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_N": 16, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=4, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 16, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 16, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 16, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 16, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 32, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 32, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 32, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=16, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 32, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_CO": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_CO": 128, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=16, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 256, "BLOCK_K": 16}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_CO": 256, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_CO": 128, "BLOCK_K": 16}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_CO": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_CO": 256, "BLOCK_K": 16}, num_warps=32, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_CO": 256, "BLOCK_K": 32}, num_warps=32, num_stages=2
+        ),
     ]
 
 
@@ -266,9 +379,16 @@ def _contract_xsum_wsum_configs():
 def _reduce_sum_hw_kernel(
     x_ptr,
     xsum_ptr,
-    N, C, H, W,
-    sxn, sxc, sxh, sxw,
-    ssn, ssc,
+    N,
+    C,
+    H,
+    W,
+    sxn,
+    sxc,
+    sxh,
+    sxw,
+    ssn,
+    ssc,
     BLOCK_H: tl.constexpr,
     BLOCK_W: tl.constexpr,
 ):
@@ -307,10 +427,15 @@ def _contract_xsum_wsum_kernel(
     wsum_ptr,
     b_ptr,
     y_ptr,
-    N, Ci, Co,
-    xsn, xsc,
-    wsi, wso,
-    syn, syc,
+    N,
+    Ci,
+    Co,
+    xsn,
+    xsc,
+    wsi,
+    wso,
+    syn,
+    syc,
     inv_hw,
     scale,
     BLOCK_N: tl.constexpr,
@@ -362,12 +487,34 @@ def direct_pooled_conv_transpose_triton(
     inv_hw: float,
     multiplier: float,
 ):
-    x_xpu = x if (x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous()) else x.to("xpu", dtype=torch.float16).contiguous()
-    wsum_xpu = wsum if (wsum.device.type == "xpu" and wsum.dtype == torch.float32 and wsum.is_contiguous()) else wsum.to("xpu", dtype=torch.float32).contiguous()
+    x_xpu = (
+        x
+        if (x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous())
+        else x.to("xpu", dtype=torch.float16).contiguous()
+    )
+    wsum_xpu = (
+        wsum
+        if (
+            wsum.device.type == "xpu"
+            and wsum.dtype == torch.float32
+            and wsum.is_contiguous()
+        )
+        else wsum.to("xpu", dtype=torch.float32).contiguous()
+    )
     if b is None:
-        b_xpu = torch.zeros((wsum_xpu.shape[1],), device=wsum_xpu.device, dtype=torch.float16)
+        b_xpu = torch.zeros(
+            (wsum_xpu.shape[1],), device=wsum_xpu.device, dtype=torch.float16
+        )
     else:
-        b_xpu = b if (b.device.type == "xpu" and b.dtype == torch.float16 and b.is_contiguous()) else b.to("xpu", dtype=torch.float16).contiguous()
+        b_xpu = (
+            b
+            if (
+                b.device.type == "xpu"
+                and b.dtype == torch.float16
+                and b.is_contiguous()
+            )
+            else b.to("xpu", dtype=torch.float16).contiguous()
+        )
 
     N, Ci, H, W = x_xpu.shape
     Ci_w, Co = wsum_xpu.shape
@@ -378,10 +525,18 @@ def direct_pooled_conv_transpose_triton(
     ssn, ssc = xsum.stride()
 
     _reduce_sum_hw_kernel[(N * Ci,)](
-        x_xpu, xsum,
-        N, Ci, H, W,
-        sxn, sxc, sxh, sxw,
-        ssn, ssc,
+        x_xpu,
+        xsum,
+        N,
+        Ci,
+        H,
+        W,
+        sxn,
+        sxc,
+        sxh,
+        sxw,
+        ssn,
+        ssc,
     )
 
     y = torch.empty((N, Co, 1, 1), device=x_xpu.device, dtype=torch.float16)
@@ -389,14 +544,25 @@ def direct_pooled_conv_transpose_triton(
     wsi, wso = wsum_xpu.stride()
     syn, syc, _, _ = y.stride()
 
-    grid = lambda META: (triton.cdiv(N, META["BLOCK_N"]), triton.cdiv(Co, META["BLOCK_CO"]))
+    grid = lambda META: (
+        triton.cdiv(N, META["BLOCK_N"]),
+        triton.cdiv(Co, META["BLOCK_CO"]),
+    )
 
     _contract_xsum_wsum_kernel[grid](
-        xsum, wsum_xpu, b_xpu, y,
-        N, Ci, Co,
-        xsn, xsc,
-        wsi, wso,
-        syn, syc,
+        xsum,
+        wsum_xpu,
+        b_xpu,
+        y,
+        N,
+        Ci,
+        Co,
+        xsn,
+        xsc,
+        wsi,
+        wso,
+        syn,
+        syc,
         float(inv_hw),
         float(multiplier),
         grf_mode="auto",
@@ -404,7 +570,13 @@ def direct_pooled_conv_transpose_triton(
     return y
 
 
-def kernel_function(x: torch.Tensor, wsum: torch.Tensor, b: torch.Tensor, inv_hw: float, multiplier: float):
+def kernel_function(
+    x: torch.Tensor,
+    wsum: torch.Tensor,
+    b: torch.Tensor,
+    inv_hw: float,
+    multiplier: float,
+):
     return direct_pooled_conv_transpose_triton(x, wsum, b, inv_hw, multiplier)
 
 
@@ -427,15 +599,36 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, multiplier]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        multiplier,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, multiplier):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        multiplier,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose2d(
-            in_channels, out_channels, kernel_size,
-            stride=stride, padding=padding, output_padding=output_padding
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
         )
         self.multiplier = multiplier
 
@@ -462,13 +655,43 @@ class Model(nn.Module):
         cur_ver = int(self.conv_transpose.weight._version)
         if self._cached_wsum is None or self._cached_wsum_version != cur_ver:
             w = self.conv_transpose.weight
-            w_xpu = w if (w.device.type == "xpu" and w.dtype == torch.float16 and w.is_contiguous()) else w.to("xpu", dtype=torch.float16).contiguous()
+            w_xpu = (
+                w
+                if (
+                    w.device.type == "xpu"
+                    and w.dtype == torch.float16
+                    and w.is_contiguous()
+                )
+                else w.to("xpu", dtype=torch.float16).contiguous()
+            )
             self._cached_wsum = _compute_wsum_tensor(w_xpu)
             self._cached_wsum_version = cur_ver
 
     def forward(self, x):
-        x_xpu = x if (x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous()) else x.to("xpu", dtype=torch.float16).contiguous()
+        x_xpu = (
+            x
+            if (
+                x.device.type == "xpu"
+                and x.dtype == torch.float16
+                and x.is_contiguous()
+            )
+            else x.to("xpu", dtype=torch.float16).contiguous()
+        )
         b = self.conv_transpose.bias
-        b_xpu = None if b is None else (b if (b.device.type == "xpu" and b.dtype == torch.float16 and b.is_contiguous()) else b.to("xpu", dtype=torch.float16).contiguous())
+        b_xpu = (
+            None
+            if b is None
+            else (
+                b
+                if (
+                    b.device.type == "xpu"
+                    and b.dtype == torch.float16
+                    and b.is_contiguous()
+                )
+                else b.to("xpu", dtype=torch.float16).contiguous()
+            )
+        )
         self._ensure_cached_wsum()
-        return kernel_function(x_xpu, self._cached_wsum, b_xpu, self._cached_inv_hw, self.multiplier)
+        return kernel_function(
+            x_xpu, self._cached_wsum, b_xpu, self._cached_inv_hw, self.multiplier
+        )

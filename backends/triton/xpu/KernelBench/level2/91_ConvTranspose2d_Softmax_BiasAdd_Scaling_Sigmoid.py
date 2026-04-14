@@ -10,18 +10,29 @@ import triton.language as tl
 # adds bias, scales, applies sigmoid, stores.
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_C': 128}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_C': 128}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_C': 256}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_C": 128}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_C": 128}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_C": 256}, num_warps=8, num_stages=2),
     ],
-    key=['C'],
+    key=["C"],
 )
 @triton.jit
 def _softmax_bias_scale_sigmoid_kernel(
-    x_ptr, bias_ptr, out_ptr,
-    N, C, H, W,
-    stride_xn, stride_xc, stride_xh, stride_xw,
-    stride_on, stride_oc, stride_oh, stride_ow,
+    x_ptr,
+    bias_ptr,
+    out_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_xn,
+    stride_xc,
+    stride_xh,
+    stride_xw,
+    stride_on,
+    stride_oc,
+    stride_oh,
+    stride_ow,
     scale,
     BLOCK_C: tl.constexpr,
 ):
@@ -37,7 +48,9 @@ def _softmax_bias_scale_sigmoid_kernel(
     offs_c = tl.arange(0, BLOCK_C)
     mask_c = offs_c < C
 
-    x_vals = tl.load(x_ptr + base_x + offs_c * stride_xc, mask=mask_c, other=-float('inf')).to(tl.float32)
+    x_vals = tl.load(
+        x_ptr + base_x + offs_c * stride_xc, mask=mask_c, other=-float("inf")
+    ).to(tl.float32)
 
     # Online softmax
     x_max = tl.max(x_vals, axis=0)
@@ -69,15 +82,38 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape, scaling_factor]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias_shape,
+        scaling_factor,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape, scaling_factor):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias_shape,
+        scaling_factor,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose2d(
-            in_channels, out_channels, kernel_size,
-            stride=stride, padding=padding, output_padding=output_padding,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
         )
         self.bias = nn.Parameter(torch.randn(bias_shape))
         self.scaling_factor = scaling_factor
@@ -87,9 +123,13 @@ class Model(nn.Module):
         self._ver = None
 
     def _cache(self):
-        ver = (self.conv_transpose.weight._version,
-               self.conv_transpose.bias._version if self.conv_transpose.bias is not None else 0,
-               self.bias._version)
+        ver = (
+            self.conv_transpose.weight._version,
+            self.conv_transpose.bias._version
+            if self.conv_transpose.bias is not None
+            else 0,
+            self.bias._version,
+        )
         if self._ver != ver:
             w = self.conv_transpose.weight
             if w.device.type != "xpu" or w.dtype != torch.float16:
@@ -115,7 +155,9 @@ class Model(nn.Module):
         x = x.contiguous()
 
         # Vendor conv_transpose2d
-        y1 = F.conv_transpose2d(x, self._ct_w, self._ct_b, stride=2, padding=1, output_padding=1)
+        y1 = F.conv_transpose2d(
+            x, self._ct_w, self._ct_b, stride=2, padding=1, output_padding=1
+        )
         if not y1.is_contiguous():
             y1 = y1.contiguous()
 
@@ -124,10 +166,21 @@ class Model(nn.Module):
 
         grid = (N * H_out * W_out,)
         _softmax_bias_scale_sigmoid_kernel[grid](
-            y1, self._ab, y2,
-            N, C, H_out, W_out,
-            y1.stride(0), y1.stride(1), y1.stride(2), y1.stride(3),
-            y2.stride(0), y2.stride(1), y2.stride(2), y2.stride(3),
+            y1,
+            self._ab,
+            y2,
+            N,
+            C,
+            H_out,
+            W_out,
+            y1.stride(0),
+            y1.stride(1),
+            y1.stride(2),
+            y1.stride(3),
+            y2.stride(0),
+            y2.stride(1),
+            y2.stride(2),
+            y2.stride(3),
             float(self.scaling_factor),
         )
         return y2

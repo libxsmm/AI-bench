@@ -20,17 +20,43 @@ def _conv_transpose3d_wtile_kernel(
     w_ptr,
     b_ptr,
     y_ptr,
-    N, C_in, D, H, W,
+    N,
+    C_in,
+    D,
+    H,
+    W,
     C_out,
-    Do, Ho, Wo,
-    STRIDE_D, STRIDE_H, STRIDE_W,
-    PAD_D, PAD_H, PAD_W,
-    DIL_D, DIL_H, DIL_W,
-    stride_x_n, stride_x_c, stride_x_d, stride_x_h, stride_x_w,
-    stride_w_ci, stride_w_co, stride_w_kd, stride_w_kh, stride_w_kw,
-    stride_y_n, stride_y_c, stride_y_d, stride_y_h, stride_y_w,
+    Do,
+    Ho,
+    Wo,
+    STRIDE_D,
+    STRIDE_H,
+    STRIDE_W,
+    PAD_D,
+    PAD_H,
+    PAD_W,
+    DIL_D,
+    DIL_H,
+    DIL_W,
+    stride_x_n,
+    stride_x_c,
+    stride_x_d,
+    stride_x_h,
+    stride_x_w,
+    stride_w_ci,
+    stride_w_co,
+    stride_w_kd,
+    stride_w_kh,
+    stride_w_kw,
+    stride_y_n,
+    stride_y_c,
+    stride_y_d,
+    stride_y_h,
+    stride_y_w,
     HAS_BIAS: tl.constexpr,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     BLOCK_W: tl.constexpr,
 ):
     pid_w = tl.program_id(axis=0)
@@ -50,12 +76,7 @@ def _conv_transpose3d_wtile_kernel(
     ow = ow_start + tl.arange(0, BLOCK_W)
     o_mask = (ow < Wo) & in_bounds_scalar
 
-    y_base = (
-        n * stride_y_n +
-        co * stride_y_c +
-        od * stride_y_d +
-        oh * stride_y_h
-    )
+    y_base = n * stride_y_n + co * stride_y_c + od * stride_y_d + oh * stride_y_h
     y_ptrs = y_ptr + y_base + ow * stride_y_w
 
     acc = tl.zeros((BLOCK_W,), dtype=tl.float32)
@@ -80,21 +101,26 @@ def _conv_transpose3d_wtile_kernel(
                                 for kw in range(KW):
                                     t_w = ow + PAD_W - kw * DIL_W
                                     iw = t_w // STRIDE_W
-                                    m = ((t_w % STRIDE_W) == 0) & (iw >= 0) & (iw < W) & o_mask
+                                    m = (
+                                        ((t_w % STRIDE_W) == 0)
+                                        & (iw >= 0)
+                                        & (iw < W)
+                                        & o_mask
+                                    )
                                     for ci in range(C_in):
                                         w_off = (
-                                            ci * stride_w_ci +
-                                            co * stride_w_co +
-                                            kd * stride_w_kd +
-                                            kh * stride_w_kh +
-                                            kw * stride_w_kw
+                                            ci * stride_w_ci
+                                            + co * stride_w_co
+                                            + kd * stride_w_kd
+                                            + kh * stride_w_kh
+                                            + kw * stride_w_kw
                                         )
                                         w_val = tl.load(w_ptr + w_off)
                                         x_base = (
-                                            n * stride_x_n +
-                                            ci * stride_x_c +
-                                            id * stride_x_d +
-                                            ih * stride_x_h
+                                            n * stride_x_n
+                                            + ci * stride_x_c
+                                            + id * stride_x_d
+                                            + ih * stride_x_h
                                         )
                                         x_ptrs = x_ptr + x_base + iw * stride_x_w
                                         x_vals = tl.load(x_ptrs, mask=m, other=0.0)
@@ -117,7 +143,11 @@ def _triton_conv_transpose3d(
         raise RuntimeError("Intel XPU not available")
     assert x.device.type == "xpu", f"x must be on XPU, got {x.device}"
     assert weight.device == x.device and bias.device == x.device
-    assert x.dtype == torch.float16 and weight.dtype == torch.float16 and bias.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and weight.dtype == torch.float16
+        and bias.dtype == torch.float16
+    )
 
     N, C_in, D, H, W = x.shape
     w_ci, w_co, KD, KH, KW = weight.shape
@@ -143,18 +173,47 @@ def _triton_conv_transpose3d(
     BLOCK_W = 64
     grid = (triton.cdiv(Wo, BLOCK_W), N * C_out * Do * Ho)
     _conv_transpose3d_wtile_kernel[grid](
-        x, weight, bias, y,
-        N, C_in, D, H, W,
+        x,
+        weight,
+        bias,
+        y,
+        N,
+        C_in,
+        D,
+        H,
+        W,
         C_out,
-        Do, Ho, Wo,
-        sd, sh, sw,
-        pd, ph, pw,
-        dd, dh, dw,
-        sx_n, sx_c, sx_d, sx_h, sx_w,
-        sw_ci, sw_co, sw_kd, sw_kh, sw_kw,
-        sy_n, sy_c, sy_d, sy_h, sy_w,
+        Do,
+        Ho,
+        Wo,
+        sd,
+        sh,
+        sw,
+        pd,
+        ph,
+        pw,
+        dd,
+        dh,
+        dw,
+        sx_n,
+        sx_c,
+        sx_d,
+        sx_h,
+        sx_w,
+        sw_ci,
+        sw_co,
+        sw_kd,
+        sw_kh,
+        sw_kw,
+        sy_n,
+        sy_c,
+        sy_d,
+        sy_h,
+        sy_w,
         HAS_BIAS=True,
-        KD=KD, KH=KH, KW=KW,
+        KD=KD,
+        KH=KH,
+        KW=KW,
         BLOCK_W=BLOCK_W,
         num_warps=4,
         num_stages=2,
@@ -352,11 +411,28 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias_shape,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias_shape,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
             in_channels,
@@ -372,16 +448,30 @@ class Model(nn.Module):
         self._xpu_prepared = False
 
     def _ensure_xpu_params(self):
-        if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv_transpose.weight.device.type != "xpu"
+            or self.conv_transpose.weight.dtype != torch.float16
+        ):
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.conv_transpose.weight.is_contiguous():
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+            self.conv_transpose.weight.data = (
+                self.conv_transpose.weight.data.contiguous()
+            )
 
         if self.conv_transpose.bias is not None:
-            if self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != torch.float16:
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv_transpose.bias.device.type != "xpu"
+                or self.conv_transpose.bias.dtype != torch.float16
+            ):
+                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.conv_transpose.bias.is_contiguous():
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
+                self.conv_transpose.bias.data = (
+                    self.conv_transpose.bias.data.contiguous()
+                )
 
         if self.bias.device.type != "xpu" or self.bias.dtype != torch.float16:
             self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()

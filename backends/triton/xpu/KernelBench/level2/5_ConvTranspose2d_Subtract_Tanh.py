@@ -8,16 +8,19 @@ import triton.language as tl
 # ---------- Fused sub + tanh pointwise kernel ----------
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 8192}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 8192}, num_warps=16, num_stages=2),
     ],
-    key=['n_elements'],
+    key=["n_elements"],
 )
 @triton.jit
 def _sub_tanh_kernel(
-    x_ptr, bias_ptr, y_ptr,
+    x_ptr,
+    bias_ptr,
+    y_ptr,
     n_elements,
-    C, HW,
+    C,
+    HW,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -55,11 +58,24 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, bias_shape, stride=2, padding=1, output_padding=1):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        bias_shape,
+        stride=2,
+        padding=1,
+        output_padding=1,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose2d(
-            in_channels, out_channels, kernel_size,
-            stride=stride, padding=padding, output_padding=output_padding,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
         )
         self.bias = nn.Parameter(torch.randn(bias_shape))
         self._ct_w = None
@@ -68,9 +84,13 @@ class Model(nn.Module):
         self._ver = None
 
     def _cache(self):
-        ver = (self.conv_transpose.weight._version,
-               self.conv_transpose.bias._version if self.conv_transpose.bias is not None else 0,
-               self.bias._version)
+        ver = (
+            self.conv_transpose.weight._version,
+            self.conv_transpose.bias._version
+            if self.conv_transpose.bias is not None
+            else 0,
+            self.bias._version,
+        )
         if self._ver != ver:
             w = self.conv_transpose.weight
             if w.device.type != "xpu" or w.dtype != torch.float16:
@@ -96,7 +116,9 @@ class Model(nn.Module):
         x = x.contiguous()
 
         # Use vendor conv_transpose2d
-        y1 = F.conv_transpose2d(x, self._ct_w, self._ct_b, stride=2, padding=1, output_padding=1)
+        y1 = F.conv_transpose2d(
+            x, self._ct_w, self._ct_b, stride=2, padding=1, output_padding=1
+        )
         if not y1.is_contiguous():
             y1 = y1.contiguous()
 
@@ -105,9 +127,13 @@ class Model(nn.Module):
         n_elements = y1.numel()
         HW = H_out * W_out
 
-        grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']),)
+        grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
         _sub_tanh_kernel[grid](
-            y1, self._sb, y2,
-            n_elements, C, HW,
+            y1,
+            self._sb,
+            y2,
+            n_elements,
+            C,
+            HW,
         )
         return y2

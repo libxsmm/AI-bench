@@ -194,7 +194,9 @@ def _linear_groupnorm_kernel(
         x_tile = tl.load(x_ptrs, mask=in_bounds_n & mask_k, other=0.0).to(tl.float32)
 
         w_ptrs = w_ptr + offs_co[:, None] * stride_wo + offs_k[None, :] * stride_wi
-        w_tile = tl.load(w_ptrs, mask=mask_co[:, None] & mask_k[None, :], other=0.0).to(tl.float32)
+        w_tile = tl.load(w_ptrs, mask=mask_co[:, None] & mask_k[None, :], other=0.0).to(
+            tl.float32
+        )
 
         acc += tl.sum(w_tile * x_tile[None, :], axis=1)
 
@@ -305,10 +307,10 @@ def _bias_add_broadcast_kernel(
 )
 @triton.jit
 def _groupnorm_rowmin_kernel(
-    x_ptr,        # [N, C]
-    gamma_ptr,    # [C]
-    beta_ptr,     # [C]
-    y_ptr,        # [N, 1]
+    x_ptr,  # [N, C]
+    gamma_ptr,  # [C]
+    beta_ptr,  # [C]
+    y_ptr,  # [N, 1]
     N,
     C,
     stride_xn,
@@ -339,7 +341,9 @@ def _groupnorm_rowmin_kernel(
             offs = c_start + tl.arange(0, BLOCK_SIZE)
             mask = offs < CHANNELS_PER_GROUP
             ch = base + offs
-            vals = tl.load(row_ptr + ch * stride_xc, mask=mask, other=0.0).to(tl.float32)
+            vals = tl.load(row_ptr + ch * stride_xc, mask=mask, other=0.0).to(
+                tl.float32
+            )
             sum_val += tl.sum(vals, axis=0)
             sumsq_val += tl.sum(vals * vals, axis=0)
 
@@ -354,7 +358,9 @@ def _groupnorm_rowmin_kernel(
             mask = offs < CHANNELS_PER_GROUP
             ch = base + offs
 
-            vals = tl.load(row_ptr + ch * stride_xc, mask=mask, other=0.0).to(tl.float32)
+            vals = tl.load(row_ptr + ch * stride_xc, mask=mask, other=0.0).to(
+                tl.float32
+            )
             gamma = tl.load(gamma_ptr + ch, mask=mask, other=1.0).to(tl.float32)
             beta = tl.load(beta_ptr + ch, mask=mask, other=0.0).to(tl.float32)
 
@@ -364,7 +370,9 @@ def _groupnorm_rowmin_kernel(
 
         row_min = tl.minimum(row_min, group_min)
 
-    tl.store(y_ptr + pid_n64 * stride_yn + 0 * stride_yc, row_min.to(y_ptr.dtype.element_ty))
+    tl.store(
+        y_ptr + pid_n64 * stride_yn + 0 * stride_yc, row_min.to(y_ptr.dtype.element_ty)
+    )
 
 
 # Specialized kernel for the exact workload pattern: CHANNELS_PER_GROUP == 16.
@@ -374,10 +382,10 @@ def _groupnorm_rowmin_kernel(
 )
 @triton.jit
 def _groupnorm_rowmin_kernel_cpg16(
-    x_ptr,        # [N, C]
-    gamma_ptr,    # [C]
-    beta_ptr,     # [C]
-    y_ptr,        # [N, 1]
+    x_ptr,  # [N, C]
+    gamma_ptr,  # [C]
+    beta_ptr,  # [C]
+    y_ptr,  # [N, 1]
     N,
     C,
     stride_xn,
@@ -419,7 +427,9 @@ def _groupnorm_rowmin_kernel_cpg16(
         group_min = tl.min(tl.where(mask, out_vals, float("inf")), axis=0)
         row_min = tl.minimum(row_min, group_min)
 
-    tl.store(y_ptr + pid_n64 * stride_yn + 0 * stride_yc, row_min.to(y_ptr.dtype.element_ty))
+    tl.store(
+        y_ptr + pid_n64 * stride_yn + 0 * stride_yc, row_min.to(y_ptr.dtype.element_ty)
+    )
 
 
 def _ensure_xpu_contig(x, dtype=torch.float16):
@@ -430,7 +440,10 @@ def _ensure_xpu_contig(x, dtype=torch.float16):
 
 def _sg1_launch(x, linear_weight, linear_bias, gn_weight, gn_bias, num_groups, eps):
     # Retained original path; no longer used in optimized fast path.
-    if not all(isinstance(t, torch.Tensor) for t in (x, linear_weight, linear_bias, gn_weight, gn_bias)):
+    if not all(
+        isinstance(t, torch.Tensor)
+        for t in (x, linear_weight, linear_bias, gn_weight, gn_bias)
+    ):
         raise TypeError("All inputs must be torch.Tensor")
     if x.device.type != "xpu":
         raise RuntimeError("Tensors must be on 'xpu'")
@@ -438,7 +451,11 @@ def _sg1_launch(x, linear_weight, linear_bias, gn_weight, gn_bias, num_groups, e
     C_out, C_in_w = linear_weight.shape
     if C_in_w != C_in:
         raise ValueError("Incompatible shapes for linear weight")
-    if linear_bias.numel() != C_out or gn_weight.numel() != C_out or gn_bias.numel() != C_OUT:
+    if (
+        linear_bias.numel() != C_out
+        or gn_weight.numel() != C_out
+        or gn_bias.numel() != C_OUT
+    ):
         raise ValueError("Bias/gamma/beta must have length C_out")
     if C_out % num_groups != 0:
         raise ValueError("C_out must be divisible by num_groups")
@@ -567,7 +584,10 @@ def _sg3_launch(x0, bias):
     sbn, sbc, sbh, sbw = bias.stride(0), bias.stride(1), bias.stride(2), bias.stride(3)
     son, soc, soh, sow = out.stride(0), out.stride(1), out.stride(2), out.stride(3)
 
-    grid = lambda META: (triton.cdiv(C, META["BLOCK_C"]), triton.cdiv(H, META["BLOCK_H"]))
+    grid = lambda META: (
+        triton.cdiv(C, META["BLOCK_C"]),
+        triton.cdiv(H, META["BLOCK_H"]),
+    )
     _bias_add_broadcast_kernel[grid](
         x0,
         bias,
@@ -588,7 +608,9 @@ def _sg3_launch(x0, bias):
     return out
 
 
-def kernel_function(x, linear_weight, linear_bias, gn_weight, gn_bias, num_groups, eps, bias):
+def kernel_function(
+    x, linear_weight, linear_bias, gn_weight, gn_bias, num_groups, eps, bias
+):
     """
     Optimized forward:
       1) vendor/XPU linear for dominant GEMM
@@ -635,15 +657,43 @@ class Model(nn.Module):
     def forward(self, x):
         x_xpu = _ensure_xpu_contig(x, torch.float16)
 
-        if self.linear.weight.device.type != "xpu" or self.linear.weight.dtype != torch.float16 or not self.linear.weight.is_contiguous():
-            self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.linear.bias.device.type != "xpu" or self.linear.bias.dtype != torch.float16 or not self.linear.bias.is_contiguous():
-            self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.group_norm.weight.device.type != "xpu" or self.group_norm.weight.dtype != torch.float16 or not self.group_norm.weight.is_contiguous():
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.group_norm.bias.device.type != "xpu" or self.group_norm.bias.dtype != torch.float16 or not self.group_norm.bias.is_contiguous():
-            self.group_norm.bias.data = self.group_norm.bias.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.bias.device.type != "xpu" or self.bias.dtype != torch.float16 or not self.bias.is_contiguous():
+        if (
+            self.linear.weight.device.type != "xpu"
+            or self.linear.weight.dtype != torch.float16
+            or not self.linear.weight.is_contiguous()
+        ):
+            self.linear.weight.data = self.linear.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.linear.bias.device.type != "xpu"
+            or self.linear.bias.dtype != torch.float16
+            or not self.linear.bias.is_contiguous()
+        ):
+            self.linear.bias.data = self.linear.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.group_norm.weight.device.type != "xpu"
+            or self.group_norm.weight.dtype != torch.float16
+            or not self.group_norm.weight.is_contiguous()
+        ):
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.group_norm.bias.device.type != "xpu"
+            or self.group_norm.bias.dtype != torch.float16
+            or not self.group_norm.bias.is_contiguous()
+        ):
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.bias.device.type != "xpu"
+            or self.bias.dtype != torch.float16
+            or not self.bias.is_contiguous()
+        ):
             self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()
 
         return kernel_function(

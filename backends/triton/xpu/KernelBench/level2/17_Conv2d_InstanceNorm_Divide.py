@@ -10,14 +10,35 @@ import triton.language as tl
 # -------------------------------
 @triton.jit
 def _conv2d_nchw_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, Cin, Cout, H, W, H_out, W_out,
-    x_stride_n, x_stride_c, x_stride_h, x_stride_w,
-    w_stride_co, w_stride_ci, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_h, y_stride_w,
-    STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_H: tl.constexpr, DIL_W: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    Cin,
+    Cout,
+    H,
+    W,
+    H_out,
+    W_out,
+    x_stride_n,
+    x_stride_c,
+    x_stride_h,
+    x_stride_w,
+    w_stride_co,
+    w_stride_ci,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_h,
+    y_stride_w,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
     K: tl.constexpr,
     BLOCK_CO: tl.constexpr,
     BLOCK_H: tl.constexpr,
@@ -57,10 +78,17 @@ def _conv2d_nchw_bias_kernel(
                 in_w_ok = (in_w >= 0) & (in_w < W)
 
                 load_mask = hw_mask & in_h_ok[:, None] & in_w_ok[None, :]
-                x_ptrs = x_base_nc + in_h[:, None] * x_stride_h + in_w[None, :] * x_stride_w
+                x_ptrs = (
+                    x_base_nc + in_h[:, None] * x_stride_h + in_w[None, :] * x_stride_w
+                )
                 x_tile = tl.load(x_ptrs, mask=load_mask, other=0.0).to(tl.float32)
 
-                w_ptrs = w_base_c + offs_co * w_stride_co + kh * w_stride_kh + kw * w_stride_kw
+                w_ptrs = (
+                    w_base_c
+                    + offs_co * w_stride_co
+                    + kh * w_stride_kh
+                    + kw * w_stride_kw
+                )
                 w_vec = tl.load(w_ptrs, mask=co_mask, other=0.0).to(tl.float32)
 
                 acc += w_vec[:, None, None] * x_tile[None, :, :]
@@ -84,10 +112,18 @@ def _conv2d_nchw_bias_kernel(
 # ----------------------------------------
 @triton.jit
 def _instance_norm2d_scale_kernel(
-    x_ptr, y_ptr,
-    N, C, H, W,
-    stride_n, stride_c, stride_h, stride_w,
-    eps, scale,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
+    eps,
+    scale,
     BLOCK_HW: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -133,15 +169,40 @@ def _instance_norm2d_scale_kernel(
 # ---------------------------------------------------------
 @triton.jit
 def _conv2d_nchw_bias_stats_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr, sum_ptr, sumsq_ptr,
-    N, Cin, Cout, H, W, H_out, W_out,
-    x_stride_n, x_stride_c, x_stride_h, x_stride_w,
-    w_stride_co, w_stride_ci, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_h, y_stride_w,
-    stats_stride_n, stats_stride_c, stats_stride_t,
-    STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_H: tl.constexpr, DIL_W: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    sum_ptr,
+    sumsq_ptr,
+    N,
+    Cin,
+    Cout,
+    H,
+    W,
+    H_out,
+    W_out,
+    x_stride_n,
+    x_stride_c,
+    x_stride_h,
+    x_stride_w,
+    w_stride_co,
+    w_stride_ci,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_h,
+    y_stride_w,
+    stats_stride_n,
+    stats_stride_c,
+    stats_stride_t,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
     K: tl.constexpr,
     BLOCK_CO: tl.constexpr,
     BLOCK_H: tl.constexpr,
@@ -182,10 +243,17 @@ def _conv2d_nchw_bias_stats_kernel(
                 in_w_ok = (in_w >= 0) & (in_w < W)
 
                 load_mask = hw_mask & in_h_ok[:, None] & in_w_ok[None, :]
-                x_ptrs = x_base_nc + in_h[:, None] * x_stride_h + in_w[None, :] * x_stride_w
+                x_ptrs = (
+                    x_base_nc + in_h[:, None] * x_stride_h + in_w[None, :] * x_stride_w
+                )
                 x_tile = tl.load(x_ptrs, mask=load_mask, other=0.0).to(tl.float32)
 
-                w_ptrs = w_base_c + offs_co * w_stride_co + kh * w_stride_kh + kw * w_stride_kw
+                w_ptrs = (
+                    w_base_c
+                    + offs_co * w_stride_co
+                    + kh * w_stride_kh
+                    + kw * w_stride_kw
+                )
                 w_vec = tl.load(w_ptrs, mask=co_mask, other=0.0).to(tl.float32)
 
                 acc += w_vec[:, None, None] * x_tile[None, :, :]
@@ -210,9 +278,7 @@ def _conv2d_nchw_bias_stats_kernel(
 
     tile_linear = h_tile_idx * num_w_tiles + pid_w
     stats_ptrs = (
-        n_idx * stats_stride_n
-        + offs_co * stats_stride_c
-        + tile_linear * stats_stride_t
+        n_idx * stats_stride_n + offs_co * stats_stride_c + tile_linear * stats_stride_t
     )
 
     tl.store(sum_ptr + stats_ptrs, part_sum, mask=co_mask)
@@ -221,9 +287,17 @@ def _conv2d_nchw_bias_stats_kernel(
 
 @triton.jit
 def _reduce_instance_stats_kernel(
-    sum_ptr, sumsq_ptr, mean_ptr, inv_std_ptr,
-    N, C, NUM_TILES, HW,
-    stats_stride_n, stats_stride_c, stats_stride_t,
+    sum_ptr,
+    sumsq_ptr,
+    mean_ptr,
+    inv_std_ptr,
+    N,
+    C,
+    NUM_TILES,
+    HW,
+    stats_stride_n,
+    stats_stride_c,
+    stats_stride_t,
     eps,
     BLOCK_T: tl.constexpr,
 ):
@@ -256,9 +330,18 @@ def _reduce_instance_stats_kernel(
 
 @triton.jit
 def _instance_norm2d_apply_from_stats_kernel(
-    x_ptr, mean_ptr, inv_std_ptr, y_ptr,
-    N, C, H, W,
-    stride_n, stride_c, stride_h, stride_w,
+    x_ptr,
+    mean_ptr,
+    inv_std_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_h,
+    stride_w,
     scale,
     BLOCK_HW: tl.constexpr,
 ):
@@ -326,16 +409,39 @@ def conv2d_bias(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor):
     )
 
     _conv2d_nchw_bias_kernel[grid](
-        x, weight, bias, y,
-        N, Cin, Cout, H, W, H_out, W_out,
-        x_stride_n, x_stride_c, x_stride_h, x_stride_w,
-        w_stride_co, w_stride_ci, w_stride_kh, w_stride_kw,
-        y_stride_n, y_stride_c, y_stride_h, y_stride_w,
-        STRIDE_H=stride_h, STRIDE_W=stride_w,
-        PAD_H=pad_h, PAD_W=pad_w,
-        DIL_H=dil_h, DIL_W=dil_w,
+        x,
+        weight,
+        bias,
+        y,
+        N,
+        Cin,
+        Cout,
+        H,
+        W,
+        H_out,
+        W_out,
+        x_stride_n,
+        x_stride_c,
+        x_stride_h,
+        x_stride_w,
+        w_stride_co,
+        w_stride_ci,
+        w_stride_kh,
+        w_stride_kw,
+        y_stride_n,
+        y_stride_c,
+        y_stride_h,
+        y_stride_w,
+        STRIDE_H=stride_h,
+        STRIDE_W=stride_w,
+        PAD_H=pad_h,
+        PAD_W=pad_w,
+        DIL_H=dil_h,
+        DIL_W=dil_w,
         K=K,
-        BLOCK_CO=BLOCK_CO, BLOCK_H=BLOCK_H, BLOCK_W=BLOCK_W,
+        BLOCK_CO=BLOCK_CO,
+        BLOCK_H=BLOCK_H,
+        BLOCK_W=BLOCK_W,
         num_warps=8,
         num_stages=2,
     )
@@ -376,8 +482,12 @@ def conv2d_bias_with_stats(x: torch.Tensor, weight: torch.Tensor, bias: torch.Te
     num_w_tiles = triton.cdiv(W_out, BLOCK_W)
     num_tiles = num_h_tiles * num_w_tiles
 
-    partial_sum = torch.empty((N, Cout, num_tiles), device=x_xpu.device, dtype=torch.float32)
-    partial_sumsq = torch.empty((N, Cout, num_tiles), device=x_xpu.device, dtype=torch.float32)
+    partial_sum = torch.empty(
+        (N, Cout, num_tiles), device=x_xpu.device, dtype=torch.float32
+    )
+    partial_sumsq = torch.empty(
+        (N, Cout, num_tiles), device=x_xpu.device, dtype=torch.float32
+    )
 
     x_stride_n, x_stride_c, x_stride_h, x_stride_w = x_xpu.stride()
     w_stride_co, w_stride_ci, w_stride_kh, w_stride_kw = w_xpu.stride()
@@ -391,17 +501,44 @@ def conv2d_bias_with_stats(x: torch.Tensor, weight: torch.Tensor, bias: torch.Te
     )
 
     _conv2d_nchw_bias_stats_kernel[grid](
-        x_xpu, w_xpu, b_xpu, y, partial_sum, partial_sumsq,
-        N, Cin, Cout, H, W, H_out, W_out,
-        x_stride_n, x_stride_c, x_stride_h, x_stride_w,
-        w_stride_co, w_stride_ci, w_stride_kh, w_stride_kw,
-        y_stride_n, y_stride_c, y_stride_h, y_stride_w,
-        stats_stride_n, stats_stride_c, stats_stride_t,
-        STRIDE_H=stride_h, STRIDE_W=stride_w,
-        PAD_H=pad_h, PAD_W=pad_w,
-        DIL_H=dil_h, DIL_W=dil_w,
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        y,
+        partial_sum,
+        partial_sumsq,
+        N,
+        Cin,
+        Cout,
+        H,
+        W,
+        H_out,
+        W_out,
+        x_stride_n,
+        x_stride_c,
+        x_stride_h,
+        x_stride_w,
+        w_stride_co,
+        w_stride_ci,
+        w_stride_kh,
+        w_stride_kw,
+        y_stride_n,
+        y_stride_c,
+        y_stride_h,
+        y_stride_w,
+        stats_stride_n,
+        stats_stride_c,
+        stats_stride_t,
+        STRIDE_H=stride_h,
+        STRIDE_W=stride_w,
+        PAD_H=pad_h,
+        PAD_W=pad_w,
+        DIL_H=dil_h,
+        DIL_W=dil_w,
         K=K,
-        BLOCK_CO=BLOCK_CO, BLOCK_H=BLOCK_H, BLOCK_W=BLOCK_W,
+        BLOCK_CO=BLOCK_CO,
+        BLOCK_H=BLOCK_H,
+        BLOCK_W=BLOCK_W,
         num_warps=8,
         num_stages=1,
     )
@@ -422,10 +559,18 @@ def instancenorm_scale(x: torch.Tensor, scale: float, eps=1e-5):
     grid = (N * C,)
 
     _instance_norm2d_scale_kernel[grid](
-        x, y,
-        N, C, H, W,
-        stride_n, stride_c, stride_h, stride_w,
-        eps, scale,
+        x,
+        y,
+        N,
+        C,
+        H,
+        W,
+        stride_n,
+        stride_c,
+        stride_h,
+        stride_w,
+        eps,
+        scale,
         BLOCK_HW=BLOCK_HW,
         num_warps=8,
         num_stages=2,
@@ -460,9 +605,17 @@ def instancenorm_scale_from_stats(
     stats_stride_n, stats_stride_c, stats_stride_t = partial_sum.stride()
 
     _reduce_instance_stats_kernel[(N * C,)](
-        partial_sum, partial_sumsq, mean, inv_std,
-        N, C, NUM_TILES, HW,
-        stats_stride_n, stats_stride_c, stats_stride_t,
+        partial_sum,
+        partial_sumsq,
+        mean,
+        inv_std,
+        N,
+        C,
+        NUM_TILES,
+        HW,
+        stats_stride_n,
+        stats_stride_c,
+        stats_stride_t,
         eps,
         BLOCK_T=256,
         num_warps=8,
@@ -471,9 +624,18 @@ def instancenorm_scale_from_stats(
 
     stride_n, stride_c, stride_h, stride_w = x_xpu.stride()
     _instance_norm2d_apply_from_stats_kernel[(N * C,)](
-        x_xpu, mean, inv_std, y,
-        N, C, H, W,
-        stride_n, stride_c, stride_h, stride_w,
+        x_xpu,
+        mean,
+        inv_std,
+        y,
+        N,
+        C,
+        H,
+        W,
+        stride_n,
+        stride_c,
+        stride_h,
+        stride_w,
         scale,
         BLOCK_HW=256,
         num_warps=8,
@@ -485,7 +647,9 @@ def instancenorm_scale_from_stats(
 # ------------------------
 # Fused top-level wrapper
 # ------------------------
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, inv_div_scale: float):
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, inv_div_scale: float
+):
     assert x.device.type == "xpu"
     assert weight.device.type == "xpu"
     assert bias.device.type == "xpu"
@@ -522,14 +686,24 @@ class Model(nn.Module):
         self.inv_div_scale = 1.0 / float(divide_by)
 
     def _ensure_xpu_params(self):
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.conv.weight.data = self.conv.weight.data.contiguous()
 
         if self.conv.bias is not None:
-            if self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv.bias.device.type != "xpu"
+                or self.conv.bias.dtype != torch.float16
+            ):
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             else:
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 

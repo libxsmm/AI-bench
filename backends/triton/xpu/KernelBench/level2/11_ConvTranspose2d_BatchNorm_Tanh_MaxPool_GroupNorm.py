@@ -7,18 +7,62 @@ import triton.language as tl
 
 def _conv_transpose_autotune_configs():
     configs = [
-        triton.Config({"BLOCK_M": 32, "BLOCK_CO": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_M": 32, "BLOCK_CO": 64, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_M": 64, "BLOCK_CO": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_M": 64, "BLOCK_CO": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_CO": 128, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CO": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CO": 128, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_CO": 64, "GROUP_SIZE_M": 2}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CO": 128, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CO": 128, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=3),
+        triton.Config(
+            {"BLOCK_M": 32, "BLOCK_CO": 32, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_M": 32, "BLOCK_CO": 64, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_CO": 32, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_CO": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_CO": 128, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CO": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CO": 128, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_CO": 64, "GROUP_SIZE_M": 2},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CO": 128, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CO": 128, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=3,
+        ),
         # Required large-tile / high-warp Intel XPU candidate
-        triton.Config({"BLOCK_M": 256, "BLOCK_CO": 256, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_CO": 256, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
     ]
     return configs
 
@@ -356,7 +400,11 @@ def _maxpool2d_compact_kernel(
         + oh[:, None] * stride_yh
         + ow[:, None] * stride_yw
     )
-    tl.store(out_ptrs, vmax.to(y_ptr.dtype.element_ty), mask=mask_hw[:, None] & mask_c[None, :])
+    tl.store(
+        out_ptrs,
+        vmax.to(y_ptr.dtype.element_ty),
+        mask=mask_hw[:, None] & mask_c[None, :],
+    )
 
 
 @triton.autotune(
@@ -455,7 +503,9 @@ def _groupnorm_from_compact_kernel(
             tl.store(y_bp, out.to(y_ptr.dtype.element_ty), boundary_check=(0, 1))
 
 
-def conv_transpose_bn_tanh(x, w_ct, b_ct, bn_weight, bn_bias, running_mean, running_var, eps):
+def conv_transpose_bn_tanh(
+    x, w_ct, b_ct, bn_weight, bn_bias, running_mean, running_var, eps
+):
     assert x.device.type == "xpu"
     N, C_in, H_in, W_in = x.shape
     Cin_w, C_out, kH, kW = w_ct.shape
@@ -480,7 +530,8 @@ def conv_transpose_bn_tanh(x, w_ct, b_ct, bn_weight, bn_bias, running_mean, runn
     syn, syc, syh, syw = y.stride()
 
     grid = lambda META: (
-        triton.cdiv(N * H_out * W_out, META["BLOCK_M"]) * triton.cdiv(C_out, META["BLOCK_CO"]),
+        triton.cdiv(N * H_out * W_out, META["BLOCK_M"])
+        * triton.cdiv(C_out, META["BLOCK_CO"]),
     )
 
     _conv_transpose2d_bn_tanh_kernel[grid](
@@ -678,7 +729,16 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, groups, num_groups):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        groups,
+        num_groups,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose2d(
             in_channels, out_channels, kernel_size, stride=stride, padding=padding
@@ -693,17 +753,25 @@ class Model(nn.Module):
             x = x.contiguous()
 
         if self.conv_transpose.weight.device.type != "xpu":
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+            self.conv_transpose.weight.data = (
+                self.conv_transpose.weight.data.contiguous()
+            )
 
         if self.conv_transpose.bias.device.type != "xpu":
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu").contiguous()
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu"
+            ).contiguous()
         else:
             self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
 
         if self.batch_norm.weight.device.type != "xpu":
-            self.batch_norm.weight.data = self.batch_norm.weight.data.to("xpu").contiguous()
+            self.batch_norm.weight.data = self.batch_norm.weight.data.to(
+                "xpu"
+            ).contiguous()
         else:
             self.batch_norm.weight.data = self.batch_norm.weight.data.contiguous()
 
@@ -713,17 +781,27 @@ class Model(nn.Module):
             self.batch_norm.bias.data = self.batch_norm.bias.data.contiguous()
 
         if self.batch_norm.running_mean.device.type != "xpu":
-            self.batch_norm.running_mean.data = self.batch_norm.running_mean.data.to("xpu").contiguous()
+            self.batch_norm.running_mean.data = self.batch_norm.running_mean.data.to(
+                "xpu"
+            ).contiguous()
         else:
-            self.batch_norm.running_mean.data = self.batch_norm.running_mean.data.contiguous()
+            self.batch_norm.running_mean.data = (
+                self.batch_norm.running_mean.data.contiguous()
+            )
 
         if self.batch_norm.running_var.device.type != "xpu":
-            self.batch_norm.running_var.data = self.batch_norm.running_var.data.to("xpu").contiguous()
+            self.batch_norm.running_var.data = self.batch_norm.running_var.data.to(
+                "xpu"
+            ).contiguous()
         else:
-            self.batch_norm.running_var.data = self.batch_norm.running_var.data.contiguous()
+            self.batch_norm.running_var.data = (
+                self.batch_norm.running_var.data.contiguous()
+            )
 
         if self.group_norm.weight.device.type != "xpu":
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu").contiguous()
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu"
+            ).contiguous()
         else:
             self.group_norm.weight.data = self.group_norm.weight.data.contiguous()
 

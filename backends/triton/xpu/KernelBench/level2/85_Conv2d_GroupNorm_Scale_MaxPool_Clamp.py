@@ -86,7 +86,9 @@ def _fused_conv_gn_scale_kernel(
     ch_mask = co_offsets < C_out
 
     bias_vec = tl.load(b_ptr + co_offsets, mask=ch_mask, other=0.0).to(tl.float32)
-    gamma_vec = tl.load(gn_gamma_ptr + co_offsets, mask=ch_mask, other=1.0).to(tl.float32)
+    gamma_vec = tl.load(gn_gamma_ptr + co_offsets, mask=ch_mask, other=1.0).to(
+        tl.float32
+    )
     beta_vec = tl.load(gn_beta_ptr + co_offsets, mask=ch_mask, other=0.0).to(tl.float32)
     scale_vec = tl.load(scale_ptr + co_offsets, mask=ch_mask, other=1.0).to(tl.float32)
 
@@ -243,7 +245,9 @@ def _maxpool2d_clamp_nchw_kernel(
     acc = tl.minimum(acc, clamp_max)
 
     base_out = y_ptr + n64 * stride_out_n + c64 * stride_out_c
-    out_ptrs = base_out + offs_oh[:, None] * stride_out_h + offs_ow[None, :] * stride_out_w
+    out_ptrs = (
+        base_out + offs_oh[:, None] * stride_out_h + offs_ow[None, :] * stride_out_w
+    )
     tl.store(out_ptrs, acc, mask=out_mask)
 
 
@@ -482,10 +486,14 @@ class Model(nn.Module):
             return
 
         with torch.no_grad():
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             if self.conv.bias is not None:
                 self.conv.bias.data = self.conv.bias.data.to("xpu").contiguous()
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu").contiguous()
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu"
+            ).contiguous()
             self.group_norm.bias.data = self.group_norm.bias.data.to("xpu").contiguous()
             self.scale.data = self.scale.data.to("xpu").contiguous()
         self._packed_ready = True

@@ -7,30 +7,86 @@ import triton.language as tl
 
 def _conv_sparse_autotune_configs():
     return [
-        triton.Config({"BLOCK_H": 8, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_H": 16, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_H": 16, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_H": 32, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_H": 32, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_H": 64, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_H": 64, "BLOCK_W": 128, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_H": 128, "BLOCK_W": 128, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_H": 256, "BLOCK_W": 256, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_H": 8, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 16, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 16, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 32, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 32, "BLOCK_W": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 64, "BLOCK_W": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 64, "BLOCK_W": 128, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 128, "BLOCK_W": 128, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 256, "BLOCK_W": 256, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
     ]
 
 
 def _conv_dense_autotune_configs():
     return [
-        triton.Config({"BLOCK_H": 8, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_H": 8, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_H": 16, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1),
-        triton.Config({"BLOCK_H": 16, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_H": 32, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_H": 32, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_H": 64, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_H": 64, "BLOCK_W": 128, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_H": 128, "BLOCK_W": 128, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_H": 256, "BLOCK_W": 256, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_H": 8, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 8, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 16, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 16, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 32, "BLOCK_W": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=1
+        ),
+        triton.Config(
+            {"BLOCK_H": 32, "BLOCK_W": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_H": 64, "BLOCK_W": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 64, "BLOCK_W": 128, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 128, "BLOCK_W": 128, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_H": 256, "BLOCK_W": 256, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
     ]
 
 
@@ -130,7 +186,9 @@ def _conv_transpose3d_bias_kernel(
                 valid_id = valid_id & (id_val >= 0) & (id_val < Din)
             else:
                 id_val = num_d // STRIDE_D
-                valid_id = (num_d % STRIDE_D == 0) & mask_d & (id_val >= 0) & (id_val < Din)
+                valid_id = (
+                    (num_d % STRIDE_D == 0) & mask_d & (id_val >= 0) & (id_val < Din)
+                )
             id_safe = tl.where(valid_id, id_val, 0)
             x_d_base = x_nc_base + id_safe * sxd
             w_kd_base = w_co_base + kd * swkd
@@ -143,7 +201,12 @@ def _conv_transpose3d_bias_kernel(
                     valid_ih = valid_ih & (ih_val >= 0) & (ih_val < Hin)
                 else:
                     ih_val = num_h // STRIDE_H
-                    valid_ih = (num_h % STRIDE_H == 0) & mask_h & (ih_val >= 0) & (ih_val < Hin)
+                    valid_ih = (
+                        (num_h % STRIDE_H == 0)
+                        & mask_h
+                        & (ih_val >= 0)
+                        & (ih_val < Hin)
+                    )
                 ih_safe = tl.where(valid_ih, ih_val, 0)
                 x_dh_base = x_d_base + ih_safe[:, None] * sxh
                 w_kdh_base = w_kd_base + kh * swkh
@@ -156,7 +219,12 @@ def _conv_transpose3d_bias_kernel(
                         valid_iw = valid_iw & (iw_val >= 0) & (iw_val < Win)
                     else:
                         iw_val = num_w // STRIDE_W
-                        valid_iw = (num_w % STRIDE_W == 0) & mask_w & (iw_val >= 0) & (iw_val < Win)
+                        valid_iw = (
+                            (num_w % STRIDE_W == 0)
+                            & mask_w
+                            & (iw_val >= 0)
+                            & (iw_val < Win)
+                        )
                     iw_safe = tl.where(valid_iw, iw_val, 0)
 
                     load_mask = valid_id & valid_ih[:, None] & valid_iw[None, :]
@@ -165,7 +233,14 @@ def _conv_transpose3d_bias_kernel(
                     w_val = tl.load(w_kdh_base + kw * swkw).to(tl.float32)
                     acc += x_val * w_val
 
-    y_ptrs = y_ptr + n * syn + co * syc + od * syd + (offs_h[:, None] * syh) + (offs_w[None, :] * syw)
+    y_ptrs = (
+        y_ptr
+        + n * syn
+        + co * syc
+        + od * syd
+        + (offs_h[:, None] * syh)
+        + (offs_w[None, :] * syw)
+    )
     store_mask = mask_d & mask_h[:, None] & mask_w[None, :]
     tl.store(y_ptrs, acc, mask=store_mask)
 
@@ -266,26 +341,42 @@ def _conv_transpose3d_bias_s2p1k3_sparse_kernel(
         x_ptrs = x_dh_base + iw0[None, :] * sxw
         mask = valid_id0 & valid_ih0[:, None] & valid_iw0[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd0 * swkd + kh0[:, None] * swkh + kw0[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd0 * swkd + kh0[:, None] * swkh + kw0[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_ptrs = x_dh_base + iw1[None, :] * sxw
         mask = valid_id0 & valid_ih0[:, None] & valid_iw1[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd0 * swkd + kh0[:, None] * swkh + kw1[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd0 * swkd + kh0[:, None] * swkh + kw1[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_dh_base = x_d_base + ih1[:, None] * sxh
         x_ptrs = x_dh_base + iw0[None, :] * sxw
         mask = valid_id0 & valid_ih1[:, None] & valid_iw0[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd0 * swkd + kh1[:, None] * swkh + kw0[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd0 * swkd + kh1[:, None] * swkh + kw0[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_ptrs = x_dh_base + iw1[None, :] * sxw
         mask = valid_id0 & valid_ih1[:, None] & valid_iw1[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd0 * swkd + kh1[:, None] * swkh + kw1[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd0 * swkd + kh1[:, None] * swkh + kw1[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_d_base = x_nc_base + id1 * sxd
@@ -293,26 +384,42 @@ def _conv_transpose3d_bias_s2p1k3_sparse_kernel(
         x_ptrs = x_dh_base + iw0[None, :] * sxw
         mask = valid_id1 & valid_ih0[:, None] & valid_iw0[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd1 * swkd + kh0[:, None] * swkh + kw0[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd1 * swkd + kh0[:, None] * swkh + kw0[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_ptrs = x_dh_base + iw1[None, :] * sxw
         mask = valid_id1 & valid_ih0[:, None] & valid_iw1[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd1 * swkd + kh0[:, None] * swkh + kw1[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd1 * swkd + kh0[:, None] * swkh + kw1[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_dh_base = x_d_base + ih1[:, None] * sxh
         x_ptrs = x_dh_base + iw0[None, :] * sxw
         mask = valid_id1 & valid_ih1[:, None] & valid_iw0[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd1 * swkd + kh1[:, None] * swkh + kw0[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd1 * swkd + kh1[:, None] * swkh + kw0[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
         x_ptrs = x_dh_base + iw1[None, :] * sxw
         mask = valid_id1 & valid_ih1[:, None] & valid_iw1[None, :]
         x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
-        w_val = tl.load(w_co_base + kd1 * swkd + kh1[:, None] * swkh + kw1[None, :] * swkw, mask=mask, other=0.0).to(tl.float32)
+        w_val = tl.load(
+            w_co_base + kd1 * swkd + kh1[:, None] * swkh + kw1[None, :] * swkw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
         acc += x_val * w_val
 
     if mask_d:
@@ -334,9 +441,18 @@ def _conv_transpose3d_bias_s2p1k3_sparse_kernel(
 )
 @triton.jit
 def _mean_subtract_spatial_5d_kernel(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -374,10 +490,19 @@ def _mean_subtract_spatial_5d_kernel(
 
 @triton.jit
 def _spatial_partial_sum_kernel(
-    x_ptr, partial_ptr,
-    C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    partial_stride_nc, partial_stride_tile,
+    x_ptr,
+    partial_ptr,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    partial_stride_nc,
+    partial_stride_tile,
     TILE_S: tl.constexpr,
 ):
     pid_nc = tl.program_id(0)
@@ -400,15 +525,28 @@ def _spatial_partial_sum_kernel(
     ptrs = x_ptr + base + d * stride_d + h * stride_h + w * stride_w
     vals = tl.load(ptrs, mask=mask, other=0.0).to(tl.float32)
     part = tl.sum(vals, axis=0)
-    tl.store(partial_ptr + pid_nc * partial_stride_nc + pid_tile * partial_stride_tile, part)
+    tl.store(
+        partial_ptr + pid_nc * partial_stride_nc + pid_tile * partial_stride_tile, part
+    )
 
 
 @triton.jit
 def _spatial_finalize_mean_subtract_kernel(
-    x_ptr, partial_ptr, y_ptr,
-    C, D, H, W, NUM_TILES,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    partial_stride_nc, partial_stride_tile,
+    x_ptr,
+    partial_ptr,
+    y_ptr,
+    C,
+    D,
+    H,
+    W,
+    NUM_TILES,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    partial_stride_nc,
+    partial_stride_tile,
     BLOCK_SIZE: tl.constexpr,
     REDUCE_BLOCK: tl.constexpr,
 ):
@@ -423,7 +561,11 @@ def _spatial_finalize_mean_subtract_kernel(
     for off in tl.range(0, NUM_TILES, REDUCE_BLOCK):
         t = off + tl.arange(0, REDUCE_BLOCK)
         mask_t = t < NUM_TILES
-        vals = tl.load(partial_ptr + pid * partial_stride_nc + t * partial_stride_tile, mask=mask_t, other=0.0)
+        vals = tl.load(
+            partial_ptr + pid * partial_stride_nc + t * partial_stride_tile,
+            mask=mask_t,
+            other=0.0,
+        )
         acc += tl.sum(vals, axis=0)
     mean = acc / tl.full((), S, dtype=tl.float32)
 
@@ -446,9 +588,17 @@ def _spatial_finalize_mean_subtract_kernel(
 )
 @triton.jit
 def _spatial_sum_and_subtract_kernel(
-    x_ptr, y_ptr,
-    C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
+    x_ptr,
+    y_ptr,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -514,22 +664,74 @@ def _conv3d_bias_triton(x, conv_fused_weight, conv_fused_bias):
 
     if Kd == 3 and Kh == 3 and Kw == 3:
         _conv_transpose3d_bias_s2p1k3_sparse_kernel[grid](
-            x, conv_fused_weight, conv_fused_bias, y,
-            N, Cin, Din, Hin, Win, Cout, dout, hout, wout,
-            sxn, sxc, sxd, sxh, sxw,
-            swcin, swcout, swkd, swkh, swkw,
-            syn, syc, syd, syh, syw,
+            x,
+            conv_fused_weight,
+            conv_fused_bias,
+            y,
+            N,
+            Cin,
+            Din,
+            Hin,
+            Win,
+            Cout,
+            dout,
+            hout,
+            wout,
+            sxn,
+            sxc,
+            sxd,
+            sxh,
+            sxw,
+            swcin,
+            swcout,
+            swkd,
+            swkh,
+            swkw,
+            syn,
+            syc,
+            syd,
+            syh,
+            syw,
         )
     else:
         _conv_transpose3d_bias_kernel[grid](
-            x, conv_fused_weight, conv_fused_bias, y,
-            N, Cin, Din, Hin, Win, Cout, dout, hout, wout,
-            sxn, sxc, sxd, sxh, sxw,
-            swcin, swcout, swkd, swkh, swkw,
-            syn, syc, syd, syh, syw,
-            KD=Kd, KH=Kh, KW=Kw,
-            STRIDE_D=stride_d, STRIDE_H=stride_h, STRIDE_W=stride_w,
-            PAD_D=pad_d, PAD_H=pad_h, PAD_W=pad_w,
+            x,
+            conv_fused_weight,
+            conv_fused_bias,
+            y,
+            N,
+            Cin,
+            Din,
+            Hin,
+            Win,
+            Cout,
+            dout,
+            hout,
+            wout,
+            sxn,
+            sxc,
+            sxd,
+            sxh,
+            sxw,
+            swcin,
+            swcout,
+            swkd,
+            swkh,
+            swkw,
+            syn,
+            syc,
+            syd,
+            syh,
+            syw,
+            KD=Kd,
+            KH=Kh,
+            KW=Kw,
+            STRIDE_D=stride_d,
+            STRIDE_H=stride_h,
+            STRIDE_W=stride_w,
+            PAD_D=pad_d,
+            PAD_H=pad_h,
+            PAD_W=pad_w,
         )
     return y
 
@@ -545,26 +747,49 @@ def _mean_subtract_triton(x):
     grid = (N * C,)
     if S <= 4096:
         _mean_subtract_spatial_5d_kernel[grid](
-            x, y, N, C, D, H, W,
-            sN, sC, sD, sH, sW,
+            x,
+            y,
+            N,
+            C,
+            D,
+            H,
+            W,
+            sN,
+            sC,
+            sD,
+            sH,
+            sW,
         )
         return y
 
     _spatial_sum_and_subtract_kernel[grid](
-        x, y,
-        C, D, H, W,
-        sN, sC, sD, sH, sW,
+        x,
+        y,
+        C,
+        D,
+        H,
+        W,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
     )
     return y
 
 
-def kernel_function(x: torch.Tensor, conv_fused_weight: torch.Tensor, conv_fused_bias: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, conv_fused_weight: torch.Tensor, conv_fused_bias: torch.Tensor
+) -> torch.Tensor:
     if x.device.type != "xpu" or x.dtype != torch.float16:
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
     else:
         x_xpu = x.contiguous()
 
-    if conv_fused_weight.device.type != "xpu" or conv_fused_weight.dtype != torch.float16:
+    if (
+        conv_fused_weight.device.type != "xpu"
+        or conv_fused_weight.dtype != torch.float16
+    ):
         wt_xpu = conv_fused_weight.to("xpu", dtype=torch.float16).contiguous()
     else:
         wt_xpu = conv_fused_weight.contiguous()
@@ -597,9 +822,13 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias=True):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, stride, padding, bias=True
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=2, padding=1, bias=bias)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, stride=2, padding=1, bias=bias
+        )
         self.batch_norm = nn.BatchNorm3d(out_channels)
         self._in_channels = in_channels
         self._out_channels = out_channels
@@ -620,7 +849,9 @@ class Model(nn.Module):
             self._cached_weight = w.detach().to("xpu", dtype=torch.float16).contiguous()
             self._cached_w_version = w_ver
 
-        if b is not None and (self._cached_bias is None or self._cached_b_version != b_ver):
+        if b is not None and (
+            self._cached_bias is None or self._cached_b_version != b_ver
+        ):
             self._cached_bias = b.detach().to("xpu", dtype=torch.float16).contiguous()
             self._cached_b_version = b_ver
 

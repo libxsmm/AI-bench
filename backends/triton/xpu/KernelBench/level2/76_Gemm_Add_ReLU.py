@@ -9,46 +9,56 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=8,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=16,
             num_stages=3,
         ),
     ],
-    key=['M', 'N', 'K'],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def _gemm_bias_relu_kernel(
-    a_ptr, b_t_ptr, bias_ptr, c_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_bk, stride_bn,
-    stride_cm, stride_cn,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    a_ptr,
+    b_t_ptr,
+    bias_ptr,
+    c_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_bk,
+    stride_bn,
+    stride_cm,
+    stride_cn,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -111,111 +121,235 @@ def _gemm_bias_relu_kernel(
 @triton.autotune(
     configs=[
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 32},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 32,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 64},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 64,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 128},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 128,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 256},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 256,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 32},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 128,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 32,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 64},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 128,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 64,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 128},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 128,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 128,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 32},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 32,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 64},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 64,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 16, 'GROUP_SIZE_M': 1, 'NUM_PROGS': 128},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 256,
+                "BLOCK_K": 16,
+                "GROUP_SIZE_M": 1,
+                "NUM_PROGS": 128,
+            },
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 32},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 128,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 32,
+            },
             num_warps=8,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 64},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 128,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 64,
+            },
             num_warps=8,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 128},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 128,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 128,
+            },
             num_warps=8,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 32},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 256,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 32,
+            },
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 64},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 256,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 64,
+            },
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 128},
+            {
+                "BLOCK_M": 128,
+                "BLOCK_N": 256,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 128,
+            },
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 32},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 128,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 32,
+            },
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 64},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 128,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 64,
+            },
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 128},
+            {
+                "BLOCK_M": 256,
+                "BLOCK_N": 128,
+                "BLOCK_K": 32,
+                "GROUP_SIZE_M": 4,
+                "NUM_PROGS": 128,
+            },
             num_warps=16,
             num_stages=3,
         ),
     ],
-    key=['M', 'N', 'K'],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def _gemm_bias_relu_persistent_kernel(
-    a_ptr, b_t_ptr, bias_ptr, c_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_bk, stride_bn,
-    stride_cm, stride_cn,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    a_ptr,
+    b_t_ptr,
+    bias_ptr,
+    c_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_bk,
+    stride_bn,
+    stride_cm,
+    stride_cn,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     NUM_PROGS: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
@@ -289,7 +423,12 @@ def _get_num_xpu_workers():
         if hasattr(torch.xpu, "get_device_capability"):
             cap = torch.xpu.get_device_capability()
             if isinstance(cap, dict):
-                for key in ("gpu_subslice_count", "subslice_count", "max_compute_units", "gpu_eu_count"):
+                for key in (
+                    "gpu_subslice_count",
+                    "subslice_count",
+                    "max_compute_units",
+                    "gpu_eu_count",
+                ):
                     val = cap.get(key, None)
                     if isinstance(val, int) and val > 0:
                         return val
@@ -319,21 +458,56 @@ def _select_num_progs_cap(total_tiles: int):
     return cap
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, packed_weight_t: torch.Tensor = None):
-    assert isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor) and isinstance(bias, torch.Tensor)
+def kernel_function(
+    x: torch.Tensor,
+    weight: torch.Tensor,
+    bias: torch.Tensor,
+    packed_weight_t: torch.Tensor = None,
+):
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    )
     assert hasattr(torch, "xpu") and torch.xpu.is_available(), "XPU is not available"
     assert x.ndim == 2 and weight.ndim == 2 and bias.ndim == 1
     assert x.shape[1] == weight.shape[1], "Incompatible shapes"
     assert bias.numel() == weight.shape[0], "Bias length mismatch"
 
-    x_xpu = x if (x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous()) else x.to(device="xpu", dtype=torch.float16).contiguous()
-    weight_xpu = weight if (weight.device.type == "xpu" and weight.dtype == torch.float16 and weight.is_contiguous()) else weight.to(device="xpu", dtype=torch.float16).contiguous()
-    bias_xpu = bias if (bias.device.type == "xpu" and bias.dtype == torch.float16 and bias.is_contiguous()) else bias.to(device="xpu", dtype=torch.float16).contiguous()
+    x_xpu = (
+        x
+        if (x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous())
+        else x.to(device="xpu", dtype=torch.float16).contiguous()
+    )
+    weight_xpu = (
+        weight
+        if (
+            weight.device.type == "xpu"
+            and weight.dtype == torch.float16
+            and weight.is_contiguous()
+        )
+        else weight.to(device="xpu", dtype=torch.float16).contiguous()
+    )
+    bias_xpu = (
+        bias
+        if (
+            bias.device.type == "xpu"
+            and bias.dtype == torch.float16
+            and bias.is_contiguous()
+        )
+        else bias.to(device="xpu", dtype=torch.float16).contiguous()
+    )
 
     if packed_weight_t is not None:
-        weight_t_xpu = packed_weight_t if (
-            packed_weight_t.device.type == "xpu" and packed_weight_t.dtype == torch.float16 and packed_weight_t.is_contiguous()
-        ) else packed_weight_t.to(device="xpu", dtype=torch.float16).contiguous()
+        weight_t_xpu = (
+            packed_weight_t
+            if (
+                packed_weight_t.device.type == "xpu"
+                and packed_weight_t.dtype == torch.float16
+                and packed_weight_t.is_contiguous()
+            )
+            else packed_weight_t.to(device="xpu", dtype=torch.float16).contiguous()
+        )
     else:
         weight_t_xpu = weight_xpu.transpose(0, 1).contiguous()
 
@@ -352,22 +526,40 @@ def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, p
     # Use persistent scheduling when there are enough tiles to amortize looping.
     # Fall back to original kernel for very small grids to avoid persistent overhead.
     if total_tiles >= 8 and num_progs_cap >= 1:
-        grid = lambda meta: (min(meta['NUM_PROGS'], num_progs_cap),)
+        grid = lambda meta: (min(meta["NUM_PROGS"], num_progs_cap),)
         _gemm_bias_relu_persistent_kernel[grid](
-            x_xpu, weight_t_xpu, bias_xpu, out,
-            M, N, K,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            stride_cm, stride_cn,
+            x_xpu,
+            weight_t_xpu,
+            bias_xpu,
+            out,
+            M,
+            N,
+            K,
+            stride_am,
+            stride_ak,
+            stride_bk,
+            stride_bn,
+            stride_cm,
+            stride_cn,
         )
     else:
-        grid = lambda meta: (triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(N, meta['BLOCK_N']),)
+        grid = lambda meta: (
+            triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(N, meta["BLOCK_N"]),
+        )
         _gemm_bias_relu_kernel[grid](
-            x_xpu, weight_t_xpu, bias_xpu, out,
-            M, N, K,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            stride_cm, stride_cn,
+            x_xpu,
+            weight_t_xpu,
+            bias_xpu,
+            out,
+            M,
+            N,
+            K,
+            stride_am,
+            stride_ak,
+            stride_bk,
+            stride_bn,
+            stride_cm,
+            stride_cn,
         )
     return out
 
@@ -397,17 +589,32 @@ class Model(nn.Module):
 
     def _ensure_xpu_params(self):
         moved = False
-        if self.gemm.weight.device.type != "xpu" or self.gemm.weight.dtype != torch.float16 or not self.gemm.weight.is_contiguous():
-            self.gemm.weight.data = self.gemm.weight.data.to(device="xpu", dtype=torch.float16).contiguous()
+        if (
+            self.gemm.weight.device.type != "xpu"
+            or self.gemm.weight.dtype != torch.float16
+            or not self.gemm.weight.is_contiguous()
+        ):
+            self.gemm.weight.data = self.gemm.weight.data.to(
+                device="xpu", dtype=torch.float16
+            ).contiguous()
             moved = True
         if self.gemm.bias is not None and (
-            self.gemm.bias.device.type != "xpu" or self.gemm.bias.dtype != torch.float16 or not self.gemm.bias.is_contiguous()
+            self.gemm.bias.device.type != "xpu"
+            or self.gemm.bias.dtype != torch.float16
+            or not self.gemm.bias.is_contiguous()
         ):
-            self.gemm.bias.data = self.gemm.bias.data.to(device="xpu", dtype=torch.float16).contiguous()
+            self.gemm.bias.data = self.gemm.bias.data.to(
+                device="xpu", dtype=torch.float16
+            ).contiguous()
             moved = True
 
         current_version = self.gemm.weight._version
-        if (not self._xpu_ready) or moved or (self._packed_weight_t is None) or (self._packed_weight_version != current_version):
+        if (
+            (not self._xpu_ready)
+            or moved
+            or (self._packed_weight_t is None)
+            or (self._packed_weight_version != current_version)
+        ):
             self._packed_weight_t = self.gemm.weight.transpose(0, 1).contiguous()
             self._packed_weight_version = current_version
             self._xpu_ready = True
@@ -416,4 +623,6 @@ class Model(nn.Module):
         self._ensure_xpu_params()
         if x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous():
             x = x.to(device="xpu", dtype=torch.float16).contiguous()
-        return kernel_function(x, self.gemm.weight, self.gemm.bias, self._packed_weight_t)
+        return kernel_function(
+            x, self.gemm.weight, self.gemm.bias, self._packed_weight_t
+        )

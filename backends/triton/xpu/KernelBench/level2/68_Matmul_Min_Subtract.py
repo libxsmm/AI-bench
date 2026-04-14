@@ -7,43 +7,151 @@ import triton.language as tl
 
 def _build_linear_configs():
     return [
-        triton.Config({"BLOCK_N": 64, "BLOCK_M": 64, "BLOCK_K": 32}, num_warps=4, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_M": 128, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 16}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 32}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 32}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 32}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 64}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_M": 64, "BLOCK_K": 32}, num_warps=4, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_M": 128, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 16}, num_warps=16, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 32}, num_warps=16, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 32}, num_warps=16, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 32}, num_warps=32, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 64}, num_warps=32, num_stages=2
+        ),
     ]
 
 
 def _build_fused_gemm_configs():
     return [
-        triton.Config({"BLOCK_N": 64, "BLOCK_M": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_M": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 64, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 16, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 16, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 8}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_M": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_M": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 64, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 16, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 128, "BLOCK_M": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_N": 256, "BLOCK_M": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
     ]
 
 
@@ -59,10 +167,15 @@ def _linear_bias_kernel(
     w_ptr,  # packed as [K, M]
     b_ptr,
     y_ptr,
-    N, M, K,
-    stride_xn, stride_xk,
-    stride_wk, stride_wm,
-    stride_yn, stride_ym,
+    N,
+    M,
+    K,
+    stride_xn,
+    stride_xk,
+    stride_wk,
+    stride_wm,
+    stride_yn,
+    stride_ym,
     BLOCK_N: tl.constexpr,
     BLOCK_M: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -106,9 +219,12 @@ def _min_sub_scalar_kernel(
     x_ptr,
     c_ptr,
     y_ptr,
-    B, O,
-    stride_xm, stride_xn,
-    stride_ym, stride_yn,
+    B,
+    O,
+    stride_xm,
+    stride_xn,
+    stride_ym,
+    stride_yn,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid_col = tl.program_id(0)
@@ -145,10 +261,15 @@ def _linear_bias_minsub_kernel(
     b_ptr,
     c_ptr,
     y_ptr,
-    N, M, K,
-    stride_xn, stride_xk,
-    stride_wk, stride_wm,
-    stride_yn, stride_ym,
+    N,
+    M,
+    K,
+    stride_xn,
+    stride_xk,
+    stride_wk,
+    stride_wm,
+    stride_yn,
+    stride_ym,
     BLOCK_N: tl.constexpr,
     BLOCK_M: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -223,10 +344,15 @@ def _linear_bias_minsub_kernel_aligned(
     b_ptr,
     c_ptr,
     y_ptr,
-    N, M, K,
-    stride_xn, stride_xk,
-    stride_wk, stride_wm,
-    stride_yn, stride_ym,
+    N,
+    M,
+    K,
+    stride_xn,
+    stride_xk,
+    stride_wk,
+    stride_wm,
+    stride_yn,
+    stride_ym,
     BLOCK_N: tl.constexpr,
     BLOCK_M: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -293,10 +419,20 @@ def _linear_bias_minsub_kernel_aligned(
     tl.store(y_bp, acc.to(y_ptr.dtype.element_ty))
 
 
-def linear_bias_triton(x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
-    if not (isinstance(x, torch.Tensor) and isinstance(weight_t, torch.Tensor) and isinstance(bias, torch.Tensor)):
+def linear_bias_triton(
+    x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight_t, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("x, weight_t, bias must be tensors")
-    if x.device.type != "xpu" or weight_t.device.type != "xpu" or bias.device.type != "xpu":
+    if (
+        x.device.type != "xpu"
+        or weight_t.device.type != "xpu"
+        or bias.device.type != "xpu"
+    ):
         raise RuntimeError("All tensors must be on 'xpu'")
     if x.ndim != 2 or weight_t.ndim != 2 or bias.ndim != 1:
         raise ValueError("x: [N,K], weight_t: [K,M], bias: [M]")
@@ -320,11 +456,19 @@ def linear_bias_triton(x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tens
         return (triton.cdiv(N, meta["BLOCK_N"]), triton.cdiv(M, meta["BLOCK_M"]))
 
     _linear_bias_kernel[grid](
-        x_xpu, wt_xpu, b_xpu, y,
-        N, M, K,
-        x_xpu.stride(0), x_xpu.stride(1),
-        wt_xpu.stride(0), wt_xpu.stride(1),
-        y.stride(0), y.stride(1),
+        x_xpu,
+        wt_xpu,
+        b_xpu,
+        y,
+        N,
+        M,
+        K,
+        x_xpu.stride(0),
+        x_xpu.stride(1),
+        wt_xpu.stride(0),
+        wt_xpu.stride(1),
+        y.stride(0),
+        y.stride(1),
     )
     return y
 
@@ -349,10 +493,15 @@ def min_sub_scalar_triton(x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
     BLOCK_SIZE = 256
     grid = (triton.cdiv(O, BLOCK_SIZE), B)
     _min_sub_scalar_kernel[grid](
-        x_xpu, c_xpu, y,
-        B, O,
-        x_xpu.stride(0), x_xpu.stride(1),
-        y.stride(0), y.stride(1),
+        x_xpu,
+        c_xpu,
+        y,
+        B,
+        O,
+        x_xpu.stride(0),
+        x_xpu.stride(1),
+        y.stride(0),
+        y.stride(1),
         BLOCK_SIZE=BLOCK_SIZE,
         num_warps=8,
         num_stages=2,
@@ -366,9 +515,19 @@ def linear_bias_minsub_triton(
     bias: torch.Tensor,
     c: torch.Tensor,
 ) -> torch.Tensor:
-    if not (isinstance(x, torch.Tensor) and isinstance(weight_t, torch.Tensor) and isinstance(bias, torch.Tensor) and isinstance(c, torch.Tensor)):
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight_t, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+        and isinstance(c, torch.Tensor)
+    ):
         raise TypeError("x, weight_t, bias, c must be tensors")
-    if x.device.type != "xpu" or weight_t.device.type != "xpu" or bias.device.type != "xpu" or c.device.type != "xpu":
+    if (
+        x.device.type != "xpu"
+        or weight_t.device.type != "xpu"
+        or bias.device.type != "xpu"
+        or c.device.type != "xpu"
+    ):
         raise RuntimeError("All tensors must be on 'xpu'")
     if x.ndim != 2 or weight_t.ndim != 2 or bias.ndim != 1:
         raise ValueError("x: [N,K], weight_t: [K,M], bias: [M]")
@@ -379,7 +538,11 @@ def linear_bias_minsub_triton(
     Kt, M = weight_t.shape
     if K != Kt or bias.shape[0] != M:
         raise ValueError("Shape mismatch")
-    if x.dtype != weight_t.dtype or bias.dtype != weight_t.dtype or c.dtype != weight_t.dtype:
+    if (
+        x.dtype != weight_t.dtype
+        or bias.dtype != weight_t.dtype
+        or c.dtype != weight_t.dtype
+    ):
         raise TypeError("dtypes must match")
     if x.dtype not in (torch.float16, torch.bfloat16):
         raise NotImplementedError("dtype not supported")
@@ -392,35 +555,57 @@ def linear_bias_minsub_triton(
     y = torch.empty((N, M), device="xpu", dtype=x_xpu.dtype)
 
     if (N % 128 == 0) and (M % 128 == 0) and (K % 32 == 0):
+
         def grid_aligned(meta):
             num_pid_n = N // meta["BLOCK_N"]
             num_pid_m = M // meta["BLOCK_M"]
             return (num_pid_n * num_pid_m,)
 
         _linear_bias_minsub_kernel_aligned[grid_aligned](
-            x_xpu, wt_xpu, b_xpu, c_xpu, y,
-            N, M, K,
-            x_xpu.stride(0), x_xpu.stride(1),
-            wt_xpu.stride(0), wt_xpu.stride(1),
-            y.stride(0), y.stride(1),
+            x_xpu,
+            wt_xpu,
+            b_xpu,
+            c_xpu,
+            y,
+            N,
+            M,
+            K,
+            x_xpu.stride(0),
+            x_xpu.stride(1),
+            wt_xpu.stride(0),
+            wt_xpu.stride(1),
+            y.stride(0),
+            y.stride(1),
         )
     else:
+
         def grid(meta):
             num_pid_n = triton.cdiv(N, meta["BLOCK_N"])
             num_pid_m = triton.cdiv(M, meta["BLOCK_M"])
             return (num_pid_n * num_pid_m,)
 
         _linear_bias_minsub_kernel[grid](
-            x_xpu, wt_xpu, b_xpu, c_xpu, y,
-            N, M, K,
-            x_xpu.stride(0), x_xpu.stride(1),
-            wt_xpu.stride(0), wt_xpu.stride(1),
-            y.stride(0), y.stride(1),
+            x_xpu,
+            wt_xpu,
+            b_xpu,
+            c_xpu,
+            y,
+            N,
+            M,
+            K,
+            x_xpu.stride(0),
+            x_xpu.stride(1),
+            wt_xpu.stride(0),
+            wt_xpu.stride(1),
+            y.stride(0),
+            y.stride(1),
         )
     return y
 
 
-def kernel_function(x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor, c: torch.Tensor
+) -> torch.Tensor:
     """
     Performs: y = min(x @ weight_t + bias, c) - c
     where weight_t is packed/transposed as [K, M].
@@ -492,8 +677,12 @@ class Model(nn.Module):
 
     def _ensure_xpu_params_and_packed_weight(self, x_dtype):
         if not self._params_on_xpu:
-            self.linear.weight.data = self.linear.weight.data.to(device="xpu", dtype=x_dtype).contiguous()
-            self.linear.bias.data = self.linear.bias.data.to(device="xpu", dtype=x_dtype).contiguous()
+            self.linear.weight.data = self.linear.weight.data.to(
+                device="xpu", dtype=x_dtype
+            ).contiguous()
+            self.linear.bias.data = self.linear.bias.data.to(
+                device="xpu", dtype=x_dtype
+            ).contiguous()
             self._params_on_xpu = True
             self._packed_weight_t = None
             self._packed_weight_version = None

@@ -150,12 +150,22 @@ def _reduce_partial_max_configs():
 )
 @triton.jit
 def _linear_bias_kernel(
-    a_ptr, w_ptr, b_ptr, c_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_bk, stride_bn,
-    stride_cm, stride_cn,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr
+    a_ptr,
+    w_ptr,
+    b_ptr,
+    c_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_bk,
+    stride_bn,
+    stride_cm,
+    stride_cn,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -202,7 +212,7 @@ def _linear_bias_kernel(
 
 
 def _linear(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
-    assert x.device.type == 'xpu'
+    assert x.device.type == "xpu"
     assert weight.device == x.device and bias.device == x.device
     M, Kx = x.shape
     Nw, Kw = weight.shape
@@ -216,14 +226,22 @@ def _linear(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.
     stride_cm, stride_cn = y.stride()
 
     def grid(meta):
-        return (triton.cdiv(M, meta['BLOCK_M']), triton.cdiv(Nw, meta['BLOCK_N']))
+        return (triton.cdiv(M, meta["BLOCK_M"]), triton.cdiv(Nw, meta["BLOCK_N"]))
 
     _linear_bias_kernel[grid](
-        x, weight, bias, y,
-        M, Nw, Kx,
-        stride_am, stride_ak,
-        stride_bk, stride_bn,
-        stride_cm, stride_cn
+        x,
+        weight,
+        bias,
+        y,
+        M,
+        Nw,
+        Kx,
+        stride_am,
+        stride_ak,
+        stride_bk,
+        stride_bn,
+        stride_cm,
+        stride_cn,
     )
     return y
 
@@ -233,8 +251,16 @@ def _linear(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.
 # ---------------------------------------------------
 @triton.jit
 def _pool_gelu_scale_reduce_max_kernel(
-    x_ptr, out_ptr, N, W, stride_n, stride_w, scale,
-    POOL_K: tl.constexpr, STRIDE: tl.constexpr, BLOCK_POOLS: tl.constexpr
+    x_ptr,
+    out_ptr,
+    N,
+    W,
+    stride_n,
+    stride_w,
+    scale,
+    POOL_K: tl.constexpr,
+    STRIDE: tl.constexpr,
+    BLOCK_POOLS: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
     row_mask = pid < N
@@ -242,7 +268,7 @@ def _pool_gelu_scale_reduce_max_kernel(
     row_start = pid * stride_n
     offs_p = tl.arange(0, BLOCK_POOLS)
     offs_k = tl.arange(0, POOL_K)
-    running_max = tl.zeros((), dtype=tl.float32) - float('inf')
+    running_max = tl.zeros((), dtype=tl.float32) - float("inf")
     INV_SQRT2 = 0.7071067811865476
     for start_p in tl.range(0, num_pools, BLOCK_POOLS):
         idx_p = start_p + offs_p
@@ -260,7 +286,7 @@ def _pool_gelu_scale_reduce_max_kernel(
 
 
 def _pool(x: torch.Tensor, scale_factor: float) -> torch.Tensor:
-    assert x.device.type == 'xpu'
+    assert x.device.type == "xpu"
     assert x.dtype == torch.float16
     N, W = x.shape
     POOL_K = 16
@@ -270,9 +296,18 @@ def _pool(x: torch.Tensor, scale_factor: float) -> torch.Tensor:
     BLOCK_POOLS = 128
     grid = (N,)
     _pool_gelu_scale_reduce_max_kernel[grid](
-        x, out, N, W, x.stride(0), x.stride(1), float(scale_factor),
-        POOL_K=POOL_K, STRIDE=STRIDE, BLOCK_POOLS=BLOCK_POOLS,
-        num_warps=4, num_stages=2
+        x,
+        out,
+        N,
+        W,
+        x.stride(0),
+        x.stride(1),
+        float(scale_factor),
+        POOL_K=POOL_K,
+        STRIDE=STRIDE,
+        BLOCK_POOLS=BLOCK_POOLS,
+        num_warps=4,
+        num_stages=2,
     )
     return out
 
@@ -282,16 +317,26 @@ def _pool(x: torch.Tensor, scale_factor: float) -> torch.Tensor:
 # ----------------------------------------
 @triton.autotune(
     configs=_reduced_gemm_configs(),
-    key=['M', 'N', 'K'],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def _linear_bias_reduced_kernel(
-    a_ptr, w_ptr, b_ptr, c_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_wk, stride_wn,
-    stride_cm, stride_cn,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    a_ptr,
+    w_ptr,
+    b_ptr,
+    c_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_wk,
+    stride_wn,
+    stride_cm,
+    stride_cn,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -347,10 +392,12 @@ def _linear_bias_reduced_kernel(
     tl.store(c_bp, acc.to(c_ptr.dtype.element_ty), boundary_check=(0, 1))
 
 
-def _linear_reduced(x: torch.Tensor, weight_pool_kn: torch.Tensor, bias_pool: torch.Tensor) -> torch.Tensor:
-    assert x.device.type == 'xpu'
-    assert weight_pool_kn.device.type == 'xpu'
-    assert bias_pool.device.type == 'xpu'
+def _linear_reduced(
+    x: torch.Tensor, weight_pool_kn: torch.Tensor, bias_pool: torch.Tensor
+) -> torch.Tensor:
+    assert x.device.type == "xpu"
+    assert weight_pool_kn.device.type == "xpu"
+    assert bias_pool.device.type == "xpu"
     assert x.dtype == torch.float16
     assert weight_pool_kn.dtype == torch.float16
     assert bias_pool.dtype == torch.float16
@@ -365,14 +412,24 @@ def _linear_reduced(x: torch.Tensor, weight_pool_kn: torch.Tensor, bias_pool: to
     stride_wk, stride_wn = weight_pool_kn.stride()
     stride_cm, stride_cn = y.stride()
 
-    grid = lambda meta: (triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(Nw, meta['BLOCK_N']),)
+    grid = lambda meta: (
+        triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(Nw, meta["BLOCK_N"]),
+    )
 
     _linear_bias_reduced_kernel[grid](
-        x, weight_pool_kn, bias_pool, y,
-        M, Nw, Kx,
-        stride_am, stride_ak,
-        stride_wk, stride_wn,
-        stride_cm, stride_cn,
+        x,
+        weight_pool_kn,
+        bias_pool,
+        y,
+        M,
+        Nw,
+        Kx,
+        stride_am,
+        stride_ak,
+        stride_wk,
+        stride_wn,
+        stride_cm,
+        stride_cn,
         grf_mode="auto",
     )
     return y
@@ -389,17 +446,27 @@ def _linear_reduced(x: torch.Tensor, weight_pool_kn: torch.Tensor, bias_pool: to
 # ---------------------------------------------------------
 @triton.autotune(
     configs=_fused_partial_max_configs(),
-    key=['M', 'N', 'K'],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def _linear_gelu_scale_partial_max_kernel(
-    a_ptr, w_ptr, b_ptr, partial_ptr,
-    M, N, K,
-    stride_am, stride_ak,
-    stride_wk, stride_wn,
-    stride_pm, stride_pn,
+    a_ptr,
+    w_ptr,
+    b_ptr,
+    partial_ptr,
+    M,
+    N,
+    K,
+    stride_am,
+    stride_ak,
+    stride_wk,
+    stride_wn,
+    stride_pm,
+    stride_pn,
     scale,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -458,13 +525,16 @@ def _linear_gelu_scale_partial_max_kernel(
 
 @triton.autotune(
     configs=_reduce_partial_max_configs(),
-    key=['num_tiles_n'],
+    key=["num_tiles_n"],
 )
 @triton.jit
 def _reduce_partial_max_kernel(
-    partial_ptr, out_ptr,
-    M, num_tiles_n,
-    stride_pm, stride_pn,
+    partial_ptr,
+    out_ptr,
+    M,
+    num_tiles_n,
+    stride_pm,
+    stride_pn,
     BLOCK_TILES: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
@@ -484,11 +554,14 @@ def _reduce_partial_max_kernel(
 
 
 def _linear_gelu_scale_reduce_max_fused(
-    x: torch.Tensor, weight_pool_kn: torch.Tensor, bias_pool: torch.Tensor, scale_factor: float
+    x: torch.Tensor,
+    weight_pool_kn: torch.Tensor,
+    bias_pool: torch.Tensor,
+    scale_factor: float,
 ) -> torch.Tensor:
-    assert x.device.type == 'xpu'
-    assert weight_pool_kn.device.type == 'xpu'
-    assert bias_pool.device.type == 'xpu'
+    assert x.device.type == "xpu"
+    assert weight_pool_kn.device.type == "xpu"
+    assert bias_pool.device.type == "xpu"
     assert x.dtype == torch.float16
     assert weight_pool_kn.dtype == torch.float16
     assert bias_pool.dtype == torch.float16
@@ -505,32 +578,48 @@ def _linear_gelu_scale_reduce_max_fused(
     stride_wk, stride_wn = weight_pool_kn.stride()
     stride_pm, stride_pn = partial.stride()
 
-    grid = lambda meta: (triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(Nw, meta['BLOCK_N']),)
+    grid = lambda meta: (
+        triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(Nw, meta["BLOCK_N"]),
+    )
 
     _linear_gelu_scale_partial_max_kernel[grid](
-        x, weight_pool_kn, bias_pool, partial,
-        M, Nw, Kx,
-        stride_am, stride_ak,
-        stride_wk, stride_wn,
-        stride_pm, stride_pn,
+        x,
+        weight_pool_kn,
+        bias_pool,
+        partial,
+        M,
+        Nw,
+        Kx,
+        stride_am,
+        stride_ak,
+        stride_wk,
+        stride_wn,
+        stride_pm,
+        stride_pn,
         float(scale_factor),
         grf_mode="auto",
     )
 
     out = torch.empty((M,), device=x.device, dtype=x.dtype)
     _reduce_partial_max_kernel[(M,)](
-        partial, out,
-        M, partial.shape[1],
-        partial.stride(0), partial.stride(1),
+        partial,
+        out,
+        M,
+        partial.shape[1],
+        partial.stride(0),
+        partial.stride(1),
     )
     return out
 
 
 @triton.jit
 def _gelu_scale_reduce_max_kernel(
-    x_ptr, out_ptr,
-    M, N,
-    stride_xm, stride_xn,
+    x_ptr,
+    out_ptr,
+    M,
+    N,
+    stride_xm,
+    stride_xn,
     scale,
     BLOCK_N: tl.constexpr,
 ):
@@ -554,14 +643,17 @@ def _gelu_scale_reduce_max_kernel(
 
 
 def _gelu_scale_reduce_max(x: torch.Tensor, scale_factor: float) -> torch.Tensor:
-    assert x.device.type == 'xpu'
+    assert x.device.type == "xpu"
     assert x.dtype == torch.float16
     M, N = x.shape
     out = torch.empty((M,), device=x.device, dtype=x.dtype)
     _gelu_scale_reduce_max_kernel[(M,)](
-        x, out,
-        M, N,
-        x.stride(0), x.stride(1),
+        x,
+        out,
+        M,
+        N,
+        x.stride(0),
+        x.stride(1),
         float(scale_factor),
         BLOCK_N=128,
         num_warps=4,
@@ -570,7 +662,9 @@ def _gelu_scale_reduce_max(x: torch.Tensor, scale_factor: float) -> torch.Tensor
     return out
 
 
-def _compute_pooled_params(weight: torch.Tensor, bias: torch.Tensor, pool_kernel_size: int):
+def _compute_pooled_params(
+    weight: torch.Tensor, bias: torch.Tensor, pool_kernel_size: int
+):
     assert weight.ndim == 2
     assert bias.ndim == 1
     assert weight.shape[0] % pool_kernel_size == 0
@@ -620,7 +714,9 @@ def _pool_cache_key(weight: torch.Tensor, bias: torch.Tensor, pool_kernel_size: 
     )
 
 
-def _get_cached_pooled_params(weight: torch.Tensor, bias: torch.Tensor, pool_kernel_size: int):
+def _get_cached_pooled_params(
+    weight: torch.Tensor, bias: torch.Tensor, pool_kernel_size: int
+):
     key = _pool_cache_key(weight, bias, pool_kernel_size)
     cached = _GLOBAL_POOL_CACHE.get(key, None)
     if cached is None:
@@ -631,20 +727,39 @@ def _get_cached_pooled_params(weight: torch.Tensor, bias: torch.Tensor, pool_ker
 
 
 def kernel_function(
-    x: torch.Tensor,
-    weight: torch.Tensor,
-    bias: torch.Tensor,
-    scale_factor: float
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, scale_factor: float
 ) -> torch.Tensor:
-    if not hasattr(torch, 'xpu') or not torch.xpu.is_available():
+    if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("XPU device is not available")
 
-    x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()) else x
-    weight_xpu = weight.to("xpu", dtype=torch.float16).contiguous() if (weight.device.type != "xpu" or weight.dtype != torch.float16 or not weight.is_contiguous()) else weight
-    bias_xpu = bias.to("xpu", dtype=torch.float16).contiguous() if (bias.device.type != "xpu" or bias.dtype != torch.float16 or not bias.is_contiguous()) else bias
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16).contiguous()
+        if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous())
+        else x
+    )
+    weight_xpu = (
+        weight.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            weight.device.type != "xpu"
+            or weight.dtype != torch.float16
+            or not weight.is_contiguous()
+        )
+        else weight
+    )
+    bias_xpu = (
+        bias.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            bias.device.type != "xpu"
+            or bias.dtype != torch.float16
+            or not bias.is_contiguous()
+        )
+        else bias
+    )
 
     _, weight_pool_kn, bias_pool = _get_cached_pooled_params(weight_xpu, bias_xpu, 16)
-    out = _linear_gelu_scale_reduce_max_fused(x_xpu, weight_pool_kn, bias_pool, scale_factor)
+    out = _linear_gelu_scale_reduce_max_fused(
+        x_xpu, weight_pool_kn, bias_pool, scale_factor
+    )
 
     return out
 
@@ -676,10 +791,22 @@ class Model(nn.Module):
         self._cached_bias_pool = None
 
     def _ensure_xpu_and_cache(self):
-        if self.matmul.weight.device.type != "xpu" or self.matmul.weight.dtype != torch.float16 or not self.matmul.weight.is_contiguous():
-            self.matmul.weight.data = self.matmul.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.matmul.bias.device.type != "xpu" or self.matmul.bias.dtype != torch.float16 or not self.matmul.bias.is_contiguous():
-            self.matmul.bias.data = self.matmul.bias.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.matmul.weight.device.type != "xpu"
+            or self.matmul.weight.dtype != torch.float16
+            or not self.matmul.weight.is_contiguous()
+        ):
+            self.matmul.weight.data = self.matmul.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.matmul.bias.device.type != "xpu"
+            or self.matmul.bias.dtype != torch.float16
+            or not self.matmul.bias.is_contiguous()
+        ):
+            self.matmul.bias.data = self.matmul.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
 
         weight = self.matmul.weight
         bias = self.matmul.bias
@@ -698,14 +825,27 @@ class Model(nn.Module):
         )
 
         if self._cache_key != cache_key:
-            self._cached_weight_pool, self._cached_weight_pool_kn, self._cached_bias_pool = _compute_pooled_params(
-                weight, bias, self.pool_kernel_size
-            )
+            (
+                self._cached_weight_pool,
+                self._cached_weight_pool_kn,
+                self._cached_bias_pool,
+            ) = _compute_pooled_params(weight, bias, self.pool_kernel_size)
             self._cache_key = cache_key
 
     def forward(self, x):
         self._ensure_xpu_and_cache()
-        x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()) else x
+        x_xpu = (
+            x.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                x.device.type != "xpu"
+                or x.dtype != torch.float16
+                or not x.is_contiguous()
+            )
+            else x
+        )
         return _linear_gelu_scale_reduce_max_fused(
-            x_xpu, self._cached_weight_pool_kn, self._cached_bias_pool, self.scale_factor
+            x_xpu,
+            self._cached_weight_pool_kn,
+            self._cached_bias_pool,
+            self.scale_factor,
         )

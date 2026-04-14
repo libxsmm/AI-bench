@@ -8,18 +8,51 @@ import triton.language as tl
 # Kept to preserve original Triton kernel presence/reference.
 @triton.jit
 def _conv3d_groupnorm_two_pass(
-    x_ptr, w_ptr, b_ptr, gn_w_ptr, gn_b_ptr, y_ptr,
-    N, C_IN, C_OUT, D_IN, H_IN, W_IN,
-    D_OUT, H_OUT, W_OUT,
-    STRIDE_D, STRIDE_H, STRIDE_W,
-    PAD_D, PAD_H, PAD_W,
-    DIL_D, DIL_H, DIL_W,
-    NUM_GROUPS, EPS,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
-    w_stride_co, w_stride_ci, w_stride_kd, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    gn_w_ptr,
+    gn_b_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    C_OUT,
+    D_IN,
+    H_IN,
+    W_IN,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    STRIDE_D,
+    STRIDE_H,
+    STRIDE_W,
+    PAD_D,
+    PAD_H,
+    PAD_W,
+    DIL_D,
+    DIL_H,
+    DIL_W,
+    NUM_GROUPS,
+    EPS,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
+    w_stride_co,
+    w_stride_ci,
+    w_stride_kd,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
     C_PER_GROUP: tl.constexpr,
-    K_D: tl.constexpr, K_H: tl.constexpr, K_W: tl.constexpr,
+    K_D: tl.constexpr,
+    K_H: tl.constexpr,
+    K_W: tl.constexpr,
     BLOCK_W: tl.constexpr,
 ):
     gid = tl.program_id(axis=0)
@@ -60,7 +93,9 @@ def _conv3d_groupnorm_two_pass(
                                         + ih_scalar * x_stride_h
                                         + iw_vec * x_stride_w
                                     )
-                                    x_vec = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
+                                    x_vec = tl.load(x_ptrs, mask=mask, other=0.0).to(
+                                        tl.float32
+                                    )
                                     w_ptrs = (
                                         w_ptr
                                         + oc_abs * w_stride_co
@@ -110,7 +145,9 @@ def _conv3d_groupnorm_two_pass(
                                         + ih_scalar * x_stride_h
                                         + iw_vec * x_stride_w
                                     )
-                                    x_vec = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
+                                    x_vec = tl.load(x_ptrs, mask=mask, other=0.0).to(
+                                        tl.float32
+                                    )
                                     w_ptrs = (
                                         w_ptr
                                         + oc_abs * w_stride_co
@@ -142,7 +179,11 @@ def _conv3d_groupnorm_two_pass(
 def _mean_reduce_5d_kernel(
     x_ptr,
     out_ptr,
-    N, C, D, H, W,
+    N,
+    C,
+    D,
+    H,
+    W,
     stride_n,
     BLOCK_SIZE: tl.constexpr,
 ):
@@ -222,8 +263,16 @@ def _groupnorm_batchmean_direct_kernel_cpg3_weighted(
     a_ptr,
     b_ptr,
     out_ptr,
-    N, C, D, H, W,
-    stride_zn, stride_zc, stride_zd, stride_zh, stride_zw,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_zn,
+    stride_zc,
+    stride_zd,
+    stride_zh,
+    stride_zw,
     num_groups,
     eps,
     BLOCK_S: tl.constexpr,
@@ -377,8 +426,16 @@ def kernel_function(
         affine_a_xpu,
         affine_b_xpu,
         out,
-        N, C, D, H, W,
-        z.stride(0), z.stride(1), z.stride(2), z.stride(3), z.stride(4),
+        N,
+        C,
+        D,
+        H,
+        W,
+        z.stride(0),
+        z.stride(1),
+        z.stride(2),
+        z.stride(3),
+        z.stride(4),
         num_groups,
         eps,
     )
@@ -427,7 +484,9 @@ class Model(nn.Module):
             or self._conv_weight_ver != cur_w_ver
             or self._conv_weight_xpu.device.type != "xpu"
         ):
-            self._conv_weight_xpu = w.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._conv_weight_xpu = (
+                w.detach().to("xpu", dtype=torch.float16).contiguous()
+            )
             self._conv_weight_ver = cur_w_ver
 
         if self.conv.bias is not None:
@@ -438,7 +497,9 @@ class Model(nn.Module):
                 or self._conv_bias_ver != cur_b_ver
                 or self._conv_bias_xpu.device.type != "xpu"
             ):
-                self._conv_bias_xpu = b.detach().to("xpu", dtype=torch.float16).contiguous()
+                self._conv_bias_xpu = (
+                    b.detach().to("xpu", dtype=torch.float16).contiguous()
+                )
                 self._conv_bias_ver = cur_b_ver
         else:
             self._conv_bias_xpu = None
@@ -450,7 +511,9 @@ class Model(nn.Module):
             or self._gn_weight_ver != cur_gw_ver
             or self._gn_weight_xpu.device.type != "xpu"
         ):
-            self._gn_weight_xpu = gw.detach().to("xpu", dtype=torch.float32).contiguous()
+            self._gn_weight_xpu = (
+                gw.detach().to("xpu", dtype=torch.float32).contiguous()
+            )
             self._gn_weight_ver = cur_gw_ver
 
         gb = self.group_norm.bias

@@ -16,18 +16,36 @@ def _conv_transpose2d_bias_fused(
     w_ptr,
     b_ptr,
     y_ptr,
-    N, C_in, C_out,
-    H_in, W_in, H_out, W_out,
-    sxn, sxc, sxh, sxw,
-    swci, swco, swkh, swkw,
-    syn, syc, syh, syw,
+    N,
+    C_in,
+    C_out,
+    H_in,
+    W_in,
+    H_out,
+    W_out,
+    sxn,
+    sxc,
+    sxh,
+    sxw,
+    swci,
+    swco,
+    swkh,
+    swkw,
+    syn,
+    syc,
+    syh,
+    syw,
     BLOCK_CO: tl.constexpr,
     BLOCK_H: tl.constexpr,
     BLOCK_W: tl.constexpr,
-    STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_H: tl.constexpr, DIL_W: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     num_warps: tl.constexpr = 8,
 ):
     pid0 = tl.program_id(0)
@@ -77,21 +95,11 @@ def _conv_transpose2d_bias_fused(
                 mask2d = mask_hi[:, None] & mask_wi[None, :]
 
                 x_ptrs = (
-                    x_ptr
-                    + n * sxn
-                    + ci * sxc
-                    + hi[:, None] * sxh
-                    + wi[None, :] * sxw
+                    x_ptr + n * sxn + ci * sxc + hi[:, None] * sxh + wi[None, :] * sxw
                 )
                 x_vals = tl.load(x_ptrs, mask=mask2d, other=0.0)
 
-                w_ptrs = (
-                    w_ptr
-                    + ci * swci
-                    + co_offsets * swco
-                    + kh * swkh
-                    + kw * swkw
-                )
+                w_ptrs = w_ptr + ci * swci + co_offsets * swco + kh * swkh + kw * swkw
                 w_vec = tl.load(w_ptrs, mask=co_mask, other=0.0)
 
                 acc += w_vec[:, None, None] * x_vals[None, :, :]
@@ -106,7 +114,9 @@ def _conv_transpose2d_bias_fused(
         + oh_offsets[None, :, None] * syh
         + ow_offsets[None, None, :] * syw
     )
-    mask_store = co_mask[:, None, None] & oh_mask[None, :, None] & ow_mask[None, None, :]
+    mask_store = (
+        co_mask[:, None, None] & oh_mask[None, :, None] & ow_mask[None, None, :]
+    )
     tl.store(y_ptrs, acc, mask=mask_store)
 
 
@@ -279,16 +289,24 @@ class Model(nn.Module):
     def _ensure_xpu_params(self):
         weight = self.conv_transpose.weight
         if weight.device.type != "xpu" or weight.dtype != torch.float16:
-            self.conv_transpose.weight.data = weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.weight.data = weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.conv_transpose.weight.is_contiguous():
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+            self.conv_transpose.weight.data = (
+                self.conv_transpose.weight.data.contiguous()
+            )
 
         if self.conv_transpose.bias is not None:
             bias = self.conv_transpose.bias
             if bias.device.type != "xpu" or bias.dtype != torch.float16:
-                self.conv_transpose.bias.data = bias.data.to("xpu", dtype=torch.float16).contiguous()
+                self.conv_transpose.bias.data = bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.conv_transpose.bias.is_contiguous():
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
+                self.conv_transpose.bias.data = (
+                    self.conv_transpose.bias.data.contiguous()
+                )
 
         add_bias = self.add_bias
         need_rebuild_flat = (
@@ -298,7 +316,9 @@ class Model(nn.Module):
             or (self.add_bias_flat.data_ptr() != add_bias.data_ptr())
         )
         if add_bias.device.type != "xpu" or add_bias.dtype != torch.float16:
-            self.add_bias.data = add_bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.add_bias.data = add_bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             add_bias = self.add_bias
             need_rebuild_flat = True
         elif not self.add_bias.is_contiguous():
@@ -320,15 +340,25 @@ class Model(nn.Module):
         if not self._xpu_params_ready:
             self._ensure_xpu_params()
         else:
-            if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16:
-                self._ensure_xpu_params()
-            elif self.conv_transpose.bias is not None and (
-                self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != torch.float16
+            if (
+                self.conv_transpose.weight.device.type != "xpu"
+                or self.conv_transpose.weight.dtype != torch.float16
             ):
                 self._ensure_xpu_params()
-            elif self.add_bias.device.type != "xpu" or self.add_bias.dtype != torch.float16:
+            elif self.conv_transpose.bias is not None and (
+                self.conv_transpose.bias.device.type != "xpu"
+                or self.conv_transpose.bias.dtype != torch.float16
+            ):
                 self._ensure_xpu_params()
-            elif self.add_bias_flat is None or self.add_bias_flat.data_ptr() != self.add_bias.data_ptr():
+            elif (
+                self.add_bias.device.type != "xpu"
+                or self.add_bias.dtype != torch.float16
+            ):
+                self._ensure_xpu_params()
+            elif (
+                self.add_bias_flat is None
+                or self.add_bias_flat.data_ptr() != self.add_bias.data_ptr()
+            ):
                 self._ensure_xpu_params()
 
         return kernel_function(

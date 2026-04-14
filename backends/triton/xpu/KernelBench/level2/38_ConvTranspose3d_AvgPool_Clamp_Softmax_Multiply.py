@@ -8,15 +8,39 @@ import triton.language as tl
 # ---------------- Subgraph 1: avg_pool3d -> conv_transpose3d -> clamp ----------------
 @triton.jit
 def _fused_pool_deconv3d_clamp(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, Cin, Cout, D, H, W,
-    Dp, Hp, Wp,
-    sXn, sXc, sXd, sXh, sXw,
-    sWcin, sWcout, sWkd, sWkh, sWkw,
-    sYn, sYc, sYd, sYh, sYw,
-    clamp_min, clamp_max,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    Cin,
+    Cout,
+    D,
+    H,
+    W,
+    Dp,
+    Hp,
+    Wp,
+    sXn,
+    sXc,
+    sXd,
+    sXh,
+    sXw,
+    sWcin,
+    sWcout,
+    sWkd,
+    sWkh,
+    sWkw,
+    sYn,
+    sYc,
+    sYd,
+    sYh,
+    sYw,
+    clamp_min,
+    clamp_max,
     DO_CLAMP: tl.constexpr,
-    BLOCK_CO: tl.constexpr, BLOCK_W: tl.constexpr
+    BLOCK_CO: tl.constexpr,
+    BLOCK_W: tl.constexpr,
 ):
     pid0 = tl.program_id(0)
     pid1 = tl.program_id(1)
@@ -61,9 +85,13 @@ def _fused_pool_deconv3d_clamp(
                     kw = 1 + ow_par - (xw & 1)
                     lane_mask = valid_d & valid_h & valid_w
 
-                    x_vals = tl.load(x_dh + xw * sXw, mask=lane_mask, other=0.0).to(tl.float32)
+                    x_vals = tl.load(x_dh + xw * sXw, mask=lane_mask, other=0.0).to(
+                        tl.float32
+                    )
                     w_base = w_ptr + ci * sWcin + kd * sWkd + kh * sWkh + kw * sWkw
-                    w_vals = tl.load(w_base + offs_co * sWcout, mask=mask_co, other=0.0).to(tl.float32)
+                    w_vals = tl.load(
+                        w_base + offs_co * sWcout, mask=mask_co, other=0.0
+                    ).to(tl.float32)
                     acc += (w_vals[:, None] * x_vals[None, :]) * scale
 
     b_vals = tl.load(b_ptr + offs_co, mask=mask_co, other=0.0).to(tl.float32)
@@ -82,8 +110,7 @@ def _fused_pool_deconv3d_clamp(
 
 @triton.jit
 def _clamp_5d_kernel(
-    x_ptr, y_ptr, n_elements, clamp_min, clamp_max,
-    BLOCK_SIZE: tl.constexpr
+    x_ptr, y_ptr, n_elements, clamp_min, clamp_max, BLOCK_SIZE: tl.constexpr
 ):
     pid = tl.program_id(0)
     offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
@@ -95,7 +122,7 @@ def _clamp_5d_kernel(
 
 
 def _sg1_fwd(x, w, b, clamp_min: float, clamp_max: float):
-    assert x.device.type == 'xpu' and w.device == x.device and b.device == x.device
+    assert x.device.type == "xpu" and w.device == x.device and b.device == x.device
     assert x.dtype == w.dtype == b.dtype
     N, Cin, D, H, W = x.shape
     Cout = w.shape[1]
@@ -116,16 +143,41 @@ def _sg1_fwd(x, w, b, clamp_min: float, clamp_max: float):
     grid = (N * D * H, triton.cdiv(Cout, BLOCK_CO))
 
     _fused_pool_deconv3d_clamp[grid](
-        x_, w_, b_, y_tmp,
-        N, Cin, Cout, D, H, W,
-        Dp, Hp, Wp,
-        sXn, sXc, sXd, sXh, sXw,
-        sWcin, sWcout, sWkd, sWkh, sWkw,
-        sYn, sYc, sYd, sYh, sYw,
-        float(clamp_min), float(clamp_max),
+        x_,
+        w_,
+        b_,
+        y_tmp,
+        N,
+        Cin,
+        Cout,
+        D,
+        H,
+        W,
+        Dp,
+        Hp,
+        Wp,
+        sXn,
+        sXc,
+        sXd,
+        sXh,
+        sXw,
+        sWcin,
+        sWcout,
+        sWkd,
+        sWkh,
+        sWkw,
+        sYn,
+        sYc,
+        sYd,
+        sYh,
+        sYw,
+        float(clamp_min),
+        float(clamp_max),
         DO_CLAMP=False,
-        BLOCK_CO=BLOCK_CO, BLOCK_W=BLOCK_W,
-        num_warps=4, num_stages=1
+        BLOCK_CO=BLOCK_CO,
+        BLOCK_W=BLOCK_W,
+        num_warps=4,
+        num_stages=1,
     )
 
     y = torch.empty_like(y_tmp)
@@ -133,9 +185,14 @@ def _sg1_fwd(x, w, b, clamp_min: float, clamp_max: float):
     BLOCK_SIZE = 1024
     clamp_grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
     _clamp_5d_kernel[clamp_grid](
-        y_tmp, y, n_elements, float(clamp_min), float(clamp_max),
+        y_tmp,
+        y,
+        n_elements,
+        float(clamp_min),
+        float(clamp_max),
         BLOCK_SIZE=BLOCK_SIZE,
-        num_warps=4, num_stages=1
+        num_warps=4,
+        num_stages=1,
     )
     return y
 
@@ -186,7 +243,9 @@ def _spatial_softmax3d_rowwise(x_ptr, y_ptr, R, S, BLOCK_SIZE: tl.constexpr):
     key=["S"],
 )
 @triton.jit
-def _spatial_softmax3d_rowwise_scaled(x_ptr, scale_ptr, y_ptr, R, S, C, stride_sc, BLOCK_SIZE: tl.constexpr):
+def _spatial_softmax3d_rowwise_scaled(
+    x_ptr, scale_ptr, y_ptr, R, S, C, stride_sc, BLOCK_SIZE: tl.constexpr
+):
     pid = tl.program_id(0)
     if pid >= R:
         return
@@ -217,7 +276,7 @@ def _spatial_softmax3d_rowwise_scaled(x_ptr, scale_ptr, y_ptr, R, S, C, stride_s
 
 
 def _sg2_fwd(x):
-    assert x.device.type == 'xpu'
+    assert x.device.type == "xpu"
     assert x.dtype in (torch.float16, torch.bfloat16)
     assert x.is_contiguous()
     B, C, D, H, W = x.shape
@@ -233,7 +292,7 @@ def _sg2_fwd(x):
 
 
 def _sg23_fwd(x, scale):
-    assert x.device.type == 'xpu' and scale.device == x.device
+    assert x.device.type == "xpu" and scale.device == x.device
     assert x.dtype in (torch.float16, torch.bfloat16)
     assert x.is_contiguous()
     B, C, D, H, W = x.shape
@@ -252,7 +311,9 @@ def _sg23_fwd(x, scale):
 
 # ---------------- Subgraph 3: channel scale multiply ----------------
 @triton.jit
-def _channel_scale_kernel(x_ptr, scale_ptr, y_ptr, n_elements, C, DHW, stride_sc, BLOCK_SIZE: tl.constexpr):
+def _channel_scale_kernel(
+    x_ptr, scale_ptr, y_ptr, n_elements, C, DHW, stride_sc, BLOCK_SIZE: tl.constexpr
+):
     pid = tl.program_id(0)
     offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offs < n_elements
@@ -265,7 +326,7 @@ def _channel_scale_kernel(x_ptr, scale_ptr, y_ptr, n_elements, C, DHW, stride_sc
 
 
 def _sg3_fwd(x, scale):
-    assert x.device.type == 'xpu' and scale.device == x.device
+    assert x.device.type == "xpu" and scale.device == x.device
     N, C, D, H, W = x.shape
     assert scale.shape == (1, C, 1, 1, 1)
     x_contig = x.contiguous()
@@ -277,36 +338,47 @@ def _sg3_fwd(x, scale):
     BLOCK_SIZE = 256
     grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
     _channel_scale_kernel[grid](
-        x_contig, scale_contig, y,
-        n_elements, C, DHW, stride_sc,
+        x_contig,
+        scale_contig,
+        y,
+        n_elements,
+        C,
+        DHW,
+        stride_sc,
         BLOCK_SIZE=BLOCK_SIZE,
-        num_warps=4, num_stages=1
+        num_warps=4,
+        num_stages=1,
     )
     return y
 
 
 # ---------------- Top-level fused function ----------------
 def kernel_function(x, w, b, scale):
-    assert hasattr(torch, 'xpu') and torch.xpu.is_available(), 'XPU not available'
+    assert hasattr(torch, "xpu") and torch.xpu.is_available(), "XPU not available"
 
-    if x.device.type != 'xpu' or x.dtype != torch.float16:
-        x_xpu = x.to('xpu', dtype=torch.float16).contiguous()
+    if x.device.type != "xpu" or x.dtype != torch.float16:
+        x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
     else:
         x_xpu = x.contiguous()
-    if w.device.type != 'xpu' or w.dtype != torch.float16:
-        w_xpu = w.to('xpu', dtype=torch.float16).contiguous()
+    if w.device.type != "xpu" or w.dtype != torch.float16:
+        w_xpu = w.to("xpu", dtype=torch.float16).contiguous()
     else:
         w_xpu = w.contiguous()
-    if b.device.type != 'xpu' or b.dtype != torch.float16:
-        b_xpu = b.to('xpu', dtype=torch.float16).contiguous()
+    if b.device.type != "xpu" or b.dtype != torch.float16:
+        b_xpu = b.to("xpu", dtype=torch.float16).contiguous()
     else:
         b_xpu = b.contiguous()
-    if scale.device.type != 'xpu' or scale.dtype != torch.float16:
-        scale_xpu = scale.to('xpu', dtype=torch.float16).contiguous()
+    if scale.device.type != "xpu" or scale.dtype != torch.float16:
+        scale_xpu = scale.to("xpu", dtype=torch.float16).contiguous()
     else:
         scale_xpu = scale.contiguous()
 
-    assert x_xpu.dim() == 5 and w_xpu.dim() == 5 and b_xpu.dim() == 1 and scale_xpu.dim() == 5
+    assert (
+        x_xpu.dim() == 5
+        and w_xpu.dim() == 5
+        and b_xpu.dim() == 1
+        and scale_xpu.dim() == 5
+    )
     y1 = _sg1_fwd(x_xpu, w_xpu, b_xpu, 0.0, 1.0)
     y = _sg23_fwd(y1, scale_xpu)
     return y
@@ -317,10 +389,28 @@ def run_test():
     from torch import nn
 
     class RefModel(nn.Module):
-        def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, clamp_min, clamp_max):
+        def __init__(
+            self,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            output_padding,
+            pool_kernel_size,
+            clamp_min,
+            clamp_max,
+        ):
             super().__init__()
             self.avg_pool = nn.AvgPool3d(pool_kernel_size)
-            self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding)
+            self.conv_transpose = nn.ConvTranspose3d(
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=padding,
+                output_padding=output_padding,
+            )
             self.clamp_min = clamp_min
             self.clamp_max = clamp_max
             self.scale = nn.Parameter(torch.ones(1, out_channels, 1, 1, 1))
@@ -343,25 +433,37 @@ def run_test():
     pool_kernel_size = 2
     clamp_min, clamp_max = 0.0, 1.0
 
-    x_cpu = torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)
-    model = RefModel(in_channels, out_channels, kernel_size, (stride,) * 3, (padding,) * 3, (output_padding,) * 3, (pool_kernel_size,) * 3, clamp_min, clamp_max)
+    x_cpu = torch.rand(
+        batch_size, in_channels, depth, height, width, dtype=torch.float16
+    )
+    model = RefModel(
+        in_channels,
+        out_channels,
+        kernel_size,
+        (stride,) * 3,
+        (padding,) * 3,
+        (output_padding,) * 3,
+        (pool_kernel_size,) * 3,
+        clamp_min,
+        clamp_max,
+    )
     ref = model(x_cpu)
 
-    x_t = x_cpu.to('xpu')
-    w_t = model.conv_transpose.weight.to('xpu')
-    b_t = model.conv_transpose.bias.to('xpu')
-    scale_t = model.scale.to('xpu')
+    x_t = x_cpu.to("xpu")
+    w_t = model.conv_transpose.weight.to("xpu")
+    b_t = model.conv_transpose.bias.to("xpu")
+    scale_t = model.scale.to("xpu")
 
     y_t = kernel_function(x_t, w_t, b_t, scale_t)
     torch.xpu.synchronize()
     y_cpu = y_t.cpu()
 
     if torch.allclose(ref, y_cpu, rtol=1e-3, atol=1e-3):
-        print('PASS')
+        print("PASS")
         exit(0)
     else:
         max_err = (ref - y_cpu).abs().max().item()
-        print(f'FAIL: max error {max_err}')
+        print(f"FAIL: max error {max_err}")
         exit(1)
 
 
@@ -383,13 +485,41 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, clamp_min, clamp_max]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        pool_kernel_size,
+        clamp_min,
+        clamp_max,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, clamp_min, clamp_max):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        pool_kernel_size,
+        clamp_min,
+        clamp_max,
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=2, padding=1, output_padding=output_padding)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=2,
+            padding=1,
+            output_padding=output_padding,
+        )
         self.scale = nn.Parameter(torch.ones(1, out_channels, 1, 1, 1))
         self.stride = stride
         self.padding = padding
@@ -399,19 +529,33 @@ class Model(nn.Module):
         self._params_on_xpu = False
 
     def forward(self, x):
-        if x.device.type != 'xpu' or x.dtype != torch.float16:
-            x = x.to('xpu', dtype=torch.float16).contiguous()
+        if x.device.type != "xpu" or x.dtype != torch.float16:
+            x = x.to("xpu", dtype=torch.float16).contiguous()
         else:
             x = x.contiguous()
 
-        if (not self._params_on_xpu) or self.conv_transpose.weight.device.type != 'xpu' or self.conv_transpose.weight.dtype != torch.float16:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to('xpu', dtype=torch.float16).contiguous()
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to('xpu', dtype=torch.float16).contiguous()
-            self.scale.data = self.scale.data.to('xpu', dtype=torch.float16).contiguous()
+        if (
+            (not self._params_on_xpu)
+            or self.conv_transpose.weight.device.type != "xpu"
+            or self.conv_transpose.weight.dtype != torch.float16
+        ):
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.scale.data = self.scale.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self._params_on_xpu = True
         else:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+            self.conv_transpose.weight.data = (
+                self.conv_transpose.weight.data.contiguous()
+            )
             self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
             self.scale.data = self.scale.data.contiguous()
 
-        return kernel_function(x, self.conv_transpose.weight, self.conv_transpose.bias, self.scale)
+        return kernel_function(
+            x, self.conv_transpose.weight, self.conv_transpose.bias, self.scale
+        )

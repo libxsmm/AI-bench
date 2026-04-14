@@ -18,11 +18,23 @@ pool_padding = 0
 
 
 def get_inputs():
-    return [torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)]
+    return [
+        torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)
+    ]
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, pool_stride, pool_padding]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        pool_kernel_size,
+        pool_stride,
+        pool_padding,
+    ]
 
 
 # ---------------------------------------------------------------------
@@ -35,12 +47,30 @@ def _fused_deconv3d_maxpool_kernel(
     w_ptr,
     b_ptr,
     y_ptr,
-    N, Cin, Cout,
-    Di, Hi, Wi,
-    Pd, Ph, Pw,
-    sx_n, sx_c, sx_d, sx_h, sx_w,
-    sw_ci, sw_co, sw_kd, sw_kh, sw_kw,
-    sy_n, sy_c, sy_d, sy_h, sy_w,
+    N,
+    Cin,
+    Cout,
+    Di,
+    Hi,
+    Wi,
+    Pd,
+    Ph,
+    Pw,
+    sx_n,
+    sx_c,
+    sx_d,
+    sx_h,
+    sx_w,
+    sw_ci,
+    sw_co,
+    sw_kd,
+    sw_kh,
+    sw_kw,
+    sy_n,
+    sy_c,
+    sy_d,
+    sy_h,
+    sy_w,
     S: tl.constexpr,
     BLOCK_S: tl.constexpr,
 ):
@@ -88,10 +118,7 @@ def _fused_deconv3d_maxpool_kernel(
                     idx = deltad * 4 + deltah * 2 + deltaw
 
                     x_ptrs = x_ptr + (
-                        x_ic_base
-                        + id_vec * sx_d
-                        + ih_vec * sx_h
-                        + iw_vec * sx_w
+                        x_ic_base + id_vec * sx_d + ih_vec * sx_h + iw_vec * sx_w
                     )
                     m = mask_s & mask_d & mask_h & mask_w
                     w_off = w_ic_base + kd * sw_kd + kh * sw_kh + kw * sw_kw
@@ -166,9 +193,20 @@ def _fused_softmax_swish_max_kernel(
     x_ptr,
     sub_ptr,
     out_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    ostride_n, ostride_d, ostride_h, ostride_w,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    ostride_n,
+    ostride_d,
+    ostride_h,
+    ostride_w,
     P,
     BLOCK_P: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -233,7 +271,9 @@ def _fused_softmax_swish_max_kernel(
     d_idx = t1 % D
     n_idx = t1 // D
 
-    out_offs = n_idx * ostride_n + d_idx * ostride_d + h_idx * ostride_h + w_idx * ostride_w
+    out_offs = (
+        n_idx * ostride_n + d_idx * ostride_d + h_idx * ostride_h + w_idx * ostride_w
+    )
     tl.store(out_ptr + out_offs, out_val.to(out_ptr.dtype.element_ty), mask=mask)
 
 
@@ -253,17 +293,32 @@ def softmax_subtract_swish_max(x: torch.Tensor, subtract: torch.Tensor):
 
     grid = (triton.cdiv(P, 256),)
     _fused_softmax_swish_max_kernel[grid](
-        x_xpu, subtract_xpu, y,
-        N, C, D, H, W,
-        sN, sC, sD, sH, sW,
-        oN, oD, oH, oW,
+        x_xpu,
+        subtract_xpu,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oD,
+        oH,
+        oW,
         P,
         grf_mode="auto",
     )
     return y
 
 
-def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, subtract: torch.Tensor):
+def kernel_function(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, subtract: torch.Tensor
+):
     assert x.device.type == "xpu", "Input must be on xpu"
     y1 = convtrans_maxpool3d(x, w, b)
     y2 = softmax_subtract_swish_max(y1, subtract)
@@ -271,12 +326,26 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, subtract:
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding,
-                 output_padding, pool_kernel_size, pool_stride, pool_padding):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        pool_kernel_size,
+        pool_stride,
+        pool_padding,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
-            in_channels, out_channels, kernel_size,
-            stride=stride, padding=padding, output_padding=output_padding
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
         )
         self.max_pool = nn.MaxPool3d(
             kernel_size=pool_kernel_size, stride=pool_stride, padding=pool_padding
@@ -298,9 +367,13 @@ class Model(nn.Module):
             self._params_on_xpu = True
         else:
             if not self.conv_transpose.weight.is_contiguous():
-                self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+                self.conv_transpose.weight.data = (
+                    self.conv_transpose.weight.data.contiguous()
+                )
             if not self.conv_transpose.bias.is_contiguous():
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
+                self.conv_transpose.bias.data = (
+                    self.conv_transpose.bias.data.contiguous()
+                )
             if not self.subtract.is_contiguous():
                 self.subtract.data = self.subtract.data.contiguous()
 

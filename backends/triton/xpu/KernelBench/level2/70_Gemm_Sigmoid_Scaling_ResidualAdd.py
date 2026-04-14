@@ -14,25 +14,91 @@ def _gemm_autotune_configs():
     # - GROUP_SIZE_M fallback including 1
     # - varied BLOCK_K / num_warps / num_stages
     return [
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=2),
-
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 2}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 4}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 4}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 2},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=2,
+        ),
     ]
 
 
@@ -152,8 +218,14 @@ def _sigmoid_mul_const_add_residual_kernel(
     tl.store(out_ptr + offsets, y.to(x_raw.dtype), mask=mask)
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, scale: float) -> torch.Tensor:
-    if not isinstance(x, torch.Tensor) or not isinstance(weight, torch.Tensor) or not isinstance(bias, torch.Tensor):
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, scale: float
+) -> torch.Tensor:
+    if (
+        not isinstance(x, torch.Tensor)
+        or not isinstance(weight, torch.Tensor)
+        or not isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("x, weight, and bias must be torch.Tensor")
 
     if x.dim() != 2 or weight.dim() != 2 or bias.dim() != 1:
@@ -182,7 +254,9 @@ def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, s
     n_rows, k_dim = x_xpu.shape
     out_dim = weight_xpu.shape[0]
     if weight_xpu.shape[1] != k_dim:
-        raise ValueError(f"Incompatible shapes: x: {x_xpu.shape}, weight: {weight_xpu.shape}")
+        raise ValueError(
+            f"Incompatible shapes: x: {x_xpu.shape}, weight: {weight_xpu.shape}"
+        )
     if bias_xpu.numel() != out_dim:
         raise ValueError(f"Bias length {bias_xpu.numel()} != expected {out_dim}")
 
@@ -194,9 +268,7 @@ def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, s
     def grid_sig(meta):
         return (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
 
-    _sigmoid_mul_const_add_residual_kernel[grid_sig](
-        y, out, n_elements, float(scale)
-    )
+    _sigmoid_mul_const_add_residual_kernel[grid_sig](y, out, n_elements, float(scale))
     return out
 
 
@@ -227,14 +299,24 @@ class Model(nn.Module):
         else:
             x = x.contiguous()
 
-        if self.gemm.weight.device.type != "xpu" or self.gemm.weight.dtype != torch.float16:
-            self.gemm.weight.data = self.gemm.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.gemm.weight.device.type != "xpu"
+            or self.gemm.weight.dtype != torch.float16
+        ):
+            self.gemm.weight.data = self.gemm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.gemm.weight.data.is_contiguous():
             self.gemm.weight.data = self.gemm.weight.data.contiguous()
 
         if self.gemm.bias is not None:
-            if self.gemm.bias.device.type != "xpu" or self.gemm.bias.dtype != torch.float16:
-                self.gemm.bias.data = self.gemm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.gemm.bias.device.type != "xpu"
+                or self.gemm.bias.dtype != torch.float16
+            ):
+                self.gemm.bias.data = self.gemm.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.gemm.bias.data.is_contiguous():
                 self.gemm.bias.data = self.gemm.bias.data.contiguous()
 

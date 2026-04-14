@@ -7,33 +7,77 @@ import triton.language as tl
 def _gemm_autotune_configs():
     configs = [
         # Original / conservative family
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=3),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=4),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=4),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=3),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=8, num_stages=3),
-
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=4
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=4
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=8, num_stages=3
+        ),
         # Suggested XPU-oriented family
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 64}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=16, num_stages=2),
-
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16}, num_warps=32, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 64}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=16, num_stages=2
+        ),
         # Extra large-tile XPU candidates
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 16}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 16}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 64}, num_warps=16, num_stages=3),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 16}, num_warps=32, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 16}, num_warps=32, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32}, num_warps=32, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=32, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 64}, num_warps=16, num_stages=3
+        ),
     ]
     return configs
 
@@ -46,22 +90,18 @@ def _lse_autotune_configs():
         triton.Config({"BLOCK_M": 8, "BLOCK_N": 256}, num_warps=8, num_stages=2),
         triton.Config({"BLOCK_M": 4, "BLOCK_N": 512}, num_warps=8, num_stages=2),
         triton.Config({"BLOCK_M": 8, "BLOCK_N": 512}, num_warps=8, num_stages=2),
-
         # Expanded XPU search space
         triton.Config({"BLOCK_M": 1, "BLOCK_N": 128}, num_warps=4, num_stages=2),
         triton.Config({"BLOCK_M": 2, "BLOCK_N": 128}, num_warps=4, num_stages=2),
         triton.Config({"BLOCK_M": 4, "BLOCK_N": 128}, num_warps=4, num_stages=3),
         triton.Config({"BLOCK_M": 8, "BLOCK_N": 128}, num_warps=8, num_stages=3),
-
         triton.Config({"BLOCK_M": 1, "BLOCK_N": 256}, num_warps=4, num_stages=3),
         triton.Config({"BLOCK_M": 2, "BLOCK_N": 256}, num_warps=8, num_stages=2),
         triton.Config({"BLOCK_M": 4, "BLOCK_N": 256}, num_warps=16, num_stages=2),
         triton.Config({"BLOCK_M": 8, "BLOCK_N": 256}, num_warps=16, num_stages=2),
-
         triton.Config({"BLOCK_M": 2, "BLOCK_N": 512}, num_warps=8, num_stages=2),
         triton.Config({"BLOCK_M": 4, "BLOCK_N": 512}, num_warps=16, num_stages=2),
         triton.Config({"BLOCK_M": 8, "BLOCK_N": 512}, num_warps=16, num_stages=3),
-
         triton.Config({"BLOCK_M": 1, "BLOCK_N": 1024}, num_warps=16, num_stages=2),
         triton.Config({"BLOCK_M": 2, "BLOCK_N": 1024}, num_warps=16, num_stages=2),
         triton.Config({"BLOCK_M": 4, "BLOCK_N": 1024}, num_warps=32, num_stages=2),
@@ -129,7 +169,11 @@ def _linear_bias_triton(x, weight, bias):
     Nw, Kw = weight.shape
     assert Kx == Kw
     assert Nw == bias.shape[0]
-    assert x.device.type == "xpu" and weight.device.type == "xpu" and bias.device.type == "xpu"
+    assert (
+        x.device.type == "xpu"
+        and weight.device.type == "xpu"
+        and bias.device.type == "xpu"
+    )
     assert x.dtype == weight.dtype
     assert x.dtype in (torch.bfloat16, torch.float16)
 
@@ -193,7 +237,9 @@ def _fused_lse_leaky_leaky_gelu_gelu_kernel(
     for start in tl.range(0, N, BLOCK_SIZE):
         idx = start + offs_n
         mask = in_bounds & (idx < N)
-        x_block = tl.load(base_x + idx * stride_xn, mask=mask, other=-float("inf")).to(tl.float32)
+        x_block = tl.load(base_x + idx * stride_xn, mask=mask, other=-float("inf")).to(
+            tl.float32
+        )
         blk_max = tl.max(x_block, axis=0)
         max_val = tl.maximum(max_val, blk_max)
 
@@ -201,7 +247,9 @@ def _fused_lse_leaky_leaky_gelu_gelu_kernel(
     for start in tl.range(0, N, BLOCK_SIZE):
         idx = start + offs_n
         mask = in_bounds & (idx < N)
-        x_block = tl.load(base_x + idx * stride_xn, mask=mask, other=-float("inf")).to(tl.float32)
+        x_block = tl.load(base_x + idx * stride_xn, mask=mask, other=-float("inf")).to(
+            tl.float32
+        )
         sum_exp += tl.sum(tl.exp(x_block - max_val), axis=0)
 
     lse = max_val + tl.log(sum_exp)
@@ -293,7 +341,9 @@ def _fused_lse_triton(x, negative_slope=0.01):
     return out
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU is not available")
 
@@ -302,14 +352,22 @@ def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -
     else:
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
 
-    if weight.device.type == "xpu" and weight.dtype == x_xpu.dtype and weight.is_contiguous():
+    if (
+        weight.device.type == "xpu"
+        and weight.dtype == x_xpu.dtype
+        and weight.is_contiguous()
+    ):
         weight_xpu = weight
     else:
         weight_xpu = weight.to("xpu", dtype=x_xpu.dtype).contiguous()
 
     bias_xpu = None
     if bias is not None:
-        if bias.device.type == "xpu" and bias.dtype == x_xpu.dtype and bias.is_contiguous():
+        if (
+            bias.device.type == "xpu"
+            and bias.dtype == x_xpu.dtype
+            and bias.is_contiguous()
+        ):
             bias_xpu = bias
         else:
             bias_xpu = bias.to("xpu", dtype=x_xpu.dtype).contiguous()
@@ -351,7 +409,9 @@ class Model(nn.Module):
             or self._cached_weight_xpu.dtype != torch.float16
             or not self._cached_weight_xpu.is_contiguous()
         ):
-            self._cached_weight_xpu = w.detach().to("xpu", dtype=torch.float16).contiguous()
+            self._cached_weight_xpu = (
+                w.detach().to("xpu", dtype=torch.float16).contiguous()
+            )
             self._cached_weight_version = w_ver
 
         if self.gemm.bias is None:
@@ -367,7 +427,9 @@ class Model(nn.Module):
                 or self._cached_bias_xpu.dtype != torch.float16
                 or not self._cached_bias_xpu.is_contiguous()
             ):
-                self._cached_bias_xpu = b.detach().to("xpu", dtype=torch.float16).contiguous()
+                self._cached_bias_xpu = (
+                    b.detach().to("xpu", dtype=torch.float16).contiguous()
+                )
                 self._cached_bias_version = b_ver
 
     def forward(self, x):

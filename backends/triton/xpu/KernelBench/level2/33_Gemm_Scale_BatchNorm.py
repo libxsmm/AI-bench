@@ -283,11 +283,21 @@ def _bn_apply_kernel(
     )
     x = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero").to(tl.float32)
 
-    s = tl.load(scale_ptr + offs_n_vec * stride_s, mask=n_mask, other=0.0).to(tl.float32)
-    mean = tl.load(mean_ptr + offs_n_vec * stride_mean, mask=n_mask, other=0.0).to(tl.float32)
-    invstd = tl.load(invstd_ptr + offs_n_vec * stride_invstd, mask=n_mask, other=0.0).to(tl.float32)
-    gamma = tl.load(gamma_ptr + offs_n_vec * stride_gamma, mask=n_mask, other=0.0).to(tl.float32)
-    beta = tl.load(beta_ptr + offs_n_vec * stride_beta, mask=n_mask, other=0.0).to(tl.float32)
+    s = tl.load(scale_ptr + offs_n_vec * stride_s, mask=n_mask, other=0.0).to(
+        tl.float32
+    )
+    mean = tl.load(mean_ptr + offs_n_vec * stride_mean, mask=n_mask, other=0.0).to(
+        tl.float32
+    )
+    invstd = tl.load(
+        invstd_ptr + offs_n_vec * stride_invstd, mask=n_mask, other=0.0
+    ).to(tl.float32)
+    gamma = tl.load(gamma_ptr + offs_n_vec * stride_gamma, mask=n_mask, other=0.0).to(
+        tl.float32
+    )
+    beta = tl.load(beta_ptr + offs_n_vec * stride_beta, mask=n_mask, other=0.0).to(
+        tl.float32
+    )
 
     var = 1.0 / (invstd * invstd) - eps
     var = tl.maximum(var, 0.0)
@@ -313,7 +323,11 @@ def _get_hw_num_progs():
         try:
             cap = torch.xpu.get_device_capability(0)
             if isinstance(cap, dict):
-                for key in ("gpu_subslice_count", "max_compute_units", "subslice_count"):
+                for key in (
+                    "gpu_subslice_count",
+                    "max_compute_units",
+                    "subslice_count",
+                ):
                     if key in cap:
                         val = int(cap[key])
                         if val > 0:

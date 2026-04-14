@@ -91,7 +91,13 @@ def _conv_transpose3d_bn_kernel(
                     x_index = n * x_sN + ic * x_sC + id_ * x_sD + ih * x_sH + iw * x_sW
                     x_vals = tl.load(x_ptr + x_index, mask=vmask, other=0.0)
 
-                    w_index = ic * w_sCin + co * w_sCout + kd * w_sKd + kh * w_sKh + kw * w_sKw
+                    w_index = (
+                        ic * w_sCin
+                        + co * w_sCout
+                        + kd * w_sKd
+                        + kh * w_sKh
+                        + kw * w_sKw
+                    )
                     w_vals = tl.load(w_ptr + w_index, mask=mask, other=0.0)
 
                     acc += x_vals * w_vals
@@ -248,35 +254,143 @@ def _direct_pooled_convtranspose3d_bn_parity_kernel(
     acc = tl.zeros([BLOCK], dtype=tl.float32)
 
     for ic in range(CIN):
-        w000 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 0 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w001 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 0 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w002 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 0 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w010 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 1 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w011 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 1 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w012 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 1 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w020 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 2 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w021 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 2 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w022 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 2 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
+        w000 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 0 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w001 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 0 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w002 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 0 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w010 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 1 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w011 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 1 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w012 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 1 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w020 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 2 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w021 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 2 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w022 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 0 * w_sKd + 2 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
 
-        w100 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 0 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w101 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 0 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w102 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 0 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w110 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 1 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w111 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 1 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w112 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 1 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w120 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 2 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w121 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 2 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w122 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 2 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
+        w100 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 0 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w101 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 0 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w102 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 0 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w110 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 1 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w111 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 1 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w112 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 1 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w120 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 2 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w121 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 2 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w122 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 1 * w_sKd + 2 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
 
-        w200 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 0 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w201 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 0 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w202 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 0 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w210 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 1 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w211 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 1 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w212 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 1 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w220 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 2 * w_sKh + 0 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w221 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 2 * w_sKh + 1 * w_sKw, mask=mask, other=0.0).to(tl.float32)
-        w222 = tl.load(w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 2 * w_sKh + 2 * w_sKw, mask=mask, other=0.0).to(tl.float32)
+        w200 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 0 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w201 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 0 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w202 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 0 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w210 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 1 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w211 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 1 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w212 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 1 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w220 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 2 * w_sKh + 0 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w221 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 2 * w_sKh + 1 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
+        w222 = tl.load(
+            w_ptr + ic * w_sCin + co * w_sCout + 2 * w_sKd + 2 * w_sKh + 2 * w_sKw,
+            mask=mask,
+            other=0.0,
+        ).to(tl.float32)
 
         g000 = w000 + w001 + w010 + w011 + w100 + w101 + w110 + w111
         g001 = w001 + w002 + w011 + w012 + w101 + w102 + w111 + w112
@@ -426,16 +540,90 @@ def _precompute_reduced_weights_and_bn(
 ):
     w = weight_xpu.to(torch.float32)
 
-    g000 = w[:, :, 0, 0, 0] + w[:, :, 0, 0, 1] + w[:, :, 0, 1, 0] + w[:, :, 0, 1, 1] + w[:, :, 1, 0, 0] + w[:, :, 1, 0, 1] + w[:, :, 1, 1, 0] + w[:, :, 1, 1, 1]
-    g001 = w[:, :, 0, 0, 1] + w[:, :, 0, 0, 2] + w[:, :, 0, 1, 1] + w[:, :, 0, 1, 2] + w[:, :, 1, 0, 1] + w[:, :, 1, 0, 2] + w[:, :, 1, 1, 1] + w[:, :, 1, 1, 2]
-    g010 = w[:, :, 0, 1, 0] + w[:, :, 0, 1, 1] + w[:, :, 0, 2, 0] + w[:, :, 0, 2, 1] + w[:, :, 1, 1, 0] + w[:, :, 1, 1, 1] + w[:, :, 1, 2, 0] + w[:, :, 1, 2, 1]
-    g011 = w[:, :, 0, 1, 1] + w[:, :, 0, 1, 2] + w[:, :, 0, 2, 1] + w[:, :, 0, 2, 2] + w[:, :, 1, 1, 1] + w[:, :, 1, 1, 2] + w[:, :, 1, 2, 1] + w[:, :, 1, 2, 2]
-    g100 = w[:, :, 1, 0, 0] + w[:, :, 1, 0, 1] + w[:, :, 1, 1, 0] + w[:, :, 1, 1, 1] + w[:, :, 2, 0, 0] + w[:, :, 2, 0, 1] + w[:, :, 2, 1, 0] + w[:, :, 2, 1, 1]
-    g101 = w[:, :, 1, 0, 1] + w[:, :, 1, 0, 2] + w[:, :, 1, 1, 1] + w[:, :, 1, 1, 2] + w[:, :, 2, 0, 1] + w[:, :, 2, 0, 2] + w[:, :, 2, 1, 1] + w[:, :, 2, 1, 2]
-    g110 = w[:, :, 1, 1, 0] + w[:, :, 1, 1, 1] + w[:, :, 1, 2, 0] + w[:, :, 1, 2, 1] + w[:, :, 2, 1, 0] + w[:, :, 2, 1, 1] + w[:, :, 2, 2, 0] + w[:, :, 2, 2, 1]
-    g111 = w[:, :, 1, 1, 1] + w[:, :, 1, 1, 2] + w[:, :, 1, 2, 1] + w[:, :, 1, 2, 2] + w[:, :, 2, 1, 1] + w[:, :, 2, 1, 2] + w[:, :, 2, 2, 1] + w[:, :, 2, 2, 2]
+    g000 = (
+        w[:, :, 0, 0, 0]
+        + w[:, :, 0, 0, 1]
+        + w[:, :, 0, 1, 0]
+        + w[:, :, 0, 1, 1]
+        + w[:, :, 1, 0, 0]
+        + w[:, :, 1, 0, 1]
+        + w[:, :, 1, 1, 0]
+        + w[:, :, 1, 1, 1]
+    )
+    g001 = (
+        w[:, :, 0, 0, 1]
+        + w[:, :, 0, 0, 2]
+        + w[:, :, 0, 1, 1]
+        + w[:, :, 0, 1, 2]
+        + w[:, :, 1, 0, 1]
+        + w[:, :, 1, 0, 2]
+        + w[:, :, 1, 1, 1]
+        + w[:, :, 1, 1, 2]
+    )
+    g010 = (
+        w[:, :, 0, 1, 0]
+        + w[:, :, 0, 1, 1]
+        + w[:, :, 0, 2, 0]
+        + w[:, :, 0, 2, 1]
+        + w[:, :, 1, 1, 0]
+        + w[:, :, 1, 1, 1]
+        + w[:, :, 1, 2, 0]
+        + w[:, :, 1, 2, 1]
+    )
+    g011 = (
+        w[:, :, 0, 1, 1]
+        + w[:, :, 0, 1, 2]
+        + w[:, :, 0, 2, 1]
+        + w[:, :, 0, 2, 2]
+        + w[:, :, 1, 1, 1]
+        + w[:, :, 1, 1, 2]
+        + w[:, :, 1, 2, 1]
+        + w[:, :, 1, 2, 2]
+    )
+    g100 = (
+        w[:, :, 1, 0, 0]
+        + w[:, :, 1, 0, 1]
+        + w[:, :, 1, 1, 0]
+        + w[:, :, 1, 1, 1]
+        + w[:, :, 2, 0, 0]
+        + w[:, :, 2, 0, 1]
+        + w[:, :, 2, 1, 0]
+        + w[:, :, 2, 1, 1]
+    )
+    g101 = (
+        w[:, :, 1, 0, 1]
+        + w[:, :, 1, 0, 2]
+        + w[:, :, 1, 1, 1]
+        + w[:, :, 1, 1, 2]
+        + w[:, :, 2, 0, 1]
+        + w[:, :, 2, 0, 2]
+        + w[:, :, 2, 1, 1]
+        + w[:, :, 2, 1, 2]
+    )
+    g110 = (
+        w[:, :, 1, 1, 0]
+        + w[:, :, 1, 1, 1]
+        + w[:, :, 1, 2, 0]
+        + w[:, :, 1, 2, 1]
+        + w[:, :, 2, 1, 0]
+        + w[:, :, 2, 1, 1]
+        + w[:, :, 2, 2, 0]
+        + w[:, :, 2, 2, 1]
+    )
+    g111 = (
+        w[:, :, 1, 1, 1]
+        + w[:, :, 1, 1, 2]
+        + w[:, :, 1, 2, 1]
+        + w[:, :, 1, 2, 2]
+        + w[:, :, 2, 1, 1]
+        + w[:, :, 2, 1, 2]
+        + w[:, :, 2, 2, 1]
+        + w[:, :, 2, 2, 2]
+    )
 
-    wg = torch.empty((w.shape[0], w.shape[1], 2, 2, 2), device=w.device, dtype=torch.float32)
+    wg = torch.empty(
+        (w.shape[0], w.shape[1], 2, 2, 2), device=w.device, dtype=torch.float32
+    )
     wg[:, :, 0, 0, 0] = g000
     wg[:, :, 0, 0, 1] = g001
     wg[:, :, 0, 1, 0] = g010
@@ -465,13 +653,46 @@ def kernel_function(
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("XPU is not available")
 
-    x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (x.device.type != "xpu" or x.dtype != torch.float16) else x.contiguous()
-    weight_xpu = weight.to("xpu", dtype=torch.float16).contiguous() if (weight.device.type != "xpu" or weight.dtype != torch.float16) else weight.contiguous()
-    bias_xpu = bias.to("xpu", dtype=torch.float32).contiguous() if (bias.device.type != "xpu" or bias.dtype != torch.float32) else bias.contiguous()
-    bn_weight_xpu = bn_weight.to("xpu", dtype=torch.float32).contiguous() if (bn_weight.device.type != "xpu" or bn_weight.dtype != torch.float32) else bn_weight.contiguous()
-    bn_bias_xpu = bn_bias.to("xpu", dtype=torch.float32).contiguous() if (bn_bias.device.type != "xpu" or bn_bias.dtype != torch.float32) else bn_bias.contiguous()
-    bn_running_mean_xpu = bn_running_mean.to("xpu", dtype=torch.float32).contiguous() if (bn_running_mean.device.type != "xpu" or bn_running_mean.dtype != torch.float32) else bn_running_mean.contiguous()
-    bn_running_var_xpu = bn_running_var.to("xpu", dtype=torch.float32).contiguous() if (bn_running_var.device.type != "xpu" or bn_running_var.dtype != torch.float32) else bn_running_var.contiguous()
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16).contiguous()
+        if (x.device.type != "xpu" or x.dtype != torch.float16)
+        else x.contiguous()
+    )
+    weight_xpu = (
+        weight.to("xpu", dtype=torch.float16).contiguous()
+        if (weight.device.type != "xpu" or weight.dtype != torch.float16)
+        else weight.contiguous()
+    )
+    bias_xpu = (
+        bias.to("xpu", dtype=torch.float32).contiguous()
+        if (bias.device.type != "xpu" or bias.dtype != torch.float32)
+        else bias.contiguous()
+    )
+    bn_weight_xpu = (
+        bn_weight.to("xpu", dtype=torch.float32).contiguous()
+        if (bn_weight.device.type != "xpu" or bn_weight.dtype != torch.float32)
+        else bn_weight.contiguous()
+    )
+    bn_bias_xpu = (
+        bn_bias.to("xpu", dtype=torch.float32).contiguous()
+        if (bn_bias.device.type != "xpu" or bn_bias.dtype != torch.float32)
+        else bn_bias.contiguous()
+    )
+    bn_running_mean_xpu = (
+        bn_running_mean.to("xpu", dtype=torch.float32).contiguous()
+        if (
+            bn_running_mean.device.type != "xpu"
+            or bn_running_mean.dtype != torch.float32
+        )
+        else bn_running_mean.contiguous()
+    )
+    bn_running_var_xpu = (
+        bn_running_var.to("xpu", dtype=torch.float32).contiguous()
+        if (
+            bn_running_var.device.type != "xpu" or bn_running_var.dtype != torch.float32
+        )
+        else bn_running_var.contiguous()
+    )
 
     N, C_in, D_in, H_in, W_in = x_xpu.shape
     Cin_w, C_out, Kd, Kh, Kw = weight_xpu.shape
@@ -489,7 +710,12 @@ def kernel_function(
     y = torch.empty((N, C_out, OD, OH, OW), device="xpu", dtype=torch.float16)
 
     wg_xpu, bn_scale_xpu, bn_shift_xpu = _precompute_reduced_weights_and_bn(
-        weight_xpu, bn_weight_xpu, bn_bias_xpu, bn_running_mean_xpu, bn_running_var_xpu, eps
+        weight_xpu,
+        bn_weight_xpu,
+        bn_bias_xpu,
+        bn_running_mean_xpu,
+        bn_running_var_xpu,
+        eps,
     )
 
     x_sN, x_sC, x_sD, x_sH, x_sW = x_xpu.stride()
@@ -559,9 +785,13 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias_shape):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, stride, padding, bias_shape
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=2, padding=1)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, stride=2, padding=1
+        )
         self.bn = nn.BatchNorm3d(out_channels)
         self.stride = stride
         self.padding = padding
@@ -575,12 +805,24 @@ class Model(nn.Module):
             x = x.contiguous()
 
         if not self._moved_to_xpu:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float32).contiguous()
-            self.bn.weight.data = self.bn.weight.data.to("xpu", dtype=torch.float32).contiguous()
-            self.bn.bias.data = self.bn.bias.data.to("xpu", dtype=torch.float32).contiguous()
-            self.bn.running_mean.data = self.bn.running_mean.data.to("xpu", dtype=torch.float32).contiguous()
-            self.bn.running_var.data = self.bn.running_var.data.to("xpu", dtype=torch.float32).contiguous()
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
+            self.bn.weight.data = self.bn.weight.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
+            self.bn.bias.data = self.bn.bias.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
+            self.bn.running_mean.data = self.bn.running_mean.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
+            self.bn.running_var.data = self.bn.running_var.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
             self._moved_to_xpu = True
 
         return kernel_function(

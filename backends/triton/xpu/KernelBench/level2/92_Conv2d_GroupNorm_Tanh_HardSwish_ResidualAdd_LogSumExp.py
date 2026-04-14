@@ -25,76 +25,156 @@ def get_init_inputs():
 def _conv3x3_xpu_autotune_configs():
     return [
         # known-good baseline family
-        triton.Config({'BLOCK_CO': 16, 'BH': 8, 'BW': 8, 'GROUP_SIZE_SP': 1}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_CO': 16, 'BH': 8, 'BW': 16, 'GROUP_SIZE_SP': 1}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_CO': 16, 'BH': 16, 'BW': 8, 'GROUP_SIZE_SP': 1}, num_warps=4, num_stages=1),
-
-        triton.Config({'BLOCK_CO': 32, 'BH': 8, 'BW': 8, 'GROUP_SIZE_SP': 1}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_CO': 32, 'BH': 8, 'BW': 16, 'GROUP_SIZE_SP': 1}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_CO': 32, 'BH': 16, 'BW': 8, 'GROUP_SIZE_SP': 1}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_CO': 32, 'BH': 16, 'BW': 16, 'GROUP_SIZE_SP': 1}, num_warps=8, num_stages=1),
-
-        triton.Config({'BLOCK_CO': 32, 'BH': 8, 'BW': 8, 'GROUP_SIZE_SP': 2}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_CO': 32, 'BH': 8, 'BW': 16, 'GROUP_SIZE_SP': 2}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_CO': 32, 'BH': 16, 'BW': 8, 'GROUP_SIZE_SP': 2}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_CO': 32, 'BH': 8, 'BW': 8, 'GROUP_SIZE_SP': 4}, num_warps=8, num_stages=1),
-
-        triton.Config({'BLOCK_CO': 64, 'BH': 8, 'BW': 8, 'GROUP_SIZE_SP': 1}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_CO': 64, 'BH': 8, 'BW': 16, 'GROUP_SIZE_SP': 1}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_CO': 64, 'BH': 16, 'BW': 8, 'GROUP_SIZE_SP': 1}, num_warps=16, num_stages=1),
-
+        triton.Config(
+            {"BLOCK_CO": 16, "BH": 8, "BW": 8, "GROUP_SIZE_SP": 1},
+            num_warps=4,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 16, "BH": 8, "BW": 16, "GROUP_SIZE_SP": 1},
+            num_warps=4,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 16, "BH": 16, "BW": 8, "GROUP_SIZE_SP": 1},
+            num_warps=4,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 8, "BW": 8, "GROUP_SIZE_SP": 1},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 8, "BW": 16, "GROUP_SIZE_SP": 1},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 16, "BW": 8, "GROUP_SIZE_SP": 1},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 16, "BW": 16, "GROUP_SIZE_SP": 1},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 8, "BW": 8, "GROUP_SIZE_SP": 2},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 8, "BW": 16, "GROUP_SIZE_SP": 2},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 16, "BW": 8, "GROUP_SIZE_SP": 2},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 32, "BH": 8, "BW": 8, "GROUP_SIZE_SP": 4},
+            num_warps=8,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 64, "BH": 8, "BW": 8, "GROUP_SIZE_SP": 1},
+            num_warps=16,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 64, "BH": 8, "BW": 16, "GROUP_SIZE_SP": 1},
+            num_warps=16,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 64, "BH": 16, "BW": 8, "GROUP_SIZE_SP": 1},
+            num_warps=16,
+            num_stages=1,
+        ),
         # required 32-warp / large-tile XPU configs
-        triton.Config({'BLOCK_CO': 64, 'BH': 16, 'BW': 16, 'GROUP_SIZE_SP': 1}, num_warps=32, num_stages=1),
-        triton.Config({'BLOCK_CO': 64, 'BH': 16, 'BW': 16, 'GROUP_SIZE_SP': 2}, num_warps=32, num_stages=1),
+        triton.Config(
+            {"BLOCK_CO": 64, "BH": 16, "BW": 16, "GROUP_SIZE_SP": 1},
+            num_warps=32,
+            num_stages=1,
+        ),
+        triton.Config(
+            {"BLOCK_CO": 64, "BH": 16, "BW": 16, "GROUP_SIZE_SP": 2},
+            num_warps=32,
+            num_stages=1,
+        ),
     ]
 
 
 def _lse_autotune_configs():
     return [
-        triton.Config({'BLOCK_M': 64}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_M': 128}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_M': 128}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_M': 256}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_M': 256}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_M': 512}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_M': 512}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_M": 64}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_M": 128}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_M": 128}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_M": 256}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_M": 256}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_M": 512}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_M": 512}, num_warps=16, num_stages=2),
         # required 32-warp large-tile config
-        triton.Config({'BLOCK_M': 256}, num_warps=32, num_stages=1),
+        triton.Config({"BLOCK_M": 256}, num_warps=32, num_stages=1),
     ]
 
 
 def _fused_lse_autotune_configs():
     return [
-        triton.Config({'BLOCK_HW': 64}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_HW': 128}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_HW': 128}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_HW': 256}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_HW': 256}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_HW': 512}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_HW': 512}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_HW": 64}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_HW": 128}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_HW": 128}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_HW": 256}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_HW": 256}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_HW": 512}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_HW": 512}, num_warps=16, num_stages=2),
         # required 32-warp large-tile config
-        triton.Config({'BLOCK_HW': 256}, num_warps=32, num_stages=1),
+        triton.Config({"BLOCK_HW": 256}, num_warps=32, num_stages=1),
     ]
 
 
 @triton.autotune(
     configs=_conv3x3_xpu_autotune_configs(),
-    key=['Cin', 'Cout', 'H_out', 'W_out'],
+    key=["Cin", "Cout", "H_out", "W_out"],
 )
 @triton.jit
-def conv3x3_nchw_fwd_kernel(x_ptr, w_ptr, b_ptr, o_ptr,
-                             N, Cin, H, W, Cout, H_out, W_out,
-                             stride_inN, stride_inC, stride_inH, stride_inW,
-                             stride_wCout, stride_wCin, stride_wKh, stride_wKw,
-                             stride_outN, stride_outC, stride_outH, stride_outW,
-                             BLOCK_CO: tl.constexpr,
-                             BH: tl.constexpr,
-                             BW: tl.constexpr,
-                             GROUP_SIZE_SP: tl.constexpr,
-                             CIN: tl.constexpr,
-                             KH: tl.constexpr,
-                             KW: tl.constexpr,
-                             grf_mode: tl.constexpr = "auto"):
+def conv3x3_nchw_fwd_kernel(
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    o_ptr,
+    N,
+    Cin,
+    H,
+    W,
+    Cout,
+    H_out,
+    W_out,
+    stride_inN,
+    stride_inC,
+    stride_inH,
+    stride_inW,
+    stride_wCout,
+    stride_wCin,
+    stride_wKh,
+    stride_wKw,
+    stride_outN,
+    stride_outC,
+    stride_outH,
+    stride_outW,
+    BLOCK_CO: tl.constexpr,
+    BH: tl.constexpr,
+    BW: tl.constexpr,
+    GROUP_SIZE_SP: tl.constexpr,
+    CIN: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    grf_mode: tl.constexpr = "auto",
+):
     pid_n = tl.program_id(axis=0)
     pid_co = tl.program_id(axis=1)
     pid_sp = tl.program_id(axis=2)
@@ -128,7 +208,12 @@ def conv3x3_nchw_fwd_kernel(x_ptr, w_ptr, b_ptr, o_ptr,
             in_ho = offs_ho + ky
             x_h_base = x_ci_base + in_ho[:, None] * stride_inH
             for kx in range(0, KW):
-                w_ptrs = w_ptr + (offs_co * stride_wCout + ci * stride_wCin + ky * stride_wKh + kx * stride_wKw)
+                w_ptrs = w_ptr + (
+                    offs_co * stride_wCout
+                    + ci * stride_wCin
+                    + ky * stride_wKh
+                    + kx * stride_wKw
+                )
                 w = tl.load(w_ptrs, mask=mask_co, other=0.0).to(tl.float32)
 
                 in_wo = offs_wo + kx
@@ -139,18 +224,29 @@ def conv3x3_nchw_fwd_kernel(x_ptr, w_ptr, b_ptr, o_ptr,
     b = tl.load(b_ptr + offs_co, mask=mask_co, other=0.0).to(tl.float32)
     acc += b[:, None, None]
 
-    o_ptrs = (o_ptr
-              + pid_n * stride_outN
-              + offs_co[:, None, None] * stride_outC
-              + offs_ho[None, :, None] * stride_outH
-              + offs_wo[None, None, :] * stride_outW)
+    o_ptrs = (
+        o_ptr
+        + pid_n * stride_outN
+        + offs_co[:, None, None] * stride_outC
+        + offs_ho[None, :, None] * stride_outH
+        + offs_wo[None, None, :] * stride_outW
+    )
     tl.store(o_ptrs, acc, mask=mask_co[:, None, None] & mask_hw[None, :, :])
 
 
 @triton.jit
-def groupnorm_stats_kernel(x_ptr, mean_ptr, var_ptr,
-                           N, Cout, H, W,
-                           G: tl.constexpr, C_PER_G: tl.constexpr, BLOCK_S: tl.constexpr):
+def groupnorm_stats_kernel(
+    x_ptr,
+    mean_ptr,
+    var_ptr,
+    N,
+    Cout,
+    H,
+    W,
+    G: tl.constexpr,
+    C_PER_G: tl.constexpr,
+    BLOCK_S: tl.constexpr,
+):
     pid = tl.program_id(axis=0)
     n = pid // G
     g = pid % G
@@ -181,10 +277,24 @@ def groupnorm_stats_kernel(x_ptr, mean_ptr, var_ptr,
 
 
 @triton.jit
-def gn_tanh_hswish_add_kernel(x_ptr, mean_ptr, var_ptr, gamma_ptr, beta_ptr, y_ptr,
-                              N, Cout, H, W, eps,
-                              G: tl.constexpr, C_PER_G: tl.constexpr,
-                              BLOCK_CO: tl.constexpr, BH: tl.constexpr, BW: tl.constexpr):
+def gn_tanh_hswish_add_kernel(
+    x_ptr,
+    mean_ptr,
+    var_ptr,
+    gamma_ptr,
+    beta_ptr,
+    y_ptr,
+    N,
+    Cout,
+    H,
+    W,
+    eps,
+    G: tl.constexpr,
+    C_PER_G: tl.constexpr,
+    BLOCK_CO: tl.constexpr,
+    BH: tl.constexpr,
+    BW: tl.constexpr,
+):
     pid_n = tl.program_id(axis=0)
     pid_co = tl.program_id(axis=1)
     pid_sp = tl.program_id(axis=2)
@@ -201,16 +311,24 @@ def gn_tanh_hswish_add_kernel(x_ptr, mean_ptr, var_ptr, gamma_ptr, beta_ptr, y_p
     mask_co = offs_co < Cout
     mask_hw = (offs_ho[:, None] < H) & (offs_wo[None, :] < W)
 
-    x_ptrs = (x_ptr
-              + pid_n * (Cout * H * W)
-              + offs_co[:, None, None] * (H * W)
-              + offs_ho[None, :, None] * W
-              + offs_wo[None, None, :])
-    x = tl.load(x_ptrs, mask=mask_co[:, None, None] & mask_hw[None, :, :], other=0.0).to(tl.float32)
+    x_ptrs = (
+        x_ptr
+        + pid_n * (Cout * H * W)
+        + offs_co[:, None, None] * (H * W)
+        + offs_ho[None, :, None] * W
+        + offs_wo[None, None, :]
+    )
+    x = tl.load(
+        x_ptrs, mask=mask_co[:, None, None] & mask_hw[None, :, :], other=0.0
+    ).to(tl.float32)
 
     g_idx = offs_co // C_PER_G
-    mean_vec = tl.load(mean_ptr + pid_n * G + g_idx, mask=mask_co, other=0.0).to(tl.float32)
-    var_vec = tl.load(var_ptr + pid_n * G + g_idx, mask=mask_co, other=0.0).to(tl.float32)
+    mean_vec = tl.load(mean_ptr + pid_n * G + g_idx, mask=mask_co, other=0.0).to(
+        tl.float32
+    )
+    var_vec = tl.load(var_ptr + pid_n * G + g_idx, mask=mask_co, other=0.0).to(
+        tl.float32
+    )
     inv_std_vec = 1.0 / tl.sqrt(var_vec + eps)
 
     gamma = tl.load(gamma_ptr + offs_co, mask=mask_co, other=0.0).to(tl.float32)
@@ -224,26 +342,40 @@ def gn_tanh_hswish_add_kernel(x_ptr, mean_ptr, var_ptr, gamma_ptr, beta_ptr, y_p
     hs = t * (hp * (1.0 / 6.0))
     y = x + hs
 
-    y_ptrs = (y_ptr
-              + pid_n * (Cout * H * W)
-              + offs_co[:, None, None] * (H * W)
-              + offs_ho[None, :, None] * W
-              + offs_wo[None, None, :])
+    y_ptrs = (
+        y_ptr
+        + pid_n * (Cout * H * W)
+        + offs_co[:, None, None] * (H * W)
+        + offs_ho[None, :, None] * W
+        + offs_wo[None, None, :]
+    )
     tl.store(y_ptrs, y, mask=mask_co[:, None, None] & mask_hw[None, :, :])
 
 
 @triton.autotune(
     configs=_lse_autotune_configs(),
-    key=['M', 'C', 'H', 'W'],
+    key=["M", "C", "H", "W"],
 )
 @triton.jit
-def _logsumexp_dim1_kernel(x_ptr, y_ptr,
-                           N, C, H, W,
-                           stride_x_n, stride_x_c, stride_x_h, stride_x_w,
-                           stride_y_n, stride_y_c, stride_y_h, stride_y_w,
-                           M,
-                           BLOCK_M: tl.constexpr,
-                           grf_mode: tl.constexpr = "auto"):
+def _logsumexp_dim1_kernel(
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_x_n,
+    stride_x_c,
+    stride_x_h,
+    stride_x_w,
+    stride_y_n,
+    stride_y_c,
+    stride_y_h,
+    stride_y_w,
+    M,
+    BLOCK_M: tl.constexpr,
+    grf_mode: tl.constexpr = "auto",
+):
     pid = tl.program_id(axis=0)
     offs_m = pid * BLOCK_M + tl.arange(0, BLOCK_M)
     mask_m = offs_m < M
@@ -256,12 +388,12 @@ def _logsumexp_dim1_kernel(x_ptr, y_ptr,
 
     base_x = off_n * stride_x_n + off_h * stride_x_h + off_w * stride_x_w
 
-    m = tl.full((BLOCK_M,), -float('inf'), dtype=tl.float32)
+    m = tl.full((BLOCK_M,), -float("inf"), dtype=tl.float32)
     s = tl.zeros((BLOCK_M,), dtype=tl.float32)
 
     for c in range(0, C):
         ptrs = x_ptr + base_x + c * stride_x_c
-        x_val = tl.load(ptrs, mask=mask_m, other=-float('inf')).to(tl.float32)
+        x_val = tl.load(ptrs, mask=mask_m, other=-float("inf")).to(tl.float32)
         new_m = tl.maximum(m, x_val)
         s = s * tl.exp(m - new_m) + tl.exp(x_val - new_m)
         m = new_m
@@ -274,16 +406,33 @@ def _logsumexp_dim1_kernel(x_ptr, y_ptr,
 
 @triton.autotune(
     configs=_fused_lse_autotune_configs(),
-    key=['HW_TOTAL', 'Cout', 'H', 'W'],
+    key=["HW_TOTAL", "Cout", "H", "W"],
 )
 @triton.jit
 def fused_gn_tanh_hswish_add_lse_kernel(
-    x_ptr, mean_ptr, var_ptr, gamma_ptr, beta_ptr, out_ptr,
-    N, Cout, H, W, eps,
-    stride_x_n, stride_x_c, stride_x_h, stride_x_w,
-    stride_out_n, stride_out_c, stride_out_h, stride_out_w,
+    x_ptr,
+    mean_ptr,
+    var_ptr,
+    gamma_ptr,
+    beta_ptr,
+    out_ptr,
+    N,
+    Cout,
+    H,
+    W,
+    eps,
+    stride_x_n,
+    stride_x_c,
+    stride_x_h,
+    stride_x_w,
+    stride_out_n,
+    stride_out_c,
+    stride_out_h,
+    stride_out_w,
     HW_TOTAL,
-    G: tl.constexpr, C_PER_G: tl.constexpr, BLOCK_HW: tl.constexpr,
+    G: tl.constexpr,
+    C_PER_G: tl.constexpr,
+    BLOCK_HW: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
     pid = tl.program_id(axis=0)
@@ -296,7 +445,7 @@ def fused_gn_tanh_hswish_add_lse_kernel(
     h = rem // W
     w = rem % W
 
-    row_max = tl.full((BLOCK_HW,), -float('inf'), dtype=tl.float32)
+    row_max = tl.full((BLOCK_HW,), -float("inf"), dtype=tl.float32)
     row_sum = tl.zeros((BLOCK_HW,), dtype=tl.float32)
 
     for c in range(0, Cout):
@@ -307,7 +456,9 @@ def fused_gn_tanh_hswish_add_lse_kernel(
         gamma = tl.load(gamma_ptr + c).to(tl.float32)
         beta = tl.load(beta_ptr + c).to(tl.float32)
 
-        x_ptrs = x_ptr + n * stride_x_n + c * stride_x_c + h * stride_x_h + w * stride_x_w
+        x_ptrs = (
+            x_ptr + n * stride_x_n + c * stride_x_c + h * stride_x_h + w * stride_x_w
+        )
         x = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
 
         affine = (x - mean) * inv_std * gamma + beta
@@ -326,15 +477,35 @@ def fused_gn_tanh_hswish_add_lse_kernel(
 
 
 def kernel_function(x, conv_weight, conv_bias, gn_weight, gn_bias, groups_val=16):
-    assert isinstance(x, torch.Tensor), 'x must be a torch.Tensor'
-    if not hasattr(torch, 'xpu') or not torch.xpu.is_available():
+    assert isinstance(x, torch.Tensor), "x must be a torch.Tensor"
+    if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Tensors must be on Intel XPU (device='xpu')")
 
-    x_xpu = x if (x.device.type == 'xpu' and x.dtype == torch.float16) else x.to('xpu', dtype=torch.float16)
-    w_xpu = conv_weight if (conv_weight.device.type == 'xpu' and conv_weight.dtype == torch.float16) else conv_weight.to('xpu', dtype=torch.float16)
-    b_xpu = conv_bias if (conv_bias.device.type == 'xpu' and conv_bias.dtype == torch.float16) else conv_bias.to('xpu', dtype=torch.float16)
-    gnw_xpu = gn_weight if (gn_weight.device.type == 'xpu' and gn_weight.dtype == torch.float16) else gn_weight.to('xpu', dtype=torch.float16)
-    gnb_xpu = gn_bias if (gn_bias.device.type == 'xpu' and gn_bias.dtype == torch.float16) else gn_bias.to('xpu', dtype=torch.float16)
+    x_xpu = (
+        x
+        if (x.device.type == "xpu" and x.dtype == torch.float16)
+        else x.to("xpu", dtype=torch.float16)
+    )
+    w_xpu = (
+        conv_weight
+        if (conv_weight.device.type == "xpu" and conv_weight.dtype == torch.float16)
+        else conv_weight.to("xpu", dtype=torch.float16)
+    )
+    b_xpu = (
+        conv_bias
+        if (conv_bias.device.type == "xpu" and conv_bias.dtype == torch.float16)
+        else conv_bias.to("xpu", dtype=torch.float16)
+    )
+    gnw_xpu = (
+        gn_weight
+        if (gn_weight.device.type == "xpu" and gn_weight.dtype == torch.float16)
+        else gn_weight.to("xpu", dtype=torch.float16)
+    )
+    gnb_xpu = (
+        gn_bias
+        if (gn_bias.device.type == "xpu" and gn_bias.dtype == torch.float16)
+        else gn_bias.to("xpu", dtype=torch.float16)
+    )
 
     if not x_xpu.is_contiguous():
         x_xpu = x_xpu.contiguous()
@@ -372,39 +543,83 @@ def kernel_function(x, conv_weight, conv_bias, gn_weight, gn_bias, groups_val=16
 
     grid_conv = lambda meta: (
         N,
-        triton.cdiv(Cout, meta['BLOCK_CO']),
-        triton.cdiv(H_out, meta['BH']) * triton.cdiv(W_out, meta['BW']),
+        triton.cdiv(Cout, meta["BLOCK_CO"]),
+        triton.cdiv(H_out, meta["BH"]) * triton.cdiv(W_out, meta["BW"]),
     )
     conv3x3_nchw_fwd_kernel[grid_conv](
-        x_xpu, w_xpu, b_xpu, conv_out,
-        N, Cin, H, W, Cout, H_out, W_out,
-        si_n, si_c, si_h, si_w,
-        sw_w_co, sw_w_ci, sw_w_kh, sw_w_kw,
-        sw_o_n, sw_o_c, sw_o_h, sw_o_w,
-        CIN=Cin, KH=Kh, KW=Kw,
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        conv_out,
+        N,
+        Cin,
+        H,
+        W,
+        Cout,
+        H_out,
+        W_out,
+        si_n,
+        si_c,
+        si_h,
+        si_w,
+        sw_w_co,
+        sw_w_ci,
+        sw_w_kh,
+        sw_w_kw,
+        sw_o_n,
+        sw_o_c,
+        sw_o_h,
+        sw_o_w,
+        CIN=Cin,
+        KH=Kh,
+        KW=Kw,
     )
 
     grid_stats = (N * G,)
     groupnorm_stats_kernel[grid_stats](
-        conv_out, mean, var,
-        N, Cout, H_out, W_out,
-        G=G, C_PER_G=C_PER_G, BLOCK_S=1024,
-        num_warps=4, num_stages=1
+        conv_out,
+        mean,
+        var,
+        N,
+        Cout,
+        H_out,
+        W_out,
+        G=G,
+        C_PER_G=C_PER_G,
+        BLOCK_S=1024,
+        num_warps=4,
+        num_stages=1,
     )
 
     sy_n, sy_c, sy_h, sy_w = y_final.stride()
     hw_total = N * H_out * W_out
 
     def grid_fused(meta):
-        return (triton.cdiv(hw_total, meta['BLOCK_HW']),)
+        return (triton.cdiv(hw_total, meta["BLOCK_HW"]),)
 
     fused_gn_tanh_hswish_add_lse_kernel[grid_fused](
-        conv_out, mean, var, gnw_xpu, gnb_xpu, y_final,
-        N, Cout, H_out, W_out, eps,
-        sw_o_n, sw_o_c, sw_o_h, sw_o_w,
-        sy_n, sy_c, sy_h, sy_w,
+        conv_out,
+        mean,
+        var,
+        gnw_xpu,
+        gnb_xpu,
+        y_final,
+        N,
+        Cout,
+        H_out,
+        W_out,
+        eps,
+        sw_o_n,
+        sw_o_c,
+        sw_o_h,
+        sw_o_w,
+        sy_n,
+        sy_c,
+        sy_h,
+        sy_w,
         hw_total,
-        G=G, C_PER_G=C_PER_G,
+        G=G,
+        C_PER_G=C_PER_G,
     )
     return y_final
 
@@ -418,21 +633,40 @@ class Model(nn.Module):
         self._packed_ready = False
 
     def _ensure_xpu_params(self):
-        if self.conv.weight.device.type != 'xpu' or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to('xpu', dtype=torch.float16).contiguous()
-        if self.conv.bias is not None and (self.conv.bias.device.type != 'xpu' or self.conv.bias.dtype != torch.float16):
-            self.conv.bias.data = self.conv.bias.data.to('xpu', dtype=torch.float16).contiguous()
-        if self.group_norm.weight.device.type != 'xpu' or self.group_norm.weight.dtype != torch.float16:
-            self.group_norm.weight.data = self.group_norm.weight.data.to('xpu', dtype=torch.float16).contiguous()
-        if self.group_norm.bias.device.type != 'xpu' or self.group_norm.bias.dtype != torch.float16:
-            self.group_norm.bias.data = self.group_norm.bias.data.to('xpu', dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if self.conv.bias is not None and (
+            self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16
+        ):
+            self.conv.bias.data = self.conv.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.group_norm.weight.device.type != "xpu"
+            or self.group_norm.weight.dtype != torch.float16
+        ):
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.group_norm.bias.device.type != "xpu"
+            or self.group_norm.bias.dtype != torch.float16
+        ):
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         self._packed_ready = True
 
     def forward(self, x):
-        if not hasattr(torch, 'xpu') or not torch.xpu.is_available():
-            raise RuntimeError('Intel XPU is required')
-        if x.device.type != 'xpu' or x.dtype != torch.float16:
-            x = x.to('xpu', dtype=torch.float16)
+        if not hasattr(torch, "xpu") or not torch.xpu.is_available():
+            raise RuntimeError("Intel XPU is required")
+        if x.device.type != "xpu" or x.dtype != torch.float16:
+            x = x.to("xpu", dtype=torch.float16)
         if not x.is_contiguous():
             x = x.contiguous()
         if not self._packed_ready:
@@ -448,8 +682,8 @@ class Model(nn.Module):
 
 
 def run_test():
-    if not hasattr(torch, 'xpu') or not torch.xpu.is_available():
-        print('XPU device not available, skipping test.')
+    if not hasattr(torch, "xpu") or not torch.xpu.is_available():
+        print("XPU device not available, skipping test.")
         sys.exit(0)
 
     in_ch, out_ch, k, grp = get_init_inputs()
@@ -457,7 +691,7 @@ def run_test():
     x = get_inputs()[0]
 
     with torch.no_grad():
-        x_xpu = x.to('xpu', dtype=torch.float16)
+        x_xpu = x.to("xpu", dtype=torch.float16)
         model._ensure_xpu_params()
         x_conv = model.conv(x_xpu)
         x_norm = model.group_norm(x_conv)
@@ -475,9 +709,9 @@ def run_test():
         torch.xpu.synchronize()
 
     if torch.allclose(out, ref, atol=2e-2, rtol=2e-2):
-        print('PASS')
+        print("PASS")
         sys.exit(0)
     else:
-        print('FAIL')
-        print('Max abs diff:', (out - ref).abs().max().item())
+        print("FAIL")
+        print("Max abs diff:", (out - ref).abs().max().item())
         sys.exit(1)

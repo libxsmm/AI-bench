@@ -19,11 +19,21 @@ sum_dim = 1
 
 
 def get_inputs():
-    return [torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)]
+    return [
+        torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)
+    ]
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, divisor, pool_size, bias_shape, sum_dim]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        divisor,
+        pool_size,
+        bias_shape,
+        sum_dim,
+    ]
 
 
 def _conv3d_autotune_configs():
@@ -98,15 +108,40 @@ def _sum_autotune_configs():
 )
 @triton.jit
 def _conv3d_bias_div_wtile_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_IN, D_IN, H_IN, W_IN,
-    C_OUT, D_OUT, H_OUT, W_OUT,
-    stride_xn, stride_xc, stride_xd, stride_xh, stride_xw,
-    stride_wo, stride_wi, stride_wkd, stride_wkh, stride_wkw,
-    stride_yn, stride_yc, stride_yd, stride_yh, stride_yw,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_IN,
+    D_IN,
+    H_IN,
+    W_IN,
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    stride_xn,
+    stride_xc,
+    stride_xd,
+    stride_xh,
+    stride_xw,
+    stride_wo,
+    stride_wi,
+    stride_wkd,
+    stride_wkh,
+    stride_wkw,
+    stride_yn,
+    stride_yc,
+    stride_yd,
+    stride_yh,
+    stride_yw,
     alpha,
-    BLOCK_W: tl.constexpr, BLOCK_H: tl.constexpr,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_H: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
     pid_w = tl.program_id(axis=0)
@@ -138,7 +173,11 @@ def _conv3d_bias_div_wtile_kernel(
                 for kw in range(KW):
                     w_val = tl.load(w_ptr + base_w_kh + kw * stride_wkw)
                     x_ptrs = x_ptr + base_x_h + (offs_w[None, :] + kw) * stride_xw
-                    in_bounds = out_mask & ((offs_h[:, None] + kh) < H_IN) & ((offs_w[None, :] + kw) < W_IN)
+                    in_bounds = (
+                        out_mask
+                        & ((offs_h[:, None] + kh) < H_IN)
+                        & ((offs_w[None, :] + kw) < W_IN)
+                    )
                     x_vals = tl.load(x_ptrs, mask=in_bounds, other=0.0)
                     acc += x_vals.to(tl.float32) * w_val.to(tl.float32)
 
@@ -160,7 +199,11 @@ def _conv3d_bias_div(x, w, b, divisor=2.0):
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU not available.")
     assert x.device.type == "xpu" and w.device.type == "xpu" and b.device.type == "xpu"
-    assert x.dtype == torch.float16 and w.dtype == torch.float16 and b.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and w.dtype == torch.float16
+        and b.dtype == torch.float16
+    )
 
     N, C_in, D_in, H_in, W_in = x.shape
     C_out, Cw_in, kD, kH, kW = w.shape
@@ -186,14 +229,38 @@ def _conv3d_bias_div(x, w, b, divisor=2.0):
         )
 
     _conv3d_bias_div_wtile_kernel[grid](
-        x, w, b, y,
-        N, C_in, D_in, H_in, W_in,
-        C_out, D_out, H_out, W_out,
-        sxn, sxc, sxd, sxh, sxw,
-        swo, swi, swkd, swkh, swkw,
-        syn, syc, syd, syh, syw,
+        x,
+        w,
+        b,
+        y,
+        N,
+        C_in,
+        D_in,
+        H_in,
+        W_in,
+        C_out,
+        D_out,
+        H_out,
+        W_out,
+        sxn,
+        sxc,
+        sxd,
+        sxh,
+        sxw,
+        swo,
+        swi,
+        swkd,
+        swkh,
+        swkw,
+        syn,
+        syc,
+        syd,
+        syh,
+        syw,
         alpha,
-        KD=kD, KH=kH, KW=kW,
+        KD=kD,
+        KH=kH,
+        KW=kW,
         grf_mode="auto",
     )
     return y
@@ -205,11 +272,26 @@ def _conv3d_bias_div(x, w, b, divisor=2.0):
 )
 @triton.jit
 def _fused_maxpool3d_adaptive_avgpool3d_kernel(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    sN, sC, sD, sH, sW,
-    ysN, ysC, ysD, ysH, ysW,
-    D_OUT, H_OUT, W_OUT,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    sN,
+    sC,
+    sD,
+    sH,
+    sW,
+    ysN,
+    ysC,
+    ysD,
+    ysH,
+    ysW,
+    D_OUT,
+    H_OUT,
+    W_OUT,
     scale,
     BLOCK_OW: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -240,7 +322,9 @@ def _fused_maxpool3d_adaptive_avgpool3d_kernel(
                 x100 = tl.load(ptr000 + sD, mask=ow_mask, other=0.0).to(tl.float32)
                 x101 = tl.load(ptr000 + sD + sW, mask=ow_mask, other=0.0).to(tl.float32)
                 x110 = tl.load(ptr000 + sD + sH, mask=ow_mask, other=0.0).to(tl.float32)
-                x111 = tl.load(ptr000 + sD + sH + sW, mask=ow_mask, other=0.0).to(tl.float32)
+                x111 = tl.load(ptr000 + sD + sH + sW, mask=ow_mask, other=0.0).to(
+                    tl.float32
+                )
 
                 m0 = tl.maximum(x000, x001)
                 m1 = tl.maximum(x010, x011)
@@ -270,11 +354,26 @@ def _fused_maxpool3d_adaptive_avgpool3d(x):
     grid = (N * C,)
 
     _fused_maxpool3d_adaptive_avgpool3d_kernel[grid](
-        x, y,
-        N, C, D, H, W,
-        sN, sC, sD, sH, sW,
-        ysN, ysC, ysD, ysH, ysW,
-        D_OUT, H_OUT, W_OUT,
+        x,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        ysN,
+        ysC,
+        ysD,
+        ysH,
+        ysW,
+        D_OUT,
+        H_OUT,
+        W_OUT,
         scale,
         grf_mode="auto",
     )
@@ -287,10 +386,16 @@ def _fused_maxpool3d_adaptive_avgpool3d(x):
 )
 @triton.jit
 def _add_bias_broadcast_kernel(
-    x_ptr, b_ptr, y_ptr,
-    n_elements, C,
-    stride_xn, stride_xc, stride_b0,
-    stride_yn, stride_yc,
+    x_ptr,
+    b_ptr,
+    y_ptr,
+    n_elements,
+    C,
+    stride_xn,
+    stride_xc,
+    stride_b0,
+    stride_yn,
+    stride_yc,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -327,10 +432,16 @@ def _add_bias_broadcast(x0, x1):
         return (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
 
     _add_bias_broadcast_kernel[grid](
-        x0, x1, y,
-        n_elements, C,
-        stride_xn, stride_xc, stride_b0,
-        stride_yn, stride_yc,
+        x0,
+        x1,
+        y,
+        n_elements,
+        C,
+        stride_xn,
+        stride_xc,
+        stride_b0,
+        stride_yn,
+        stride_yc,
         grf_mode="auto",
     )
     return y
@@ -342,10 +453,15 @@ def _add_bias_broadcast(x0, x1):
 )
 @triton.jit
 def _sum_dim1_kernel(
-    x_ptr, y_ptr,
-    N, C,
-    stride_n, stride_c, out_stride_n,
-    BLOCK_N: tl.constexpr, BLOCK_C: tl.constexpr,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    stride_n,
+    stride_c,
+    out_stride_n,
+    BLOCK_N: tl.constexpr,
+    BLOCK_C: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
@@ -379,9 +495,13 @@ def _sum_dim1(x):
         return (triton.cdiv(N, meta["BLOCK_N"]),)
 
     _sum_dim1_kernel[grid](
-        x, y,
-        N, C,
-        stride_n, stride_c, out_stride_n,
+        x,
+        y,
+        N,
+        C,
+        stride_n,
+        stride_c,
+        out_stride_n,
         grf_mode="auto",
     )
     return y
@@ -391,10 +511,26 @@ def kernel_function(x, conv_w, conv_b, bias):
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU not available.")
 
-    x_xpu = x if (x.device.type == "xpu" and x.dtype == torch.float16) else x.to("xpu", dtype=torch.float16)
-    conv_w_xpu = conv_w if (conv_w.device.type == "xpu" and conv_w.dtype == torch.float16) else conv_w.to("xpu", dtype=torch.float16)
-    conv_b_xpu = conv_b if (conv_b.device.type == "xpu" and conv_b.dtype == torch.float16) else conv_b.to("xpu", dtype=torch.float16)
-    bias_xpu = bias if (bias.device.type == "xpu" and bias.dtype == torch.float16) else bias.to("xpu", dtype=torch.float16)
+    x_xpu = (
+        x
+        if (x.device.type == "xpu" and x.dtype == torch.float16)
+        else x.to("xpu", dtype=torch.float16)
+    )
+    conv_w_xpu = (
+        conv_w
+        if (conv_w.device.type == "xpu" and conv_w.dtype == torch.float16)
+        else conv_w.to("xpu", dtype=torch.float16)
+    )
+    conv_b_xpu = (
+        conv_b
+        if (conv_b.device.type == "xpu" and conv_b.dtype == torch.float16)
+        else conv_b.to("xpu", dtype=torch.float16)
+    )
+    bias_xpu = (
+        bias
+        if (bias.device.type == "xpu" and bias.dtype == torch.float16)
+        else bias.to("xpu", dtype=torch.float16)
+    )
 
     y1 = _conv3d_bias_div(x_xpu, conv_w_xpu, conv_b_xpu, divisor=2.0)
     y2 = _fused_maxpool3d_adaptive_avgpool3d(y1)
@@ -405,7 +541,16 @@ def kernel_function(x, conv_w, conv_b, bias):
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, divisor, pool_size, bias_shape, sum_dim):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        divisor,
+        pool_size,
+        bias_shape,
+        sum_dim,
+    ):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
         self.bias = nn.Parameter(torch.zeros(bias_shape))
@@ -416,10 +561,19 @@ class Model(nn.Module):
     def forward(self, x):
         if x.device.type != "xpu" or x.dtype != torch.float16:
             x = x.to("xpu", dtype=torch.float16)
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.conv.bias is not None and (self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16):
-            self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if self.conv.bias is not None and (
+            self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16
+        ):
+            self.conv.bias.data = self.conv.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         if self.bias.device.type != "xpu" or self.bias.dtype != torch.float16:
             self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()
 
@@ -430,11 +584,13 @@ def run_test():
     init_args = get_init_inputs()
     model = Model(*init_args).eval()
 
-    x, = get_inputs()
+    (x,) = get_inputs()
     x_ref = x.to("xpu", dtype=torch.float16)
 
     with torch.no_grad():
-        conv = nn.Conv3d(in_channels, out_channels, kernel_size).to("xpu", dtype=torch.float16)
+        conv = nn.Conv3d(in_channels, out_channels, kernel_size).to(
+            "xpu", dtype=torch.float16
+        )
         conv.weight.copy_(model.conv.weight.to("xpu", dtype=torch.float16))
         conv.bias.copy_(model.conv.bias.to("xpu", dtype=torch.float16))
         b = model.bias.to("xpu", dtype=torch.float16)

@@ -6,22 +6,48 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=4, num_stages=4),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=4, num_stages=4),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=8, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=4, num_stages=4
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=4, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=4, num_stages=4
+        ),
     ],
-    key=['H', 'W', 'C_IN', 'C_out', 'OH', 'OW'],
+    key=["H", "W", "C_IN", "C_out", "OH", "OW"],
 )
 @triton.jit
 def _fused_conv_spatial(
-    x_ptr, w_ptr, conv_bias_ptr, y_ptr,
-    N_batch, H, W, C_out, OH, OW,
-    stride_wkh, stride_wkw, stride_wci, stride_wco,
-    inv_divisor, negative_slope,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr, C_IN: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    conv_bias_ptr,
+    y_ptr,
+    N_batch,
+    H,
+    W,
+    C_out,
+    OH,
+    OW,
+    stride_wkh,
+    stride_wkw,
+    stride_wci,
+    stride_wco,
+    inv_divisor,
+    negative_slope,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    C_IN: tl.constexpr,
 ):
     n = tl.program_id(0)
     oh = tl.program_id(1)
@@ -35,14 +61,20 @@ def _fused_conv_spatial(
         for kw in range(KW):
             x_row = n * HW + (oh + kh) * W + (ow0 + kw)
             x_bp = tl.make_block_ptr(
-                base=x_ptr, shape=(x_row + W - (ow0 + kw), C_IN),
-                strides=(C_IN, 1), offsets=(x_row, 0),
-                block_shape=(BLOCK_OW, BLOCK_K), order=(1, 0),
+                base=x_ptr,
+                shape=(x_row + W - (ow0 + kw), C_IN),
+                strides=(C_IN, 1),
+                offsets=(x_row, 0),
+                block_shape=(BLOCK_OW, BLOCK_K),
+                order=(1, 0),
             )
             w_bp = tl.make_block_ptr(
                 base=w_ptr + kh * stride_wkh + kw * stride_wkw,
-                shape=(C_IN, C_out), strides=(stride_wci, stride_wco),
-                offsets=(0, 0), block_shape=(BLOCK_K, BLOCK_N), order=(1, 0),
+                shape=(C_IN, C_out),
+                strides=(stride_wci, stride_wco),
+                offsets=(0, 0),
+                block_shape=(BLOCK_K, BLOCK_N),
+                order=(1, 0),
             )
             for c0 in range(0, C_IN, BLOCK_K):
                 x_tile = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
@@ -67,9 +99,12 @@ def _fused_conv_spatial(
     OHOW = OH * OW
     y_row = n * OHOW + oh * OW + ow0
     y_bp = tl.make_block_ptr(
-        base=y_ptr, shape=(y_row + OW - ow0, C_out),
-        strides=(C_out, 1), offsets=(y_row, 0),
-        block_shape=(BLOCK_OW, BLOCK_N), order=(1, 0),
+        base=y_ptr,
+        shape=(y_row + OW - ow0, C_out),
+        strides=(C_out, 1),
+        offsets=(y_row, 0),
+        block_shape=(BLOCK_OW, BLOCK_N),
+        order=(1, 0),
     )
     tl.store(y_bp, acc.to(tl.float16), boundary_check=(0, 1))
 
@@ -123,17 +158,35 @@ class Model(nn.Module):
         KH, KW, _, C_out = self._w.shape
         OH, OW = H - KH + 1, W - KW + 1
 
-        y = torch.empty((N, C_out, OH, OW), device=x.device,
-                         dtype=torch.float16, memory_format=torch.channels_last)
+        y = torch.empty(
+            (N, C_out, OH, OW),
+            device=x.device,
+            dtype=torch.float16,
+            memory_format=torch.channels_last,
+        )
         y_nhwc = y.permute(0, 2, 3, 1)
 
-        grid = lambda meta: (N, OH, triton.cdiv(OW, meta['BLOCK_OW']))
+        grid = lambda meta: (N, OH, triton.cdiv(OW, meta["BLOCK_OW"]))
 
         _fused_conv_spatial[grid](
-            x_nhwc, self._w, self._cb, y_nhwc,
-            N, H, W, C_out, OH, OW,
-            self._w.stride(0), self._w.stride(1), self._w.stride(2), self._w.stride(3),
-            1.0 / float(self.divisor), 0.01,
-            KH=KH, KW=KW, C_IN=C_in,
+            x_nhwc,
+            self._w,
+            self._cb,
+            y_nhwc,
+            N,
+            H,
+            W,
+            C_out,
+            OH,
+            OW,
+            self._w.stride(0),
+            self._w.stride(1),
+            self._w.stride(2),
+            self._w.stride(3),
+            1.0 / float(self.divisor),
+            0.01,
+            KH=KH,
+            KW=KW,
+            C_IN=C_in,
         )
         return y

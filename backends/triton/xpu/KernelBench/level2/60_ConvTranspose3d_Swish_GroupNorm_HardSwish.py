@@ -52,16 +52,47 @@ def _groupnorm_w32_autotune_configs():
 )
 @triton.jit
 def convt3d_swish_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_OUT, D_IN, H_IN, W_IN, D_OUT, H_OUT, W_OUT,
-    stride_nx, stride_cx, stride_dx, stride_hx, stride_wx,
-    stride_w_ic, stride_w_oc, stride_w_kd, stride_w_kh, stride_w_kw,
-    stride_ny, stride_cy, stride_dy, stride_hy, stride_wy,
-    BLOCK_W: tl.constexpr, C_IN: tl.constexpr,
-    K_D: tl.constexpr, K_H: tl.constexpr, K_W: tl.constexpr,
-    STRIDE_D: tl.constexpr, STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_D: tl.constexpr, PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_D: tl.constexpr, DIL_H: tl.constexpr, DIL_W: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_OUT,
+    D_IN,
+    H_IN,
+    W_IN,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    stride_nx,
+    stride_cx,
+    stride_dx,
+    stride_hx,
+    stride_wx,
+    stride_w_ic,
+    stride_w_oc,
+    stride_w_kd,
+    stride_w_kh,
+    stride_w_kw,
+    stride_ny,
+    stride_cy,
+    stride_dy,
+    stride_hy,
+    stride_wy,
+    BLOCK_W: tl.constexpr,
+    C_IN: tl.constexpr,
+    K_D: tl.constexpr,
+    K_H: tl.constexpr,
+    K_W: tl.constexpr,
+    STRIDE_D: tl.constexpr,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_D: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_D: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
     pid0 = tl.program_id(0)
@@ -84,7 +115,9 @@ def convt3d_swish_kernel(
     oh64 = oh.to(tl.int64)
     offs_w64 = offs_w.to(tl.int64)
 
-    y_row_base = n64 * stride_ny + oc64 * stride_cy + od64 * stride_dy + oh64 * stride_hy
+    y_row_base = (
+        n64 * stride_ny + oc64 * stride_cy + od64 * stride_dy + oh64 * stride_hy
+    )
     y_ptrs = y_ptr + y_row_base + offs_w64 * stride_wy
 
     acc = tl.full([BLOCK_W], tl.load(b_ptr + oc).to(tl.float32), dtype=tl.float32)
@@ -110,21 +143,32 @@ def convt3d_swish_kernel(
                             if (ih_in >= 0) and (ih_in < H_IN):
                                 ih64 = tl.full((), ih_in, tl.int64)
                                 x_base_ncdh = x_base_ncd + ih64 * stride_hx
-                                w_base_kdh = w_base_kd + tl.full((), kh, tl.int64) * stride_w_kh
+                                w_base_kdh = (
+                                    w_base_kd + tl.full((), kh, tl.int64) * stride_w_kh
+                                )
 
                                 for kw in tl.static_range(0, K_W):
                                     iw_num = offs_w + PAD_W - kw * DIL_W
                                     iw_in = iw_num // STRIDE_W
-                                    mask = mask_w & ((iw_num % STRIDE_W) == 0) & (iw_in >= 0) & (iw_in < W_IN)
+                                    mask = (
+                                        mask_w
+                                        & ((iw_num % STRIDE_W) == 0)
+                                        & (iw_in >= 0)
+                                        & (iw_in < W_IN)
+                                    )
 
                                     x_vals = tl.load(
-                                        x_ptr + x_base_ncdh + iw_in.to(tl.int64) * stride_wx,
+                                        x_ptr
+                                        + x_base_ncdh
+                                        + iw_in.to(tl.int64) * stride_wx,
                                         mask=mask,
                                         other=0.0,
                                     ).to(tl.float32)
 
                                     w_val = tl.load(
-                                        w_ptr + w_base_kdh + tl.full((), kw, tl.int64) * stride_w_kw
+                                        w_ptr
+                                        + w_base_kdh
+                                        + tl.full((), kw, tl.int64) * stride_w_kw
                                     ).to(tl.float32)
 
                                     acc += x_vals * w_val
@@ -140,11 +184,23 @@ def convt3d_swish_kernel(
 )
 @triton.jit
 def _groupnorm_hardswish_kernel_w64(
-    x_ptr, y_ptr, gamma_ptr, beta_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
+    x_ptr,
+    y_ptr,
+    gamma_ptr,
+    beta_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
     eps,
-    C_PER_G: tl.constexpr, G: tl.constexpr,
+    C_PER_G: tl.constexpr,
+    G: tl.constexpr,
     BLOCK_W: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -231,7 +287,11 @@ def _groupnorm_hardswish_kernel_w64(
                 yv = yv * gval + bval
                 t = tl.minimum(tl.maximum(yv + 3.0, 0.0), 6.0)
                 hsw = yv * t * (1.0 / 6.0)
-                tl.store(y_bp, tl.reshape(hsw.to(tl.float16), [1, BLOCK_W]), boundary_check=(0, 1))
+                tl.store(
+                    y_bp,
+                    tl.reshape(hsw.to(tl.float16), [1, BLOCK_W]),
+                    boundary_check=(0, 1),
+                )
 
 
 @triton.autotune(
@@ -240,11 +300,23 @@ def _groupnorm_hardswish_kernel_w64(
 )
 @triton.jit
 def _groupnorm_hardswish_kernel_w32(
-    x_ptr, y_ptr, gamma_ptr, beta_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
+    x_ptr,
+    y_ptr,
+    gamma_ptr,
+    beta_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
     eps,
-    C_PER_G: tl.constexpr, G: tl.constexpr,
+    C_PER_G: tl.constexpr,
+    G: tl.constexpr,
     BLOCK_W: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -328,7 +400,11 @@ def _groupnorm_hardswish_kernel_w32(
                     yv = yv * gval + bval
                     t = tl.minimum(tl.maximum(yv + 3.0, 0.0), 6.0)
                     hsw = yv * t * (1.0 / 6.0)
-                    tl.store(y_bp, tl.reshape(hsw.to(tl.float16), [1, BLOCK_W]), boundary_check=(0, 1))
+                    tl.store(
+                        y_bp,
+                        tl.reshape(hsw.to(tl.float16), [1, BLOCK_W]),
+                        boundary_check=(0, 1),
+                    )
 
 
 def kernel_function(x, conv_w, conv_b, gn_weight, gn_bias, num_groups, eps):
@@ -362,16 +438,46 @@ def kernel_function(x, conv_w, conv_b, gn_weight, gn_bias, num_groups, eps):
 
     grid0 = lambda meta: (N * D_out * H_out, C_out, triton.cdiv(W_out, meta["BLOCK_W"]))
     convt3d_swish_kernel[grid0](
-        x_xpu, conv_w_xpu, conv_b_xpu, y1,
-        N, C_out, D_in, H_in, W_in, D_out, H_out, W_out,
-        sx_n, sx_c, sx_d, sx_h, sx_w,
-        sw_ic, sw_oc, sw_kd, sw_kh, sw_kw,
-        sy_n, sy_c, sy_d, sy_h, sy_w,
+        x_xpu,
+        conv_w_xpu,
+        conv_b_xpu,
+        y1,
+        N,
+        C_out,
+        D_in,
+        H_in,
+        W_in,
+        D_out,
+        H_out,
+        W_out,
+        sx_n,
+        sx_c,
+        sx_d,
+        sx_h,
+        sx_w,
+        sw_ic,
+        sw_oc,
+        sw_kd,
+        sw_kh,
+        sw_kw,
+        sy_n,
+        sy_c,
+        sy_d,
+        sy_h,
+        sy_w,
         C_IN=C_in,
-        K_D=kD, K_H=kH, K_W=kW,
-        STRIDE_D=stride_d, STRIDE_H=stride_h, STRIDE_W=stride_w,
-        PAD_D=pad_d, PAD_H=pad_h, PAD_W=pad_w,
-        DIL_D=dil_d, DIL_H=dil_h, DIL_W=dil_w,
+        K_D=kD,
+        K_H=kH,
+        K_W=kW,
+        STRIDE_D=stride_d,
+        STRIDE_H=stride_h,
+        STRIDE_W=stride_w,
+        PAD_D=pad_d,
+        PAD_H=pad_h,
+        PAD_W=pad_w,
+        DIL_D=dil_d,
+        DIL_H=dil_h,
+        DIL_W=dil_w,
         grf_mode="auto",
     )
 
@@ -384,9 +490,20 @@ def kernel_function(x, conv_w, conv_b, gn_weight, gn_bias, num_groups, eps):
     if W2 <= 32:
         grid1 = lambda meta: (N2 * G, triton.cdiv(W2, meta["BLOCK_W"]))
         _groupnorm_hardswish_kernel_w32[grid1](
-            y1, y2, gn_weight_xpu, gn_bias_xpu,
-            N2, C2, D2, H2, W2,
-            sN, sC, sD, sH, sW,
+            y1,
+            y2,
+            gn_weight_xpu,
+            gn_bias_xpu,
+            N2,
+            C2,
+            D2,
+            H2,
+            W2,
+            sN,
+            sC,
+            sD,
+            sH,
+            sW,
             eps,
             C_PER_G=C_PER_G,
             G=G,
@@ -395,9 +512,20 @@ def kernel_function(x, conv_w, conv_b, gn_weight, gn_bias, num_groups, eps):
     else:
         grid1 = (N2 * G,)
         _groupnorm_hardswish_kernel_w64[grid1](
-            y1, y2, gn_weight_xpu, gn_bias_xpu,
-            N2, C2, D2, H2, W2,
-            sN, sC, sD, sH, sW,
+            y1,
+            y2,
+            gn_weight_xpu,
+            gn_bias_xpu,
+            N2,
+            C2,
+            D2,
+            H2,
+            W2,
+            sN,
+            sC,
+            sD,
+            sH,
+            sW,
             eps,
             C_PER_G=C_PER_G,
             G=G,
@@ -418,7 +546,9 @@ eps = 1e-5
 
 
 def get_inputs():
-    return [torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)]
+    return [
+        torch.rand(batch_size, in_channels, depth, height, width, dtype=torch.float16)
+    ]
 
 
 def get_init_inputs():
@@ -426,7 +556,17 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, groups, eps, bias=True):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        groups,
+        eps,
+        bias=True,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
             in_channels, out_channels, kernel_size, stride=2, padding=1, bias=bias
@@ -443,11 +583,19 @@ class Model(nn.Module):
             x = x.contiguous()
 
         if not self._weights_on_xpu:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             if self.conv_transpose.bias is not None:
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float32).contiguous()
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu", dtype=torch.float32).contiguous()
-            self.group_norm.bias.data = self.group_norm.bias.data.to("xpu", dtype=torch.float32).contiguous()
+                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                    "xpu", dtype=torch.float32
+                ).contiguous()
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                "xpu", dtype=torch.float32
+            ).contiguous()
             self._weights_on_xpu = True
 
         return kernel_function(

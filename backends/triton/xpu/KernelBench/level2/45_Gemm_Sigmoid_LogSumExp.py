@@ -29,6 +29,7 @@ def get_inputs():
 # Adds XPU-oriented configs and GROUP_SIZE_M swizzling for better locality.
 # -------------------------------------------------------------------
 
+
 @triton.autotune(
     configs=[
         triton.Config(
@@ -51,11 +52,19 @@ def get_inputs():
 )
 @triton.jit
 def _linear_sigmoid_kernel_packed(
-    x_ptr, w_t_ptr, b_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wtk, stride_wtn,
-    stride_ym, stride_yn,
+    x_ptr,
+    w_t_ptr,
+    b_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wtk,
+    stride_wtn,
+    stride_ym,
+    stride_yn,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -122,6 +131,7 @@ def _linear_sigmoid_kernel_packed(
 # Retained reference kernel to preserve interface structure.
 # -------------------------------------------------------------------
 
+
 @triton.autotune(
     configs=[
         triton.Config({"BLOCK_N": 128, "BLOCK_K": 128}, num_stages=2, num_warps=8),
@@ -132,10 +142,17 @@ def _linear_sigmoid_kernel_packed(
 )
 @triton.jit
 def _linear_logsumexp_fused_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    B, In, Out,
-    stride_xm, stride_xk,
-    stride_wn, stride_wi,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    B,
+    In,
+    Out,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wi,
     stride_b,
     BLOCK_N: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -183,7 +200,9 @@ def _linear_logsumexp_fused_kernel(
 
             acc += tl.sum(w_vals * x_vals[None, :], axis=1)
 
-        b_vals = tl.load(b_ptr + n_idx * stride_b, mask=n_mask, other=0.0).to(tl.float32)
+        b_vals = tl.load(b_ptr + n_idx * stride_b, mask=n_mask, other=0.0).to(
+            tl.float32
+        )
         acc += b_vals
 
         block_m = tl.max(acc, axis=0)
@@ -204,6 +223,7 @@ def _linear_logsumexp_fused_kernel(
 # Uses packed second-layer weights in [In, Out] = [K, N] layout
 # and swizzled program ordering for better cache behavior.
 # -------------------------------------------------------------------
+
 
 @triton.autotune(
     configs=[
@@ -232,14 +252,23 @@ def _linear_logsumexp_fused_kernel(
 )
 @triton.jit
 def _linear_lse_tile_stats_block_kernel_packed(
-    x_ptr, w_t_ptr, b_ptr,
-    tile_max_ptr, tile_sum_ptr,
-    B, In, Out,
-    stride_xm, stride_xk,
-    stride_wtk, stride_wtn,
+    x_ptr,
+    w_t_ptr,
+    b_ptr,
+    tile_max_ptr,
+    tile_sum_ptr,
+    B,
+    In,
+    Out,
+    stride_xm,
+    stride_xk,
+    stride_wtk,
+    stride_wtn,
     stride_b,
-    stride_tm_row, stride_tm_tile,
-    stride_ts_row, stride_ts_tile,
+    stride_tm_row,
+    stride_tm_tile,
+    stride_ts_row,
+    stride_ts_tile,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -299,8 +328,12 @@ def _linear_lse_tile_stats_block_kernel_packed(
         axis=1,
     )
 
-    tl.store(tile_max_ptr + offs_m * stride_tm_row + pid_n * stride_tm_tile, m, mask=mask_m)
-    tl.store(tile_sum_ptr + offs_m * stride_ts_row + pid_n * stride_ts_tile, s, mask=mask_m)
+    tl.store(
+        tile_max_ptr + offs_m * stride_tm_row + pid_n * stride_tm_tile, m, mask=mask_m
+    )
+    tl.store(
+        tile_sum_ptr + offs_m * stride_ts_row + pid_n * stride_ts_tile, s, mask=mask_m
+    )
 
 
 @triton.autotune(
@@ -313,10 +346,15 @@ def _linear_lse_tile_stats_block_kernel_packed(
 )
 @triton.jit
 def _reduce_lse_tiles_block_kernel(
-    tile_max_ptr, tile_sum_ptr, y_ptr,
-    B, num_tiles,
-    stride_tm_row, stride_tm_tile,
-    stride_ts_row, stride_ts_tile,
+    tile_max_ptr,
+    tile_sum_ptr,
+    y_ptr,
+    B,
+    num_tiles,
+    stride_tm_row,
+    stride_tm_tile,
+    stride_ts_row,
+    stride_ts_tile,
     BLOCK_M: tl.constexpr,
     BLOCK_T: tl.constexpr,
 ):
@@ -335,12 +373,16 @@ def _reduce_lse_tiles_block_kernel(
         mask_t = offs_t < num_tiles
 
         tm = tl.load(
-            tile_max_ptr + offs_m[:, None] * stride_tm_row + offs_t[None, :] * stride_tm_tile,
+            tile_max_ptr
+            + offs_m[:, None] * stride_tm_row
+            + offs_t[None, :] * stride_tm_tile,
             mask=mask_m[:, None] & mask_t[None, :],
             other=-float("inf"),
         ).to(tl.float32)
         ts = tl.load(
-            tile_sum_ptr + offs_m[:, None] * stride_ts_row + offs_t[None, :] * stride_ts_tile,
+            tile_sum_ptr
+            + offs_m[:, None] * stride_ts_row
+            + offs_t[None, :] * stride_ts_tile,
             mask=mask_m[:, None] & mask_t[None, :],
             other=0.0,
         ).to(tl.float32)
@@ -349,7 +391,9 @@ def _reduce_lse_tiles_block_kernel(
         block_l = tl.sum(ts * tl.math.exp2((tm - block_m[:, None]) * inv_ln2), axis=1)
 
         m_new = tl.maximum(m, block_m)
-        l = l * tl.math.exp2((m - m_new) * inv_ln2) + block_l * tl.math.exp2((block_m - m_new) * inv_ln2)
+        l = l * tl.math.exp2((m - m_new) * inv_ln2) + block_l * tl.math.exp2(
+            (block_m - m_new) * inv_ln2
+        )
         m = m_new
 
     tl.store(y_ptr + offs_m, m + tl.math.log2(l) * ln2, mask=mask_m)
@@ -358,6 +402,7 @@ def _reduce_lse_tiles_block_kernel(
 # -------------------------------------------------------------------
 # Top-level kernel wrapper
 # -------------------------------------------------------------------
+
 
 def kernel_function(
     x: torch.Tensor,
@@ -369,11 +414,31 @@ def kernel_function(
     if not all(isinstance(t, torch.Tensor) for t in (x, w1, b1, w2, b2)):
         raise TypeError("All inputs must be torch.Tensor")
 
-    x_xpu = x if x.device.type == "xpu" and x.dtype == torch.float16 else x.to("xpu", dtype=torch.float16)
-    w1_xpu = w1 if w1.device.type == "xpu" and w1.dtype == torch.float16 else w1.to("xpu", dtype=torch.float16)
-    b1_xpu = b1 if b1.device.type == "xpu" and b1.dtype == torch.float16 else b1.to("xpu", dtype=torch.float16)
-    w2_xpu = w2 if w2.device.type == "xpu" and w2.dtype == torch.float16 else w2.to("xpu", dtype=torch.float16)
-    b2_xpu = b2 if b2.device.type == "xpu" and b2.dtype == torch.float16 else b2.to("xpu", dtype=torch.float16)
+    x_xpu = (
+        x
+        if x.device.type == "xpu" and x.dtype == torch.float16
+        else x.to("xpu", dtype=torch.float16)
+    )
+    w1_xpu = (
+        w1
+        if w1.device.type == "xpu" and w1.dtype == torch.float16
+        else w1.to("xpu", dtype=torch.float16)
+    )
+    b1_xpu = (
+        b1
+        if b1.device.type == "xpu" and b1.dtype == torch.float16
+        else b1.to("xpu", dtype=torch.float16)
+    )
+    w2_xpu = (
+        w2
+        if w2.device.type == "xpu" and w2.dtype == torch.float16
+        else w2.to("xpu", dtype=torch.float16)
+    )
+    b2_xpu = (
+        b2
+        if b2.device.type == "xpu" and b2.dtype == torch.float16
+        else b2.to("xpu", dtype=torch.float16)
+    )
 
     x_xpu = x_xpu.contiguous()
     w1_xpu = w1_xpu.contiguous()
@@ -404,11 +469,19 @@ def kernel_function(
 
     grid1 = (triton.cdiv(B, 128) * triton.cdiv(H, 128),)
     _linear_sigmoid_kernel_packed[grid1](
-        x_xpu, w1_t_xpu, b1_xpu, hidden,
-        B, H, In,
-        x_xpu.stride(0), x_xpu.stride(1),
-        w1_t_xpu.stride(0), w1_t_xpu.stride(1),
-        hidden.stride(0), hidden.stride(1),
+        x_xpu,
+        w1_t_xpu,
+        b1_xpu,
+        hidden,
+        B,
+        H,
+        In,
+        x_xpu.stride(0),
+        x_xpu.stride(1),
+        w1_t_xpu.stride(0),
+        w1_t_xpu.stride(1),
+        hidden.stride(0),
+        hidden.stride(1),
     )
 
     block_n_stats = 128
@@ -418,22 +491,36 @@ def kernel_function(
 
     grid2 = (triton.cdiv(B, 16) * num_tiles,)
     _linear_lse_tile_stats_block_kernel_packed[grid2](
-        hidden, w2_t_xpu, b2_xpu,
-        tile_max, tile_sum,
-        B, H, O,
-        hidden.stride(0), hidden.stride(1),
-        w2_t_xpu.stride(0), w2_t_xpu.stride(1),
+        hidden,
+        w2_t_xpu,
+        b2_xpu,
+        tile_max,
+        tile_sum,
+        B,
+        H,
+        O,
+        hidden.stride(0),
+        hidden.stride(1),
+        w2_t_xpu.stride(0),
+        w2_t_xpu.stride(1),
         b2_xpu.stride(0),
-        tile_max.stride(0), tile_max.stride(1),
-        tile_sum.stride(0), tile_sum.stride(1),
+        tile_max.stride(0),
+        tile_max.stride(1),
+        tile_sum.stride(0),
+        tile_sum.stride(1),
     )
 
     grid3 = (triton.cdiv(B, 16),)
     _reduce_lse_tiles_block_kernel[grid3](
-        tile_max, tile_sum, y,
-        B, num_tiles,
-        tile_max.stride(0), tile_max.stride(1),
-        tile_sum.stride(0), tile_sum.stride(1),
+        tile_max,
+        tile_sum,
+        y,
+        B,
+        num_tiles,
+        tile_max.stride(0),
+        tile_max.stride(1),
+        tile_sum.stride(0),
+        tile_sum.stride(1),
     )
 
     return y.to(x.dtype)
@@ -444,21 +531,34 @@ def kernel_function(
 # Cache packed weights once to avoid per-forward transpose+contiguous cost.
 # -------------------------------------------------------------------
 
+
 class Model(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
-        self.linear1 = nn.Linear(input_size, hidden_size, device="cpu", dtype=torch.float16)
-        self.linear2 = nn.Linear(hidden_size, output_size, device="cpu", dtype=torch.float16)
+        self.linear1 = nn.Linear(
+            input_size, hidden_size, device="cpu", dtype=torch.float16
+        )
+        self.linear2 = nn.Linear(
+            hidden_size, output_size, device="cpu", dtype=torch.float16
+        )
         self._moved_to_xpu = False
         self._w1_t_packed = None
         self._w2_t_packed = None
 
     def _ensure_xpu_and_packed(self):
         if not self._moved_to_xpu:
-            self.linear1.weight.data = self.linear1.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.linear1.bias.data = self.linear1.bias.data.to("xpu", dtype=torch.float16).contiguous()
-            self.linear2.weight.data = self.linear2.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.linear2.bias.data = self.linear2.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.linear1.weight.data = self.linear1.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.linear1.bias.data = self.linear1.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.linear2.weight.data = self.linear2.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.linear2.bias.data = self.linear2.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self._w1_t_packed = self.linear1.weight.transpose(0, 1).contiguous()
             self._w2_t_packed = self.linear2.weight.transpose(0, 1).contiguous()
             self._moved_to_xpu = True
@@ -485,11 +585,19 @@ class Model(nn.Module):
 
         grid1 = (triton.cdiv(B, 128) * triton.cdiv(H, 128),)
         _linear_sigmoid_kernel_packed[grid1](
-            x_xpu, w1_t_xpu, b1_xpu, hidden,
-            B, H, In,
-            x_xpu.stride(0), x_xpu.stride(1),
-            w1_t_xpu.stride(0), w1_t_xpu.stride(1),
-            hidden.stride(0), hidden.stride(1),
+            x_xpu,
+            w1_t_xpu,
+            b1_xpu,
+            hidden,
+            B,
+            H,
+            In,
+            x_xpu.stride(0),
+            x_xpu.stride(1),
+            w1_t_xpu.stride(0),
+            w1_t_xpu.stride(1),
+            hidden.stride(0),
+            hidden.stride(1),
         )
 
         block_n_stats = 128
@@ -499,22 +607,36 @@ class Model(nn.Module):
 
         grid2 = (triton.cdiv(B, 16) * num_tiles,)
         _linear_lse_tile_stats_block_kernel_packed[grid2](
-            hidden, w2_t_xpu, b2_xpu,
-            tile_max, tile_sum,
-            B, H, O,
-            hidden.stride(0), hidden.stride(1),
-            w2_t_xpu.stride(0), w2_t_xpu.stride(1),
+            hidden,
+            w2_t_xpu,
+            b2_xpu,
+            tile_max,
+            tile_sum,
+            B,
+            H,
+            O,
+            hidden.stride(0),
+            hidden.stride(1),
+            w2_t_xpu.stride(0),
+            w2_t_xpu.stride(1),
             b2_xpu.stride(0),
-            tile_max.stride(0), tile_max.stride(1),
-            tile_sum.stride(0), tile_sum.stride(1),
+            tile_max.stride(0),
+            tile_max.stride(1),
+            tile_sum.stride(0),
+            tile_sum.stride(1),
         )
 
         grid3 = (triton.cdiv(B, 16),)
         _reduce_lse_tiles_block_kernel[grid3](
-            tile_max, tile_sum, y,
-            B, num_tiles,
-            tile_max.stride(0), tile_max.stride(1),
-            tile_sum.stride(0), tile_sum.stride(1),
+            tile_max,
+            tile_sum,
+            y,
+            B,
+            num_tiles,
+            tile_max.stride(0),
+            tile_max.stride(1),
+            tile_sum.stride(0),
+            tile_sum.stride(1),
         )
 
         return y.to(x.dtype)

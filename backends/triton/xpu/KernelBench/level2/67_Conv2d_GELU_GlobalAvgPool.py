@@ -7,17 +7,34 @@ import triton.language as tl
 # Conv + GELU + partial row sum (avoids writing full conv output)
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
     ],
-    key=['H', 'W', 'C_IN', 'C_out', 'OH', 'OW'],
+    key=["H", "W", "C_IN", "C_out", "OH", "OW"],
 )
 @triton.jit
 def _conv_gelu_rowsum(
-    x_ptr, w_ptr, bias_ptr, rowsum_ptr,
-    N_batch, H, W, C_out, OH, OW,
-    stride_wkh, stride_wkw, stride_wci, stride_wco,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr, C_IN: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    bias_ptr,
+    rowsum_ptr,
+    N_batch,
+    H,
+    W,
+    C_out,
+    OH,
+    OW,
+    stride_wkh,
+    stride_wkw,
+    stride_wci,
+    stride_wco,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    C_IN: tl.constexpr,
 ):
     """Conv + GELU + sum over ow tile → partial row sums [N, OH, C_out]."""
     n = tl.program_id(0)
@@ -30,11 +47,22 @@ def _conv_gelu_rowsum(
     for kh in range(KH):
         for kw in range(KW):
             x_row = n * HW + (oh + kh) * W + (ow0 + kw)
-            x_bp = tl.make_block_ptr(base=x_ptr, shape=(x_row + W - (ow0 + kw), C_IN),
-                strides=(C_IN, 1), offsets=(x_row, 0), block_shape=(BLOCK_OW, BLOCK_K), order=(1, 0))
-            w_bp = tl.make_block_ptr(base=w_ptr + kh * stride_wkh + kw * stride_wkw,
-                shape=(C_IN, C_out), strides=(stride_wci, stride_wco),
-                offsets=(0, 0), block_shape=(BLOCK_K, BLOCK_N), order=(1, 0))
+            x_bp = tl.make_block_ptr(
+                base=x_ptr,
+                shape=(x_row + W - (ow0 + kw), C_IN),
+                strides=(C_IN, 1),
+                offsets=(x_row, 0),
+                block_shape=(BLOCK_OW, BLOCK_K),
+                order=(1, 0),
+            )
+            w_bp = tl.make_block_ptr(
+                base=w_ptr + kh * stride_wkh + kw * stride_wkw,
+                shape=(C_IN, C_out),
+                strides=(stride_wci, stride_wco),
+                offsets=(0, 0),
+                block_shape=(BLOCK_K, BLOCK_N),
+                order=(1, 0),
+            )
             for c0 in range(0, C_IN, BLOCK_K):
                 xt = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
                 wt = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
@@ -67,8 +95,12 @@ def _conv_gelu_rowsum(
 # Final reduction: sum across OH rows → [N, C_out], divide by count
 @triton.jit
 def _reduce_all_kernel(
-    rowsum_ptr, y_ptr,
-    N_batch, total_slots, C_out, total_count,
+    rowsum_ptr,
+    y_ptr,
+    N_batch,
+    total_slots,
+    C_out,
+    total_count,
     BLOCK_C: tl.constexpr,
 ):
     """Sum rowsum[n, :, c] across all OH*ow_tiles → y[n, c] / count."""
@@ -78,7 +110,9 @@ def _reduce_all_kernel(
 
     acc = tl.zeros((BLOCK_C,), dtype=tl.float32)
     for s in range(total_slots):
-        vals = tl.load(rowsum_ptr + (n * total_slots + s) * C_out + offs_c, mask=mask_c, other=0.0)
+        vals = tl.load(
+            rowsum_ptr + (n * total_slots + s) * C_out + offs_c, mask=mask_c, other=0.0
+        )
         acc += vals
 
     out = acc / total_count
@@ -132,20 +166,40 @@ class Model(nn.Module):
         # Partial sums: [N, OH * max_ow_tiles, C_out]
         num_ow_tiles = triton.cdiv(OW, 128)  # BLOCK_OW=128 fixed
         total_slots = OH * num_ow_tiles
-        rowsum = torch.empty((N, total_slots, C_out), device=x.device, dtype=torch.float32)
+        rowsum = torch.empty(
+            (N, total_slots, C_out), device=x.device, dtype=torch.float32
+        )
 
-        grid = lambda meta: (N, OH, triton.cdiv(OW, meta['BLOCK_OW']))
+        grid = lambda meta: (N, OH, triton.cdiv(OW, meta["BLOCK_OW"]))
         _conv_gelu_rowsum[grid](
-            x_nhwc, self._w, self._b, rowsum,
-            N, H, W, C_out, OH, OW,
-            self._w.stride(0), self._w.stride(1), self._w.stride(2), self._w.stride(3),
-            KH=KH, KW=KW, C_IN=C_in,
+            x_nhwc,
+            self._w,
+            self._b,
+            rowsum,
+            N,
+            H,
+            W,
+            C_out,
+            OH,
+            OW,
+            self._w.stride(0),
+            self._w.stride(1),
+            self._w.stride(2),
+            self._w.stride(3),
+            KH=KH,
+            KW=KW,
+            C_IN=C_in,
         )
 
         # Final reduction: sum all slots → [N, C_out]
         y = torch.empty((N, C_out), device=x.device, dtype=torch.float16)
         _reduce_all_kernel[(N,)](
-            rowsum, y, N, total_slots, C_out, float(OH * OW),
+            rowsum,
+            y,
+            N,
+            total_slots,
+            C_out,
+            float(OH * OW),
             BLOCK_C=64,
         )
 

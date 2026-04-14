@@ -21,7 +21,6 @@ def _get_autotune_configs():
         triton.Config({"BLOCK_SIZE": 8192}, num_warps=8, num_stages=2),
         triton.Config({"BLOCK_SIZE": 8192}, num_warps=16, num_stages=2),
         triton.Config({"BLOCK_SIZE": 8192}, num_warps=32, num_stages=2),
-
         # XPU-oriented extensions, but kept conservative to avoid regressions
         triton.Config({"BLOCK_SIZE": 4096}, num_warps=32, num_stages=2),
         triton.Config({"BLOCK_SIZE": 8192}, num_warps=32, num_stages=3),

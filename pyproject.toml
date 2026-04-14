@@ -172,6 +172,18 @@ ignore = [
     "PERF401", # manual-list-comprehension
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"backends/triton/xpu/KernelBench/**" = [
+    "A001",   # variable shadowing builtin
+    "A002",   # argument shadowing builtin
+    "E731",   # lambda assignment
+    "E741",   # ambiguous variable name (O, I, l)
+    "F811",   # redefinition of unused name
+    "F821",   # undefined name
+    "F841",   # unused variable
+    "N801",   # class name convention
+]
+
 [tool.ruff.lint.isort]
 known-local-folder = ["ai_bench"]
 known-third-party = [

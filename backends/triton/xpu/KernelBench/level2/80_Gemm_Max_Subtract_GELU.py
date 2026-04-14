@@ -39,10 +39,16 @@ def _zero_epilogue_kernel(
     tl.store(out_ptrs, zeros, mask=mask)
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU is not available")
-    if not (isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor) and isinstance(bias, torch.Tensor)):
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("x, weight, and bias must be torch.Tensor")
 
     x_xpu = x.to(device="xpu", dtype=torch.float16).contiguous()
@@ -95,8 +101,16 @@ class Model(nn.Module):
     def _get_cached_params(self):
         version = (self.gemm.weight._version, self.gemm.bias._version)
         if self._cache_version != version:
-            self._weight_xpu_fp16 = self.gemm.weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
-            self._bias_xpu_fp16 = self.gemm.bias.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            self._weight_xpu_fp16 = (
+                self.gemm.weight.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
+            self._bias_xpu_fp16 = (
+                self.gemm.bias.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._cache_version = version
         return self._weight_xpu_fp16, self._bias_xpu_fp16
 

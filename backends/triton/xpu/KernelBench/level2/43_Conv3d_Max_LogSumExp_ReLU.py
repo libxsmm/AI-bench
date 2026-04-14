@@ -3,6 +3,7 @@
 Conv3d(32->64, 3x3x3, pad=1) + MaxPool3d(2) + LogSumExp(dim=1) + ReLU
 Spatial-tiled Conv3d (all block_ptr) + fused Pool+LSE+ReLU.
 """
+
 import torch
 import torch.nn as nn
 import triton
@@ -15,22 +16,48 @@ import triton.language as tl
 # ============================================================
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 32}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 32}, num_warps=4, num_stages=2),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 64, "BLOCK_K": 32}, num_warps=4, num_stages=2
+        ),
     ],
-    key=['D', 'H', 'W', 'C_IN', 'C_OUT', 'OD', 'OH', 'OW'],
+    key=["D", "H", "W", "C_IN", "C_OUT", "OD", "OH", "OW"],
 )
 @triton.jit
 def _conv3d_spatial_tiled(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N_batch, D, H, W, OD, OH, OW,
-    sx_n, sx_d, sx_h,
-    sw_kd, sw_kh, sw_kw, sw_ci, sw_co,
-    sy_n, sy_d, sy_h,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N_batch,
+    D,
+    H,
+    W,
+    OD,
+    OH,
+    OW,
+    sx_n,
+    sx_d,
+    sx_h,
+    sw_kd,
+    sw_kh,
+    sw_kw,
+    sw_ci,
+    sw_co,
+    sy_n,
+    sy_d,
+    sy_h,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     PAD: tl.constexpr,
-    C_IN: tl.constexpr, C_OUT: tl.constexpr,
+    C_IN: tl.constexpr,
+    C_OUT: tl.constexpr,
 ):
     n = tl.program_id(0)
     pid_dh = tl.program_id(1)
@@ -78,8 +105,12 @@ def _conv3d_spatial_tiled(
                         )
 
                         for c0 in range(0, C_IN, BLOCK_K):
-                            x_tile = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
-                            w_tile = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+                            x_tile = tl.load(
+                                x_bp, boundary_check=(0, 1), padding_option="zero"
+                            )
+                            w_tile = tl.load(
+                                w_bp, boundary_check=(0, 1), padding_option="zero"
+                            )
                             acc = tl.dot(x_tile, w_tile, acc, input_precision="ieee")
                             x_bp = tl.advance(x_bp, (0, BLOCK_K))
                             w_bp = tl.advance(w_bp, (BLOCK_K, 0))
@@ -108,19 +139,34 @@ def _conv3d_spatial_tiled(
 # ============================================================
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_W': 64, 'BLOCK_C': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_W': 128, 'BLOCK_C': 64}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 64, "BLOCK_C": 64}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 128, "BLOCK_C": 64}, num_warps=8, num_stages=2),
     ],
-    key=['C', 'W_pool', 'H_pool', 'D_pool'],
+    key=["C", "W_pool", "H_pool", "D_pool"],
 )
 @triton.jit
 def _fused_pool_lse_relu(
-    conv_ptr, y_ptr,
-    N, C, D_conv, H_conv, W_conv,
-    D_pool, H_pool, W_pool,
-    sc_n, sc_d, sc_h, sc_w, sc_c,
-    sy_n, sy_d, sy_h, sy_w,
-    BLOCK_W: tl.constexpr, BLOCK_C: tl.constexpr,
+    conv_ptr,
+    y_ptr,
+    N,
+    C,
+    D_conv,
+    H_conv,
+    W_conv,
+    D_pool,
+    H_pool,
+    W_pool,
+    sc_n,
+    sc_d,
+    sc_h,
+    sc_w,
+    sc_c,
+    sy_n,
+    sy_d,
+    sy_h,
+    sy_w,
+    BLOCK_W: tl.constexpr,
+    BLOCK_C: tl.constexpr,
 ):
     pid_w = tl.program_id(0)
     pid_h = tl.program_id(1)
@@ -148,10 +194,17 @@ def _fused_pool_lse_relu(
                 h_in = h_pool * 2 + hh
                 for ww in range(2):
                     w_in = offs_w * 2 + ww
-                    ptrs = (conv_ptr + n * sc_n + d_in * sc_d + h_in * sc_h
-                            + w_in[None, :] * sc_w + offs_c[:, None] * sc_c)
-                    vals = tl.load(ptrs, mask=mask_c[:, None] & mask_w[None, :],
-                                   other=neg_inf).to(tl.float32)
+                    ptrs = (
+                        conv_ptr
+                        + n * sc_n
+                        + d_in * sc_d
+                        + h_in * sc_h
+                        + w_in[None, :] * sc_w
+                        + offs_c[:, None] * sc_c
+                    )
+                    vals = tl.load(
+                        ptrs, mask=mask_c[:, None] & mask_w[None, :], other=neg_inf
+                    ).to(tl.float32)
                     pooled = tl.maximum(pooled, vals)
 
         tile_m = tl.max(pooled, axis=0)
@@ -193,7 +246,9 @@ def get_init_inputs():
 class Model(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
         super().__init__()
-        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.conv = nn.Conv3d(
+            in_channels, out_channels, kernel_size, stride=stride, padding=padding
+        )
         self.max_pool = nn.MaxPool3d(kernel_size=2, stride=2)
         self._w_dhwio = None
         self._bias = None
@@ -203,8 +258,10 @@ class Model(nn.Module):
         self._ver = None
 
     def _cache(self):
-        ver = (self.conv.weight._version,
-               self.conv.bias._version if self.conv.bias is not None else 0)
+        ver = (
+            self.conv.weight._version,
+            self.conv.bias._version if self.conv.bias is not None else 0,
+        )
         if self._ver != ver:
             w = _ensure_xpu_fp16(self.conv.weight)
             self._w_dhwio = w.permute(2, 3, 4, 1, 0).contiguous()
@@ -218,37 +275,72 @@ class Model(nn.Module):
 
         N, C_in, D_x, H_x, W_x = x.shape
         C_out = self._w_dhwio.shape[4]
-        KD, KH_w, KW_w = self._w_dhwio.shape[0], self._w_dhwio.shape[1], self._w_dhwio.shape[2]
+        KD, KH_w, KW_w = (
+            self._w_dhwio.shape[0],
+            self._w_dhwio.shape[1],
+            self._w_dhwio.shape[2],
+        )
         # With padding=1, stride=1: output dims = input dims
         OD, OH, OW = D_x, H_x, W_x
 
         x_ndhwc = x.permute(0, 2, 3, 4, 1)
 
         # Allocate conv output (reuse if possible)
-        if (self._conv_out is None or self._conv_out.shape[0] != N
-                or self._conv_out.shape[2] != OD):
-            self._conv_out = torch.empty((N, C_out, OD, OH, OW), device=x.device,
-                                         dtype=torch.float16, memory_format=torch.channels_last_3d)
+        if (
+            self._conv_out is None
+            or self._conv_out.shape[0] != N
+            or self._conv_out.shape[2] != OD
+        ):
+            self._conv_out = torch.empty(
+                (N, C_out, OD, OH, OW),
+                device=x.device,
+                dtype=torch.float16,
+                memory_format=torch.channels_last_3d,
+            )
             self._conv_ndhwc = self._conv_out.permute(0, 2, 3, 4, 1)
 
             D_pool, H_pool, W_pool = OD // 2, OH // 2, OW // 2
-            self._y_buf = torch.empty((N, 1, D_pool, H_pool, W_pool),
-                                      device=x.device, dtype=torch.float16)
+            self._y_buf = torch.empty(
+                (N, 1, D_pool, H_pool, W_pool), device=x.device, dtype=torch.float16
+            )
 
         conv_ndhwc = self._conv_ndhwc
 
-        grid_conv = lambda meta: (N, OD * OH,
-                                  triton.cdiv(OW, meta['BLOCK_OW']) * triton.cdiv(C_out, meta['BLOCK_N']))
+        grid_conv = lambda meta: (
+            N,
+            OD * OH,
+            triton.cdiv(OW, meta["BLOCK_OW"]) * triton.cdiv(C_out, meta["BLOCK_N"]),
+        )
 
         _conv3d_spatial_tiled[grid_conv](
-            x_ndhwc, self._w_dhwio, self._bias, conv_ndhwc,
-            N, D_x, H_x, W_x, OD, OH, OW,
-            x_ndhwc.stride(0), x_ndhwc.stride(1), x_ndhwc.stride(2),
-            self._w_dhwio.stride(0), self._w_dhwio.stride(1), self._w_dhwio.stride(2),
-            self._w_dhwio.stride(3), self._w_dhwio.stride(4),
-            conv_ndhwc.stride(0), conv_ndhwc.stride(1), conv_ndhwc.stride(2),
-            KD=KD, KH=KH_w, KW=KW_w, PAD=1,
-            C_IN=C_in, C_OUT=C_out,
+            x_ndhwc,
+            self._w_dhwio,
+            self._bias,
+            conv_ndhwc,
+            N,
+            D_x,
+            H_x,
+            W_x,
+            OD,
+            OH,
+            OW,
+            x_ndhwc.stride(0),
+            x_ndhwc.stride(1),
+            x_ndhwc.stride(2),
+            self._w_dhwio.stride(0),
+            self._w_dhwio.stride(1),
+            self._w_dhwio.stride(2),
+            self._w_dhwio.stride(3),
+            self._w_dhwio.stride(4),
+            conv_ndhwc.stride(0),
+            conv_ndhwc.stride(1),
+            conv_ndhwc.stride(2),
+            KD=KD,
+            KH=KH_w,
+            KW=KW_w,
+            PAD=1,
+            C_IN=C_in,
+            C_OUT=C_out,
         )
 
         # Fused Pool + LSE + ReLU
@@ -259,13 +351,31 @@ class Model(nn.Module):
         sc = conv_out.stride()
         sy = y_buf.stride()
 
-        pool_grid = lambda META: (triton.cdiv(W_pool, META['BLOCK_W']), H_pool, N * D_pool)
+        pool_grid = lambda META: (
+            triton.cdiv(W_pool, META["BLOCK_W"]),
+            H_pool,
+            N * D_pool,
+        )
 
         _fused_pool_lse_relu[pool_grid](
-            conv_out, y_buf,
-            N, C_out, OD, OH, OW,
-            D_pool, H_pool, W_pool,
-            sc[0], sc[2], sc[3], sc[4], sc[1],
-            sy[0], sy[2], sy[3], sy[4],
+            conv_out,
+            y_buf,
+            N,
+            C_out,
+            OD,
+            OH,
+            OW,
+            D_pool,
+            H_pool,
+            W_pool,
+            sc[0],
+            sc[2],
+            sc[3],
+            sc[4],
+            sc[1],
+            sy[0],
+            sy[2],
+            sy[3],
+            sy[4],
         )
         return y_buf

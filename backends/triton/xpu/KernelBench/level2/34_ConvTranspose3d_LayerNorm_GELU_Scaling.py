@@ -110,16 +110,44 @@ def _ln_gelu_autotune_configs():
 )
 @triton.jit
 def _conv_transpose3d_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, CIN, DIN, HIN, WIN,
-    COUT, DOUT, HOUT, WOUT,
-    sx_n, sx_c, sx_d, sx_h, sx_w,
-    sw_ci, sw_co, sw_kd, sw_kh, sw_kw,
-    sy_n, sy_c, sy_d, sy_h, sy_w,
-    PAD_D, PAD_H, PAD_W,
-    STRIDE_D, STRIDE_H, STRIDE_W,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    CIN,
+    DIN,
+    HIN,
+    WIN,
+    COUT,
+    DOUT,
+    HOUT,
+    WOUT,
+    sx_n,
+    sx_c,
+    sx_d,
+    sx_h,
+    sx_w,
+    sw_ci,
+    sw_co,
+    sw_kd,
+    sw_kh,
+    sw_kw,
+    sy_n,
+    sy_c,
+    sy_d,
+    sy_h,
+    sy_w,
+    PAD_D,
+    PAD_H,
+    PAD_W,
+    STRIDE_D,
+    STRIDE_H,
+    STRIDE_W,
     NUM_CO_TILES,
-    BLOCK_CO: tl.constexpr, BLOCK_W: tl.constexpr, BLOCK_CI: tl.constexpr,
+    BLOCK_CO: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_CI: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
     pid_w = tl.program_id(0)
@@ -193,10 +221,18 @@ def _conv_transpose3d_bias_kernel(
                 )
                 x_ptr_base = x_base + ci[:, None] * sx_c
 
-                w0 = tl.load(w_ptr_base + 0 * sw_kw, mask=wmask2d, other=0.0).to(tl.float32)
-                w1 = tl.load(w_ptr_base + 1 * sw_kw, mask=wmask2d, other=0.0).to(tl.float32)
-                w2 = tl.load(w_ptr_base + 2 * sw_kw, mask=wmask2d, other=0.0).to(tl.float32)
-                w3 = tl.load(w_ptr_base + 3 * sw_kw, mask=wmask2d, other=0.0).to(tl.float32)
+                w0 = tl.load(w_ptr_base + 0 * sw_kw, mask=wmask2d, other=0.0).to(
+                    tl.float32
+                )
+                w1 = tl.load(w_ptr_base + 1 * sw_kw, mask=wmask2d, other=0.0).to(
+                    tl.float32
+                )
+                w2 = tl.load(w_ptr_base + 2 * sw_kw, mask=wmask2d, other=0.0).to(
+                    tl.float32
+                )
+                w3 = tl.load(w_ptr_base + 3 * sw_kw, mask=wmask2d, other=0.0).to(
+                    tl.float32
+                )
 
                 xa_even = tl.load(
                     x_ptr_base + w_in_a[None, :] * sx_w,
@@ -255,9 +291,17 @@ def _erf_approx(x):
 )
 @triton.jit
 def _ln_gelu_scale_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    rows, L, eps, scale,
-    ROWS_PER_PROG: tl.constexpr, NORM_SIZE: tl.constexpr, grf_mode: tl.constexpr = "auto",
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    rows,
+    L,
+    eps,
+    scale,
+    ROWS_PER_PROG: tl.constexpr,
+    NORM_SIZE: tl.constexpr,
+    grf_mode: tl.constexpr = "auto",
 ):
     pid = tl.program_id(0)
     row_start = pid * ROWS_PER_PROG
@@ -339,8 +383,14 @@ def ln_gelu_scale(x, weight, bias, eps=1e-5, scale=1.0):
 
     grid = lambda META: (triton.cdiv(rows, META["ROWS_PER_PROG"]),)
     _ln_gelu_scale_kernel[grid](
-        x, weight, bias, out,
-        rows, L, eps, float(scale),
+        x,
+        weight,
+        bias,
+        out,
+        rows,
+        L,
+        eps,
+        float(scale),
         NORM_SIZE=L,
     )
     return out
@@ -400,7 +450,16 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, bias, eps, scaling_factor]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        bias,
+        eps,
+        scaling_factor,
+    ]
 
 
 class Model(nn.Module):

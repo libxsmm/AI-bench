@@ -7,18 +7,37 @@ import triton.language as tl
 # Spatial-tiled Conv (ConvTranspose2d stride=1 = Conv2d with flipped weight)
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=4, num_stages=2),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=4, num_stages=2
+        ),
     ],
-    key=['H', 'W', 'C_IN', 'C_out', 'OH', 'OW'],
+    key=["H", "W", "C_IN", "C_out", "OH", "OW"],
 )
 @triton.jit
 def _conv_spatial(
-    x_ptr, w_ptr, bias_ptr, y_ptr,
-    N_batch, H, W, C_out, OH, OW,
-    stride_wkh, stride_wkw, stride_wci, stride_wco,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr, C_IN: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    bias_ptr,
+    y_ptr,
+    N_batch,
+    H,
+    W,
+    C_out,
+    OH,
+    OW,
+    stride_wkh,
+    stride_wkw,
+    stride_wci,
+    stride_wco,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    C_IN: tl.constexpr,
 ):
     n = tl.program_id(0)
     oh = tl.program_id(1)
@@ -31,14 +50,20 @@ def _conv_spatial(
         for kw in range(KW):
             x_row = n * HW + (oh + kh) * W + (ow0 + kw)
             x_bp = tl.make_block_ptr(
-                base=x_ptr, shape=(x_row + W - (ow0 + kw), C_IN),
-                strides=(C_IN, 1), offsets=(x_row, 0),
-                block_shape=(BLOCK_OW, BLOCK_K), order=(1, 0),
+                base=x_ptr,
+                shape=(x_row + W - (ow0 + kw), C_IN),
+                strides=(C_IN, 1),
+                offsets=(x_row, 0),
+                block_shape=(BLOCK_OW, BLOCK_K),
+                order=(1, 0),
             )
             w_bp = tl.make_block_ptr(
                 base=w_ptr + kh * stride_wkh + kw * stride_wkw,
-                shape=(C_IN, C_out), strides=(stride_wci, stride_wco),
-                offsets=(0, 0), block_shape=(BLOCK_K, BLOCK_N), order=(1, 0),
+                shape=(C_IN, C_out),
+                strides=(stride_wci, stride_wco),
+                offsets=(0, 0),
+                block_shape=(BLOCK_K, BLOCK_N),
+                order=(1, 0),
             )
             for c0 in range(0, C_IN, BLOCK_K):
                 xt = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
@@ -55,9 +80,12 @@ def _conv_spatial(
     OHOW = OH * OW
     y_row = n * OHOW + oh * OW + ow0
     y_bp = tl.make_block_ptr(
-        base=y_ptr, shape=(y_row + OW - ow0, C_out),
-        strides=(C_out, 1), offsets=(y_row, 0),
-        block_shape=(BLOCK_OW, BLOCK_N), order=(1, 0),
+        base=y_ptr,
+        shape=(y_row + OW - ow0, C_out),
+        strides=(C_out, 1),
+        offsets=(y_row, 0),
+        block_shape=(BLOCK_OW, BLOCK_N),
+        order=(1, 0),
     )
     tl.store(y_bp, acc.to(tl.float16), boundary_check=(0, 1))
 
@@ -65,20 +93,30 @@ def _conv_spatial(
 # Fused MaxPool(2x2) + Hardtanh + Mean(dim=2,3) + Tanh
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_W': 64, 'BLOCK_C': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_W': 128, 'BLOCK_C': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_W': 64, 'BLOCK_C': 32}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_W": 64, "BLOCK_C": 64}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 128, "BLOCK_C": 64}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 64, "BLOCK_C": 32}, num_warps=4, num_stages=2),
     ],
-    key=['C', 'H_pool', 'W_pool'],
+    key=["C", "H_pool", "W_pool"],
 )
 @triton.jit
 def _fused_pool_hardtanh_mean_tanh(
-    conv_ptr, y_ptr,
-    N, C, H_conv, W_conv,
-    H_pool, W_pool,
-    sc_n, sc_h, sc_w, sc_c,
-    hardtanh_min, hardtanh_max,
-    BLOCK_W: tl.constexpr, BLOCK_C: tl.constexpr,
+    conv_ptr,
+    y_ptr,
+    N,
+    C,
+    H_conv,
+    W_conv,
+    H_pool,
+    W_pool,
+    sc_n,
+    sc_h,
+    sc_w,
+    sc_c,
+    hardtanh_min,
+    hardtanh_max,
+    BLOCK_W: tl.constexpr,
+    BLOCK_C: tl.constexpr,
 ):
     """Fused: MaxPool(2x2) → Hardtanh → partial sum for Mean → final Tanh."""
     n = tl.program_id(0)
@@ -102,10 +140,18 @@ def _fused_pool_hardtanh_mean_tanh(
                 h_in = h_pool * 2 + hh
                 for ww in range(2):
                     w_in = offs_w * 2 + ww
-                    ptrs = (conv_ptr + n * sc_n + h_in * sc_h
-                            + w_in[None, :] * sc_w + offs_c[:, None] * sc_c)
-                    vals = tl.load(ptrs, mask=mask_c[:, None] & mask_w[None, :],
-                                   other=-float("inf")).to(tl.float32)
+                    ptrs = (
+                        conv_ptr
+                        + n * sc_n
+                        + h_in * sc_h
+                        + w_in[None, :] * sc_w
+                        + offs_c[:, None] * sc_c
+                    )
+                    vals = tl.load(
+                        ptrs,
+                        mask=mask_c[:, None] & mask_w[None, :],
+                        other=-float("inf"),
+                    ).to(tl.float32)
                     pooled = tl.maximum(pooled, vals)
 
             # Hardtanh
@@ -143,8 +189,17 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding,
-            maxpool_kernel_size, maxpool_stride, hardtanh_min, hardtanh_max]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        maxpool_kernel_size,
+        maxpool_stride,
+        hardtanh_min,
+        hardtanh_max,
+    ]
 
 
 def _to_xpu_fp16(x):
@@ -154,12 +209,25 @@ def _to_xpu_fp16(x):
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding,
-                 maxpool_kernel_size, maxpool_stride, hardtanh_min, hardtanh_max):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        maxpool_kernel_size,
+        maxpool_stride,
+        hardtanh_min,
+        hardtanh_max,
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
-                                                  stride=stride, padding=padding)
-        self.maxpool = nn.MaxPool2d(kernel_size=maxpool_kernel_size, stride=maxpool_stride)
+        self.conv_transpose = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size, stride=stride, padding=padding
+        )
+        self.maxpool = nn.MaxPool2d(
+            kernel_size=maxpool_kernel_size, stride=maxpool_stride
+        )
         self.hardtanh = nn.Hardtanh(min_val=hardtanh_min, max_val=hardtanh_max)
         self.hardtanh_min = hardtanh_min
         self.hardtanh_max = hardtanh_max
@@ -186,16 +254,33 @@ class Model(nn.Module):
         OH, OW = H - KH + 1, W - KW + 1
 
         # Conv output in channels_last
-        conv_out = torch.empty((N, C_out, OH, OW), device=x.device,
-                                dtype=torch.float16, memory_format=torch.channels_last)
+        conv_out = torch.empty(
+            (N, C_out, OH, OW),
+            device=x.device,
+            dtype=torch.float16,
+            memory_format=torch.channels_last,
+        )
         conv_nhwc = conv_out.permute(0, 2, 3, 1)
 
-        grid = lambda meta: (N, OH, triton.cdiv(OW, meta['BLOCK_OW']))
+        grid = lambda meta: (N, OH, triton.cdiv(OW, meta["BLOCK_OW"]))
         _conv_spatial[grid](
-            x_nhwc, self._w, self._b, conv_nhwc,
-            N, H, W, C_out, OH, OW,
-            self._w.stride(0), self._w.stride(1), self._w.stride(2), self._w.stride(3),
-            KH=KH, KW=KW, C_IN=C_in,
+            x_nhwc,
+            self._w,
+            self._b,
+            conv_nhwc,
+            N,
+            H,
+            W,
+            C_out,
+            OH,
+            OW,
+            self._w.stride(0),
+            self._w.stride(1),
+            self._w.stride(2),
+            self._w.stride(3),
+            KH=KH,
+            KW=KW,
+            C_IN=C_in,
         )
 
         # Fused MaxPool + Hardtanh + Mean + Tanh
@@ -206,13 +291,22 @@ class Model(nn.Module):
         y_flat = y.view(N, C_out)
 
         sc = conv_out.stride()
-        pool_grid = lambda meta: (N, triton.cdiv(C_out, meta['BLOCK_C']))
+        pool_grid = lambda meta: (N, triton.cdiv(C_out, meta["BLOCK_C"]))
 
         _fused_pool_hardtanh_mean_tanh[pool_grid](
-            conv_out, y_flat,
-            N, C_out, OH, OW,
-            H_pool, W_pool,
-            sc[0], sc[2], sc[3], sc[1],  # n, h, w, c strides
-            float(self.hardtanh_min), float(self.hardtanh_max),
+            conv_out,
+            y_flat,
+            N,
+            C_out,
+            OH,
+            OW,
+            H_pool,
+            W_pool,
+            sc[0],
+            sc[2],
+            sc[3],
+            sc[1],  # n, h, w, c strides
+            float(self.hardtanh_min),
+            float(self.hardtanh_max),
         )
         return y

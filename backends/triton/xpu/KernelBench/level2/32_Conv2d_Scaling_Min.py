@@ -21,7 +21,7 @@ def _channelmin_autotune_configs():
         (1, 128, 16, 2),
         (1, 256, 8, 2),
         (1, 256, 16, 2),
-        (1, 256, 32, 2),   # required XPU-oriented large-width/high-warp config
+        (1, 256, 32, 2),  # required XPU-oriented large-width/high-warp config
         (1, 512, 8, 2),
         (1, 512, 16, 2),
         (1, 512, 32, 2),
@@ -56,16 +56,37 @@ def _channelmin_autotune_configs():
 # Keep the original Triton convolution kernel present for compatibility/reference.
 @triton.jit
 def _conv_scale_channelmin_kernel(
-    x_ptr, w_ptr, b_ptr, out_ptr,
-    N, C_IN, H, W, C_OUT,
-    H_OUT, W_OUT,
-    x_stride_n, x_stride_c, x_stride_h, x_stride_w,
-    w_stride_co, w_stride_ci, w_stride_kh, w_stride_kw,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    out_ptr,
+    N,
+    C_IN,
+    H,
+    W,
+    C_OUT,
+    H_OUT,
+    W_OUT,
+    x_stride_n,
+    x_stride_c,
+    x_stride_h,
+    x_stride_w,
+    w_stride_co,
+    w_stride_ci,
+    w_stride_kh,
+    w_stride_kw,
     b_stride,
-    out_stride_n, out_stride_c, out_stride_h, out_stride_w,
-    stride_h, stride_w, dilation_h, dilation_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_h,
+    out_stride_w,
+    stride_h,
+    stride_w,
+    dilation_h,
+    dilation_w,
     scale,
-    KH: tl.constexpr, KW: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     BLOCK_W: tl.constexpr,
 ):
     pid_0 = tl.program_id(0)
@@ -90,7 +111,11 @@ def _conv_scale_channelmin_kernel(
                     iw = ow * stride_w + kw * dilation_w
                     x_val = tl.load(base_in + iw * x_stride_w, mask=mask_out, other=0.0)
                     w_val = tl.load(
-                        w_ptr + co * w_stride_co + ci * w_stride_ci + kh * w_stride_kh + kw * w_stride_kw
+                        w_ptr
+                        + co * w_stride_co
+                        + ci * w_stride_ci
+                        + kh * w_stride_kh
+                        + kw * w_stride_kw
                     )
                     acc += x_val.to(tl.float32) * w_val.to(tl.float32)
         b_f = tl.load(b_ptr + co * b_stride).to(tl.float32)
@@ -98,7 +123,11 @@ def _conv_scale_channelmin_kernel(
         running_min = tl.minimum(running_min, acc)
 
     out_base = out_ptr + n * out_stride_n + oh * out_stride_h
-    tl.store(out_base + ow * out_stride_w, running_min.to(out_ptr.dtype.element_ty), mask=mask_out)
+    tl.store(
+        out_base + ow * out_stride_w,
+        running_min.to(out_ptr.dtype.element_ty),
+        mask=mask_out,
+    )
 
 
 @triton.autotune(
@@ -224,10 +253,14 @@ def run_test():
 
     torch.manual_seed(0)
     x_cpu = torch.randn(batch_size, in_channels, height, width, dtype=torch.float16)
-    weight_cpu = torch.randn(out_channels, in_channels, kernel_size, kernel_size, dtype=torch.float16)
+    weight_cpu = torch.randn(
+        out_channels, in_channels, kernel_size, kernel_size, dtype=torch.float16
+    )
     bias_cpu = torch.randn(out_channels, dtype=torch.float16)
 
-    conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size, bias=True).to(dtype=torch.float16)
+    conv = torch.nn.Conv2d(in_channels, out_channels, kernel_size, bias=True).to(
+        dtype=torch.float16
+    )
     with torch.no_grad():
         conv.weight.copy_(weight_cpu)
         conv.bias.copy_(bias_cpu)
@@ -276,12 +309,19 @@ class Model(nn.Module):
 
     def forward(self, x):
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         if self.conv.bias is not None and (
             self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16
         ):
-            self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv.bias.data = self.conv.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
 
         return kernel_function(
             x_xpu,

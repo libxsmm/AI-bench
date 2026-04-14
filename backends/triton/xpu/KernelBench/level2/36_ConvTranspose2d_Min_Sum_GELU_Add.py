@@ -16,7 +16,15 @@ bias_shape = (1, 1, 1)
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias_shape,
+    ]
 
 
 def get_inputs():
@@ -25,30 +33,89 @@ def get_inputs():
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_M": 64, "BLOCK_CI": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CI": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CI": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_CI": 32, "GROUP_SIZE_M": 4}, num_warps=8, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_CI": 64, "GROUP_SIZE_M": 4}, num_warps=8, num_stages=4),
-        triton.Config({"BLOCK_M": 128, "BLOCK_CI": 64, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_CI": 32, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_CI": 64, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_CI": 64, "GROUP_SIZE_M": 8}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_CI": 32, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CI": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CI": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_CI": 32, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_CI": 64, "GROUP_SIZE_M": 4},
+            num_warps=8,
+            num_stages=4,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_CI": 64, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_CI": 32, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_CI": 64, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_CI": 64, "GROUP_SIZE_M": 8},
+            num_warps=32,
+            num_stages=2,
+        ),
     ],
     key=["OH", "OW", "Ci", "Co"],
 )
 @triton.jit
 def _conv_transpose2d_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, Ci, H, W, Co, OH, OW,
-    sxn, sxc, sxh, sxw,
-    sWkh, sWkw, sWco, sWci,
-    syn, syc, syh, syw,
-    KH: tl.constexpr, KW: tl.constexpr,
-    STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_H: tl.constexpr, DIL_W: tl.constexpr,
-    BLOCK_M: tl.constexpr, BLOCK_CI: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    Ci,
+    H,
+    W,
+    Co,
+    OH,
+    OW,
+    sxn,
+    sxc,
+    sxh,
+    sxw,
+    sWkh,
+    sWkw,
+    sWco,
+    sWci,
+    syn,
+    syc,
+    syh,
+    syw,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_CI: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -127,11 +194,24 @@ def _conv_transpose2d_bias_kernel(
 
 @triton.jit
 def _fused_reduce_gelu_bias_kernel(
-    x_ptr, bias_ptr, out_ptr,
-    N, C, H, W,
-    stride_xn, stride_xc, stride_xh, stride_xw,
-    stride_on, stride_oc, stride_oh, stride_ow,
-    BIAS_MODE: tl.constexpr, BLOCK_W: tl.constexpr, BLOCK_C: tl.constexpr,
+    x_ptr,
+    bias_ptr,
+    out_ptr,
+    N,
+    C,
+    H,
+    W,
+    stride_xn,
+    stride_xc,
+    stride_xh,
+    stride_xw,
+    stride_on,
+    stride_oc,
+    stride_oh,
+    stride_ow,
+    BIAS_MODE: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_C: tl.constexpr,
 ):
     pid_w = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -180,8 +260,9 @@ def _fused_reduce_gelu_bias_kernel(
     tl.store(out_ptrs, y.to(out_ptr.dtype.element_ty), mask=mask_w)
 
 
-def _compute_output_size(H, W, kH, kW, stride_h, stride_w,
-                         pad_h, pad_w, dil_h, dil_w, out_pad_h, out_pad_w):
+def _compute_output_size(
+    H, W, kH, kW, stride_h, stride_w, pad_h, pad_w, dil_h, dil_w, out_pad_h, out_pad_w
+):
     OH = (H - 1) * stride_h - 2 * pad_h + dil_h * (kH - 1) + out_pad_h + 1
     OW = (W - 1) * stride_w - 2 * pad_w + dil_w * (kW - 1) + out_pad_w + 1
     return OH, OW
@@ -191,7 +272,11 @@ def conv_transpose_bias(x, packed_weight, bias):
     assert x.device.type == "xpu"
     assert packed_weight.device.type == "xpu"
     assert bias.device.type == "xpu"
-    assert x.dtype == torch.float16 and packed_weight.dtype == torch.float16 and bias.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and packed_weight.dtype == torch.float16
+        and bias.dtype == torch.float16
+    )
 
     N, Ci, H, W = x.shape
     kH, kW, Co, Ci_w = packed_weight.shape
@@ -206,7 +291,20 @@ def conv_transpose_bias(x, packed_weight, bias):
     out_pad_h = 1
     out_pad_w = 1
 
-    OH, OW = _compute_output_size(H, W, kH, kW, stride_h, stride_w, pad_h, pad_w, dil_h, dil_w, out_pad_h, out_pad_w)
+    OH, OW = _compute_output_size(
+        H,
+        W,
+        kH,
+        kW,
+        stride_h,
+        stride_w,
+        pad_h,
+        pad_w,
+        dil_h,
+        dil_w,
+        out_pad_h,
+        out_pad_w,
+    )
     y = torch.empty((N, Co, OH, OW), dtype=x.dtype, device=x.device)
 
     sxn, sxc, sxh, sxw = x.stride()
@@ -218,15 +316,37 @@ def conv_transpose_bias(x, packed_weight, bias):
         return (num_pid_pos * (N * Co),)
 
     _conv_transpose2d_bias_kernel[grid](
-        x, packed_weight, bias, y,
-        N, Ci, H, W, Co, OH, OW,
-        sxn, sxc, sxh, sxw,
-        sWkh, sWkw, sWco, sWci,
-        syn, syc, syh, syw,
-        KH=kH, KW=kW,
-        STRIDE_H=stride_h, STRIDE_W=stride_w,
-        PAD_H=pad_h, PAD_W=pad_w,
-        DIL_H=dil_h, DIL_W=dil_w,
+        x,
+        packed_weight,
+        bias,
+        y,
+        N,
+        Ci,
+        H,
+        W,
+        Co,
+        OH,
+        OW,
+        sxn,
+        sxc,
+        sxh,
+        sxw,
+        sWkh,
+        sWkw,
+        sWco,
+        sWci,
+        syn,
+        syc,
+        syh,
+        syw,
+        KH=kH,
+        KW=kW,
+        STRIDE_H=stride_h,
+        STRIDE_W=stride_w,
+        PAD_H=pad_h,
+        PAD_W=pad_w,
+        DIL_H=dil_h,
+        DIL_W=dil_w,
         grf_mode="auto",
     )
     return y
@@ -253,12 +373,26 @@ def reduce_gelu_bias(x, bias):
     BLOCK_C = 32
     grid = (triton.cdiv(W, BLOCK_W), N)
     _fused_reduce_gelu_bias_kernel[grid](
-        x, bias_vec, out,
-        N, C, H, W,
-        x.stride(0), x.stride(1), x.stride(2), x.stride(3),
-        out.stride(0), out.stride(1), out.stride(2), out.stride(3),
-        BIAS_MODE=bias_mode, BLOCK_W=BLOCK_W, BLOCK_C=BLOCK_C,
-        num_warps=8, num_stages=2,
+        x,
+        bias_vec,
+        out,
+        N,
+        C,
+        H,
+        W,
+        x.stride(0),
+        x.stride(1),
+        x.stride(2),
+        x.stride(3),
+        out.stride(0),
+        out.stride(1),
+        out.stride(2),
+        out.stride(3),
+        BIAS_MODE=bias_mode,
+        BLOCK_W=BLOCK_W,
+        BLOCK_C=BLOCK_C,
+        num_warps=8,
+        num_stages=2,
     )
     return out
 
@@ -269,7 +403,16 @@ def kernel_function(x, packed_weight, conv_bias, final_bias):
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias_shape,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose2d(
             in_channels,
@@ -285,19 +428,38 @@ class Model(nn.Module):
         self._packed_weight_version = None
 
     def _ensure_xpu_params(self):
-        if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv_transpose.weight.device.type != "xpu"
+            or self.conv_transpose.weight.dtype != torch.float16
+        ):
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+            self.conv_transpose.weight.data = (
+                self.conv_transpose.weight.data.contiguous()
+            )
 
         if self.conv_transpose.bias is not None:
-            if self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != torch.float16:
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv_transpose.bias.device.type != "xpu"
+                or self.conv_transpose.bias.dtype != torch.float16
+            ):
+                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             else:
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
+                self.conv_transpose.bias.data = (
+                    self.conv_transpose.bias.data.contiguous()
+                )
 
-        if self.final_bias.device.type != "xpu" or self.final_bias.dtype != torch.float16:
-            self.final_bias.data = self.final_bias.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.final_bias.device.type != "xpu"
+            or self.final_bias.dtype != torch.float16
+        ):
+            self.final_bias.data = self.final_bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         else:
             self.final_bias.data = self.final_bias.data.contiguous()
 

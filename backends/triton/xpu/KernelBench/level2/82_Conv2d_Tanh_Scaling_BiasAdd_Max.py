@@ -7,19 +7,39 @@ import triton.language as tl
 # ---------- Spatial-tiled Conv2d + tanh + scale + bias (NHWC layout, block_ptr) ----------
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 16}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=4, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 16}, num_warps=8, num_stages=2
+        ),
     ],
-    key=['H', 'W', 'C_IN', 'C_out', 'OH', 'OW'],
+    key=["H", "W", "C_IN", "C_out", "OH", "OW"],
 )
 @triton.jit
 def _conv2d_tanh_scale_bias_spatial(
-    x_ptr, w_ptr, conv_bias_ptr, add_bias_ptr, y_ptr,
-    N_batch, H, W, C_out, OH, OW,
-    stride_wkh, stride_wkw, stride_wci, stride_wco,
+    x_ptr,
+    w_ptr,
+    conv_bias_ptr,
+    add_bias_ptr,
+    y_ptr,
+    N_batch,
+    H,
+    W,
+    C_out,
+    OH,
+    OW,
+    stride_wkh,
+    stride_wkw,
+    stride_wci,
+    stride_wco,
     scaling_factor,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr, C_IN: tl.constexpr,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    C_IN: tl.constexpr,
 ):
     n = tl.program_id(0)
     oh = tl.program_id(1)
@@ -36,14 +56,20 @@ def _conv2d_tanh_scale_bias_spatial(
         for kw in range(KW):
             x_row = n * HW + (oh + kh) * W + (ow0 + kw)
             x_bp = tl.make_block_ptr(
-                base=x_ptr, shape=(x_row + W - (ow0 + kw), C_IN),
-                strides=(C_IN, 1), offsets=(x_row, 0),
-                block_shape=(BLOCK_OW, BLOCK_K), order=(1, 0),
+                base=x_ptr,
+                shape=(x_row + W - (ow0 + kw), C_IN),
+                strides=(C_IN, 1),
+                offsets=(x_row, 0),
+                block_shape=(BLOCK_OW, BLOCK_K),
+                order=(1, 0),
             )
             w_bp = tl.make_block_ptr(
                 base=w_ptr + kh * stride_wkh + kw * stride_wkw,
-                shape=(C_IN, C_out), strides=(stride_wci, stride_wco),
-                offsets=(0, pid_n * BLOCK_N), block_shape=(BLOCK_K, BLOCK_N), order=(1, 0),
+                shape=(C_IN, C_out),
+                strides=(stride_wci, stride_wco),
+                offsets=(0, pid_n * BLOCK_N),
+                block_shape=(BLOCK_K, BLOCK_N),
+                order=(1, 0),
             )
             for c0 in range(0, C_IN, BLOCK_K):
                 x_tile = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
@@ -72,9 +98,12 @@ def _conv2d_tanh_scale_bias_spatial(
     OHOW = OH * OW
     y_row = n * OHOW + oh * OW + ow0
     y_bp = tl.make_block_ptr(
-        base=y_ptr, shape=(y_row + OW - ow0, C_out),
-        strides=(C_out, 1), offsets=(y_row, pid_n * BLOCK_N),
-        block_shape=(BLOCK_OW, BLOCK_N), order=(1, 0),
+        base=y_ptr,
+        shape=(y_row + OW - ow0, C_out),
+        strides=(C_out, 1),
+        offsets=(y_row, pid_n * BLOCK_N),
+        block_shape=(BLOCK_OW, BLOCK_N),
+        order=(1, 0),
     )
     tl.store(y_bp, acc.to(tl.float16), boundary_check=(0, 1))
 
@@ -82,10 +111,16 @@ def _conv2d_tanh_scale_bias_spatial(
 # ---------- Triton MaxPool2d kernel (NHWC input/output) ----------
 @triton.jit
 def _maxpool2d_nhwc_kernel(
-    x_ptr, y_ptr,
-    N_batch, OH_in, OW_in, C,
-    pool_h, pool_w,
-    OH_out, OW_out,
+    x_ptr,
+    y_ptr,
+    N_batch,
+    OH_in,
+    OW_in,
+    C,
+    pool_h,
+    pool_w,
+    OH_out,
+    OW_out,
     BLOCK_C: tl.constexpr,
 ):
     # Grid: (N_batch, OH_out, OW_out * ceil(C/BLOCK_C))
@@ -132,11 +167,26 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, scaling_factor, bias_shape, pool_kernel_size]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        scaling_factor,
+        bias_shape,
+        pool_kernel_size,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape, pool_kernel_size):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        scaling_factor,
+        bias_shape,
+        pool_kernel_size,
+    ):
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
         self.scaling_factor = scaling_factor
@@ -175,17 +225,39 @@ class Model(nn.Module):
         KH, KW, _, C_out = self._w.shape
         OH, OW = H - KH + 1, W - KW + 1
 
-        y_conv = torch.empty((N, C_out, OH, OW), device=x.device,
-                             dtype=torch.float16, memory_format=torch.channels_last)
+        y_conv = torch.empty(
+            (N, C_out, OH, OW),
+            device=x.device,
+            dtype=torch.float16,
+            memory_format=torch.channels_last,
+        )
         y_nhwc = y_conv.permute(0, 2, 3, 1)
 
-        grid = lambda meta: (N, OH, triton.cdiv(OW, meta['BLOCK_OW']) * triton.cdiv(C_out, meta['BLOCK_N']))
+        grid = lambda meta: (
+            N,
+            OH,
+            triton.cdiv(OW, meta["BLOCK_OW"]) * triton.cdiv(C_out, meta["BLOCK_N"]),
+        )
         _conv2d_tanh_scale_bias_spatial[grid](
-            x_nhwc, self._w, self._cb, self._ab, y_nhwc,
-            N, H, W, C_out, OH, OW,
-            self._w.stride(0), self._w.stride(1), self._w.stride(2), self._w.stride(3),
+            x_nhwc,
+            self._w,
+            self._cb,
+            self._ab,
+            y_nhwc,
+            N,
+            H,
+            W,
+            C_out,
+            OH,
+            OW,
+            self._w.stride(0),
+            self._w.stride(1),
+            self._w.stride(2),
+            self._w.stride(3),
             float(self.scaling_factor),
-            KH=KH, KW=KW, C_IN=C_in,
+            KH=KH,
+            KW=KW,
+            C_IN=C_in,
         )
 
         # MaxPool via Triton on NHWC
@@ -197,15 +269,23 @@ class Model(nn.Module):
         OH_pool = OH // pool_h
         OW_pool = OW // pool_w
 
-        y_pool_nhwc = torch.empty((N, OH_pool, OW_pool, C_out), device=x.device, dtype=torch.float16)
+        y_pool_nhwc = torch.empty(
+            (N, OH_pool, OW_pool, C_out), device=x.device, dtype=torch.float16
+        )
         BLOCK_C = 64
         num_c_tiles = triton.cdiv(C_out, BLOCK_C)
         grid2 = (N, OH_pool, OW_pool * num_c_tiles)
         _maxpool2d_nhwc_kernel[grid2](
-            y_nhwc, y_pool_nhwc,
-            N, OH, OW, C_out,
-            pool_h, pool_w,
-            OH_pool, OW_pool,
+            y_nhwc,
+            y_pool_nhwc,
+            N,
+            OH,
+            OW,
+            C_out,
+            pool_h,
+            pool_w,
+            OH_pool,
+            OW_pool,
             BLOCK_C=BLOCK_C,
         )
 

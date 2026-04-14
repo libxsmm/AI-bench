@@ -8,16 +8,18 @@ import triton.language as tl
 # ---------- Fused add + min(scalar) + GELU + multiply pointwise kernel ----------
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 8192}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 8192}, num_warps=16, num_stages=2),
     ],
-    key=['n_elements'],
+    key=["n_elements"],
 )
 @triton.jit
 def _add_min_gelu_mul_kernel(
-    x_ptr, y_ptr,
+    x_ptr,
+    y_ptr,
     n_elements,
-    add_value, multiply_value,
+    add_value,
+    multiply_value,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -57,9 +59,13 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, add_value, multiply_value):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, stride, add_value, multiply_value
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride)
+        self.conv_transpose = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size, stride=stride
+        )
         self.add_value = add_value
         self.multiply_value = multiply_value
         self._ct_w = None
@@ -67,8 +73,12 @@ class Model(nn.Module):
         self._ver = None
 
     def _cache(self):
-        ver = (self.conv_transpose.weight._version,
-               self.conv_transpose.bias._version if self.conv_transpose.bias is not None else 0)
+        ver = (
+            self.conv_transpose.weight._version,
+            self.conv_transpose.bias._version
+            if self.conv_transpose.bias is not None
+            else 0,
+        )
         if self._ver != ver:
             w = self.conv_transpose.weight
             if w.device.type != "xpu" or w.dtype != torch.float16:
@@ -97,10 +107,12 @@ class Model(nn.Module):
         y2 = torch.empty_like(y1)
         n_elements = y1.numel()
 
-        grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']),)
+        grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
         _add_min_gelu_mul_kernel[grid](
-            y1, y2,
+            y1,
+            y2,
             n_elements,
-            float(self.add_value), float(self.multiply_value),
+            float(self.add_value),
+            float(self.multiply_value),
         )
         return y2

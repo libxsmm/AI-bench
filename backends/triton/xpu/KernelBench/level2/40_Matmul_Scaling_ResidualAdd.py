@@ -17,53 +17,95 @@ import triton.language as tl
 
 _nonpersistent_configs = [
     triton.Config(
-        {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
-        num_warps=16, num_stages=3
+        {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+        num_warps=16,
+        num_stages=3,
     ),
     triton.Config(
-        {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
-        num_warps=16, num_stages=3
+        {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+        num_warps=16,
+        num_stages=3,
     ),
     triton.Config(
-        {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 8},
-        num_warps=8, num_stages=4
+        {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
+        num_warps=8,
+        num_stages=4,
     ),
     triton.Config(
-        {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
-        num_warps=32, num_stages=3
+        {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+        num_warps=32,
+        num_stages=3,
     ),
 ]
 
 _persistent_configs = [
     triton.Config(
-        {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 32},
-        num_warps=32, num_stages=3
+        {
+            "BLOCK_M": 256,
+            "BLOCK_N": 256,
+            "BLOCK_K": 32,
+            "GROUP_SIZE_M": 4,
+            "NUM_PROGS": 32,
+        },
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
-        {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 64},
-        num_warps=32, num_stages=3
+        {
+            "BLOCK_M": 256,
+            "BLOCK_N": 256,
+            "BLOCK_K": 32,
+            "GROUP_SIZE_M": 4,
+            "NUM_PROGS": 64,
+        },
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
-        {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 128},
-        num_warps=32, num_stages=3
+        {
+            "BLOCK_M": 256,
+            "BLOCK_N": 256,
+            "BLOCK_K": 32,
+            "GROUP_SIZE_M": 4,
+            "NUM_PROGS": 128,
+        },
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
-        {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4, 'NUM_PROGS': 256},
-        num_warps=32, num_stages=3
+        {
+            "BLOCK_M": 256,
+            "BLOCK_N": 256,
+            "BLOCK_K": 32,
+            "GROUP_SIZE_M": 4,
+            "NUM_PROGS": 256,
+        },
+        num_warps=32,
+        num_stages=3,
     ),
 ]
 
 
-@triton.autotune(configs=_nonpersistent_configs, key=['M', 'N', 'K'])
+@triton.autotune(configs=_nonpersistent_configs, key=["M", "N", "K"])
 @triton.jit
 def _linear_bias_kernel_packed(
-    x_ptr, wt_ptr, b_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wtk, stride_wtn,
-    stride_ym, stride_yn,
+    x_ptr,
+    wt_ptr,
+    b_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wtk,
+    stride_wtn,
+    stride_ym,
+    stride_yn,
     SCALE,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     K_DIVISIBLE: tl.constexpr,
     M_DIVISIBLE: tl.constexpr,
@@ -137,16 +179,26 @@ def _linear_bias_kernel_packed(
         tl.store(y_bp, acc.to(y_ptr.dtype.element_ty), boundary_check=(0, 1))
 
 
-@triton.autotune(configs=_persistent_configs, key=['M', 'N', 'K'])
+@triton.autotune(configs=_persistent_configs, key=["M", "N", "K"])
 @triton.jit
 def _linear_bias_kernel_persistent_packed(
-    x_ptr, wt_ptr, b_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wtk, stride_wtn,
-    stride_ym, stride_yn,
+    x_ptr,
+    wt_ptr,
+    b_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wtk,
+    stride_wtn,
+    stride_ym,
+    stride_yn,
     SCALE,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     NUM_PROGS: tl.constexpr,
     K_DIVISIBLE: tl.constexpr,
@@ -258,8 +310,8 @@ def _cleanup_packed_weight_cache():
 
 
 def _pack_weight_kn(w: torch.Tensor) -> torch.Tensor:
-    if w.device.type != 'xpu' or w.dtype != torch.float16:
-        w = w.to('xpu', dtype=torch.float16)
+    if w.device.type != "xpu" or w.dtype != torch.float16:
+        w = w.to("xpu", dtype=torch.float16)
     if not w.is_contiguous():
         w = w.contiguous()
     return w.transpose(0, 1).contiguous()
@@ -268,8 +320,8 @@ def _pack_weight_kn(w: torch.Tensor) -> torch.Tensor:
 def _get_cached_packed_weight(w: torch.Tensor) -> torch.Tensor:
     _cleanup_packed_weight_cache()
 
-    if w.device.type != 'xpu' or w.dtype != torch.float16:
-        w_xpu = w.to('xpu', dtype=torch.float16).contiguous()
+    if w.device.type != "xpu" or w.dtype != torch.float16:
+        w_xpu = w.to("xpu", dtype=torch.float16).contiguous()
     else:
         w_xpu = w.contiguous()
 
@@ -278,7 +330,7 @@ def _get_cached_packed_weight(w: torch.Tensor) -> torch.Tensor:
 
     if entry is not None:
         packed = entry["packed"]
-        if packed is not None and packed.device.type == 'xpu':
+        if packed is not None and packed.device.type == "xpu":
             return packed
 
     packed = w_xpu.transpose(0, 1).contiguous()
@@ -316,21 +368,30 @@ def _launch_linear(
     stride_wtk, stride_wtn = wt_xpu.stride()
     stride_ym, stride_yn = y.stride()
 
-    k_divisible = (K % 32 == 0)
-    m_divisible = (M % 256 == 0)
-    n_divisible = (N % 256 == 0)
+    k_divisible = K % 32 == 0
+    m_divisible = M % 256 == 0
+    n_divisible = N % 256 == 0
     grf_mode = _select_grf_mode(M, N, K)
 
     if _should_use_persistent(M, N, K):
+
         def grid(meta):
-            return (meta['NUM_PROGS'],)
+            return (meta["NUM_PROGS"],)
 
         _linear_bias_kernel_persistent_packed[grid](
-            x_xpu, wt_xpu, b_xpu, y,
-            M, N, K,
-            stride_xm, stride_xk,
-            stride_wtk, stride_wtn,
-            stride_ym, stride_yn,
+            x_xpu,
+            wt_xpu,
+            b_xpu,
+            y,
+            M,
+            N,
+            K,
+            stride_xm,
+            stride_xk,
+            stride_wtk,
+            stride_wtn,
+            stride_ym,
+            stride_yn,
             scale,
             K_DIVISIBLE=k_divisible,
             M_DIVISIBLE=m_divisible,
@@ -338,15 +399,24 @@ def _launch_linear(
             grf_mode=grf_mode,
         )
     else:
+
         def grid(meta):
-            return (triton.cdiv(M, meta['BLOCK_M']) * triton.cdiv(N, meta['BLOCK_N']),)
+            return (triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(N, meta["BLOCK_N"]),)
 
         _linear_bias_kernel_packed[grid](
-            x_xpu, wt_xpu, b_xpu, y,
-            M, N, K,
-            stride_xm, stride_xk,
-            stride_wtk, stride_wtn,
-            stride_ym, stride_yn,
+            x_xpu,
+            wt_xpu,
+            b_xpu,
+            y,
+            M,
+            N,
+            K,
+            stride_xm,
+            stride_xk,
+            stride_wtk,
+            stride_wtn,
+            stride_ym,
+            stride_yn,
             scale,
             K_DIVISIBLE=k_divisible,
             M_DIVISIBLE=m_divisible,
@@ -355,23 +425,29 @@ def _launch_linear(
         )
 
 
-def fused_linear(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, scale: float = 1.5) -> torch.Tensor:
-    if not (hasattr(torch, 'xpu') and torch.xpu.is_available()):
+def fused_linear(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, scale: float = 1.5
+) -> torch.Tensor:
+    if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
         raise RuntimeError("XPU driver is not available")
-    if not (isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor)):
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    ):
         raise TypeError("x, w, b must be torch.Tensor")
     if x.ndim != 2 or w.ndim != 2 or b.ndim != 1:
         raise ValueError("Expected x: [M,K], w: [N,K], b: [N]")
 
-    if x.device.type != 'xpu' or x.dtype != torch.float16:
-        x_xpu = x.to('xpu', dtype=torch.float16).contiguous()
+    if x.device.type != "xpu" or x.dtype != torch.float16:
+        x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
     else:
         x_xpu = x.contiguous()
 
     wt_xpu = _get_cached_packed_weight(w)
 
-    if b.device.type != 'xpu' or b.dtype != torch.float16:
-        b_xpu = b.to('xpu', dtype=torch.float16).contiguous()
+    if b.device.type != "xpu" or b.dtype != torch.float16:
+        b_xpu = b.to("xpu", dtype=torch.float16).contiguous()
     else:
         b_xpu = b.contiguous()
 
@@ -388,12 +464,12 @@ def fused_linear(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor, scale: float
 
 
 def fused_scale_residual(x: torch.Tensor) -> torch.Tensor:
-    if not (hasattr(torch, 'xpu') and torch.xpu.is_available()):
+    if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
         raise RuntimeError("XPU driver is not available")
     if not isinstance(x, torch.Tensor):
         raise TypeError("Expected a torch.Tensor input")
-    if x.device.type != 'xpu':
-        x = x.to('xpu')
+    if x.device.type != "xpu":
+        x = x.to("xpu")
     if x.dtype not in (torch.float16, torch.bfloat16):
         raise TypeError(f"Unsupported dtype {x.dtype}. Supported: float16, bfloat16")
     if not x.is_contiguous():
@@ -436,8 +512,12 @@ class Model(nn.Module):
 
     def _ensure_xpu_params(self):
         if not self._xpu_packed_ready:
-            self.linear.weight.data = self.linear.weight.data.to('xpu', dtype=torch.float16).contiguous()
-            self.linear.bias.data = self.linear.bias.data.to('xpu', dtype=torch.float16).contiguous()
+            self.linear.weight.data = self.linear.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.linear.bias.data = self.linear.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self._weight_packed = self.linear.weight.data.transpose(0, 1).contiguous()
             self._weight_version = (
                 self.linear.weight.data.data_ptr(),
@@ -459,8 +539,8 @@ class Model(nn.Module):
             self._weight_version = cur_version
 
     def forward(self, x):
-        if x.device.type != 'xpu' or x.dtype != torch.float16:
-            x = x.to('xpu', dtype=torch.float16).contiguous()
+        if x.device.type != "xpu" or x.dtype != torch.float16:
+            x = x.to("xpu", dtype=torch.float16).contiguous()
         else:
             x = x.contiguous()
 
@@ -468,7 +548,9 @@ class Model(nn.Module):
         self._refresh_packed_weight_if_needed()
 
         b = self.linear.bias
-        y = torch.empty((x.shape[0], self.linear.weight.shape[0]), device=x.device, dtype=x.dtype)
+        y = torch.empty(
+            (x.shape[0], self.linear.weight.shape[0]), device=x.device, dtype=x.dtype
+        )
 
         M, K = x.shape
         Kwt, N = self._weight_packed.shape

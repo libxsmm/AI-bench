@@ -61,23 +61,40 @@ def _fused_conv_pool_autotune_configs():
 
     # Explicit large-tile XPU coverage with 32 warps as requested.
     for group_size_oh in (1, 2):
-        configs.extend([
-            triton.Config(
-                {"BLOCK_CO": 256, "BLOCK_OH": 16, "BLOCK_OW": 16, "GROUP_SIZE_OH": group_size_oh},
-                num_warps=32,
-                num_stages=2,
-            ),
-            triton.Config(
-                {"BLOCK_CO": 256, "BLOCK_OH": 16, "BLOCK_OW": 32, "GROUP_SIZE_OH": group_size_oh},
-                num_warps=32,
-                num_stages=2,
-            ),
-            triton.Config(
-                {"BLOCK_CO": 256, "BLOCK_OH": 32, "BLOCK_OW": 16, "GROUP_SIZE_OH": group_size_oh},
-                num_warps=32,
-                num_stages=2,
-            ),
-        ])
+        configs.extend(
+            [
+                triton.Config(
+                    {
+                        "BLOCK_CO": 256,
+                        "BLOCK_OH": 16,
+                        "BLOCK_OW": 16,
+                        "GROUP_SIZE_OH": group_size_oh,
+                    },
+                    num_warps=32,
+                    num_stages=2,
+                ),
+                triton.Config(
+                    {
+                        "BLOCK_CO": 256,
+                        "BLOCK_OH": 16,
+                        "BLOCK_OW": 32,
+                        "GROUP_SIZE_OH": group_size_oh,
+                    },
+                    num_warps=32,
+                    num_stages=2,
+                ),
+                triton.Config(
+                    {
+                        "BLOCK_CO": 256,
+                        "BLOCK_OH": 32,
+                        "BLOCK_OW": 16,
+                        "GROUP_SIZE_OH": group_size_oh,
+                    },
+                    num_warps=32,
+                    num_stages=2,
+                ),
+            ]
+        )
 
     return configs
 
@@ -100,6 +117,7 @@ class Model(nn.Module):
     """
     This model performs a convolution, average pooling, applies sigmoid, and sums the result.
     """
+
     def __init__(self, in_channels, out_channels, kernel_size, pool_kernel_size):
         super(Model, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
@@ -111,14 +129,24 @@ class Model(nn.Module):
         if not x.is_contiguous():
             x = x.contiguous()
 
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.conv.weight.is_contiguous():
             self.conv.weight.data = self.conv.weight.data.contiguous()
 
         if self.conv.bias is not None:
-            if self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv.bias.device.type != "xpu"
+                or self.conv.bias.dtype != torch.float16
+            ):
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.conv.bias.is_contiguous():
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 
@@ -147,13 +175,30 @@ def get_init_inputs():
 )
 @triton.jit
 def _fused_conv_pool_sigmoid_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    N, C_in, H, W,
-    C_out, OH, OW,
-    stride_xn, stride_xc, stride_xh, stride_xw,
-    stride_wo, stride_wi, stride_wkh, stride_wkw,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    N,
+    C_in,
+    H,
+    W,
+    C_out,
+    OH,
+    OW,
+    stride_xn,
+    stride_xc,
+    stride_xh,
+    stride_xw,
+    stride_wo,
+    stride_wi,
+    stride_wkh,
+    stride_wkw,
     stride_bc,
-    stride_yn, stride_yc, stride_yh, stride_yw,
+    stride_yn,
+    stride_yc,
+    stride_yh,
+    stride_yw,
     BLOCK_CO: tl.constexpr,
     BLOCK_OH: tl.constexpr,
     BLOCK_OW: tl.constexpr,
@@ -227,7 +272,9 @@ def _fused_conv_pool_sigmoid_kernel(
                         w_idx = w_base_in + pw
                         w_valid = w_idx < W
                         w2d = w_idx[None, :]
-                        mask_hw = h_valid[:, None] & w_valid[None, :] & spatial_mask & n_valid
+                        mask_hw = (
+                            h_valid[:, None] & w_valid[None, :] & spatial_mask & n_valid
+                        )
                         x_vals = tl.load(
                             x_base_nc + h2d * stride_xh + w2d * stride_xw,
                             mask=mask_hw,
@@ -236,7 +283,13 @@ def _fused_conv_pool_sigmoid_kernel(
                         pooled += x_vals
 
                 pooled *= inv_pool_area
-                w_ptrs = w_ptr + offs_co * stride_wo + ci * stride_wi + kh * stride_wkh + kw * stride_wkw
+                w_ptrs = (
+                    w_ptr
+                    + offs_co * stride_wo
+                    + ci * stride_wi
+                    + kh * stride_wkh
+                    + kw * stride_wkw
+                )
                 w_vec = tl.load(w_ptrs, mask=co_mask & n_valid, other=0.0)
                 acc += w_vec[:, None, None] * pooled[None, :, :]
 
@@ -248,11 +301,16 @@ def _fused_conv_pool_sigmoid_kernel(
     y_tile = (1.0 / (1.0 + exp_neg)).to(y_ptr.dtype.element_ty)
 
     y_ptrs = y_base_n + (
-        offs_co[:, None, None] * stride_yc +
-        offs_oh[None, :, None] * stride_yh +
-        offs_ow[None, None, :] * stride_yw
+        offs_co[:, None, None] * stride_yc
+        + offs_oh[None, :, None] * stride_yh
+        + offs_ow[None, None, :] * stride_yw
     )
-    store_mask = co_mask[:, None, None] & oh_mask[None, :, None] & ow_mask[None, None, :] & n_valid
+    store_mask = (
+        co_mask[:, None, None]
+        & oh_mask[None, :, None]
+        & ow_mask[None, None, :]
+        & n_valid
+    )
     tl.store(y_ptrs, y_tile, mask=store_mask)
 
 
@@ -286,16 +344,36 @@ def fused_conv_pool_sigmoid(x, conv_weight, conv_bias):
         )
 
     _fused_conv_pool_sigmoid_kernel[grid](
-        x, conv_weight, conv_bias, out,
-        N, C_in, H, W,
-        C_out, OH, OW,
-        x.stride(0), x.stride(1), x.stride(2), x.stride(3),
-        conv_weight.stride(0), conv_weight.stride(1), conv_weight.stride(2), conv_weight.stride(3),
+        x,
+        conv_weight,
+        conv_bias,
+        out,
+        N,
+        C_in,
+        H,
+        W,
+        C_out,
+        OH,
+        OW,
+        x.stride(0),
+        x.stride(1),
+        x.stride(2),
+        x.stride(3),
+        conv_weight.stride(0),
+        conv_weight.stride(1),
+        conv_weight.stride(2),
+        conv_weight.stride(3),
         conv_bias.stride(0),
-        out.stride(0), out.stride(1), out.stride(2), out.stride(3),
-        KH=KH, KW=KW,
-        POOL_KH=pool_kh, POOL_KW=pool_kw,
-        POOL_STRIDE_H=pool_stride_h, POOL_STRIDE_W=pool_stride_w,
+        out.stride(0),
+        out.stride(1),
+        out.stride(2),
+        out.stride(3),
+        KH=KH,
+        KW=KW,
+        POOL_KH=pool_kh,
+        POOL_KW=pool_kw,
+        POOL_STRIDE_H=pool_stride_h,
+        POOL_STRIDE_W=pool_stride_w,
         CIN_CONST=C_in,
         ACC_DTYPE=tl.float32,
         grf_mode="auto",
@@ -309,7 +387,11 @@ def fused_conv_pool_sigmoid(x, conv_weight, conv_bias):
 )
 @triton.jit
 def _reduce_sum_nchw_kernel(
-    x_ptr, y_ptr, N, L, stride_n,
+    x_ptr,
+    y_ptr,
+    N,
+    L,
+    stride_n,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -341,9 +423,21 @@ def reduce_sum_nchw(x):
 
 
 def kernel_function(x, conv_weight, conv_bias):
-    x_xpu = x if x.device.type == "xpu" and x.dtype == torch.float16 else x.to("xpu", dtype=torch.float16)
-    w_xpu = conv_weight if conv_weight.device.type == "xpu" and conv_weight.dtype == torch.float16 else conv_weight.to("xpu", dtype=torch.float16)
-    b_xpu = conv_bias if conv_bias.device.type == "xpu" and conv_bias.dtype == torch.float16 else conv_bias.to("xpu", dtype=torch.float16)
+    x_xpu = (
+        x
+        if x.device.type == "xpu" and x.dtype == torch.float16
+        else x.to("xpu", dtype=torch.float16)
+    )
+    w_xpu = (
+        conv_weight
+        if conv_weight.device.type == "xpu" and conv_weight.dtype == torch.float16
+        else conv_weight.to("xpu", dtype=torch.float16)
+    )
+    b_xpu = (
+        conv_bias
+        if conv_bias.device.type == "xpu" and conv_bias.dtype == torch.float16
+        else conv_bias.to("xpu", dtype=torch.float16)
+    )
 
     if not x_xpu.is_contiguous():
         x_xpu = x_xpu.contiguous()
@@ -369,14 +463,24 @@ class Model(nn.Module):
         if not x.is_contiguous():
             x = x.contiguous()
 
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.conv.weight.is_contiguous():
             self.conv.weight.data = self.conv.weight.data.contiguous()
 
         if self.conv.bias is not None:
-            if self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv.bias.device.type != "xpu"
+                or self.conv.bias.dtype != torch.float16
+            ):
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.conv.bias.is_contiguous():
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 

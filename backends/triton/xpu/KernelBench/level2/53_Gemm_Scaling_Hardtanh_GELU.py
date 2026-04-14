@@ -63,7 +63,7 @@ def _epilogue_scale_hardtanh_gelu_kernel(
     a5 = 1.061405429
 
     t = 1.0 / (1.0 + p * at1)
-    poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t)
+    poly = ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t
 
     neg_sq = -(at1 * at1)
     e = tl.math.exp2(neg_sq * log2e)
@@ -109,7 +109,7 @@ def _hardtanh_gelu_kernel(
     a5 = 1.061405429
 
     t = 1.0 / (1.0 + p * at1)
-    poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t)
+    poly = ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t
 
     neg_sq = -(at1 * at1)
     e = tl.math.exp2(neg_sq * log2e)
@@ -150,8 +150,14 @@ def _fused_linear_scale_kernel(
 # ------------------------------
 # Top-level wrapper
 # ------------------------------
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, scale=None):
-    assert isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor) and isinstance(bias, torch.Tensor)
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, scale=None
+):
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    )
 
     if x.device.type != "xpu" or x.dtype != torch.float16:
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
@@ -218,7 +224,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_features, out_features, scaling_factor, hardtanh_min, hardtanh_max):
+    def __init__(
+        self, in_features, out_features, scaling_factor, hardtanh_min, hardtanh_max
+    ):
         super().__init__()
         self.gemm = nn.Linear(in_features, out_features)
         self.scale = float(scaling_factor)
@@ -229,17 +237,31 @@ class Model(nn.Module):
 
     def _ensure_xpu_params(self):
         if not self._params_on_xpu:
-            self.gemm.weight.data = self.gemm.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.gemm.bias.data = self.gemm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.gemm.weight.data = self.gemm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.gemm.bias.data = self.gemm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self._params_on_xpu = True
         else:
-            if self.gemm.weight.device.type != "xpu" or self.gemm.weight.dtype != torch.float16:
-                self.gemm.weight.data = self.gemm.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.gemm.weight.device.type != "xpu"
+                or self.gemm.weight.dtype != torch.float16
+            ):
+                self.gemm.weight.data = self.gemm.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.gemm.weight.is_contiguous():
                 self.gemm.weight.data = self.gemm.weight.data.contiguous()
 
-            if self.gemm.bias.device.type != "xpu" or self.gemm.bias.dtype != torch.float16:
-                self.gemm.bias.data = self.gemm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.gemm.bias.device.type != "xpu"
+                or self.gemm.bias.dtype != torch.float16
+            ):
+                self.gemm.bias.data = self.gemm.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.gemm.bias.is_contiguous():
                 self.gemm.bias.data = self.gemm.bias.data.contiguous()
 

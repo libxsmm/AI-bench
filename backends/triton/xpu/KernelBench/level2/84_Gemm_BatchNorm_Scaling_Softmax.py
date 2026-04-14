@@ -9,62 +9,62 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 8},
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
             num_warps=32,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 8},
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 32, 'GROUP_SIZE_M': 8},
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 8},
             num_warps=16,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 1},
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
             num_warps=8,
             num_stages=3,
         ),
         triton.Config(
-            {'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'GROUP_SIZE_M': 4},
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
             num_warps=8,
             num_stages=3,
         ),
     ],
-    key=['M', 'N', 'K'],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def _linear_bn_fwd_kernel(
@@ -156,13 +156,13 @@ def _linear_bn_fwd_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE': 128}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=2),
     ],
-    key=['C'],
+    key=["C"],
 )
 @triton.jit
 def _scale_softmax_rowwise_kernel_contig(
@@ -189,13 +189,13 @@ def _scale_softmax_rowwise_kernel_contig(
     cols = tl.arange(0, BLOCK_SIZE)
     cols = tl.max_contiguous(cols, BLOCK_SIZE)
 
-    max_val = tl.full((), -float('inf'), tl.float32)
+    max_val = tl.full((), -float("inf"), tl.float32)
     for start in tl.range(0, C, BLOCK_SIZE):
         offs = start + cols
         mask = offs < C
         vals = tl.load(x_row + offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
         logits = vals * scale
-        logits = tl.where(mask, logits, -float('inf'))
+        logits = tl.where(mask, logits, -float("inf"))
         max_val = tl.maximum(max_val, tl.max(logits, axis=0))
 
     sum_val = tl.zeros((), tl.float32)
@@ -204,7 +204,7 @@ def _scale_softmax_rowwise_kernel_contig(
         mask = offs < C
         vals = tl.load(x_row + offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
         logits = vals * scale - max_val
-        logits = tl.where(mask, logits, -float('inf'))
+        logits = tl.where(mask, logits, -float("inf"))
         exp_logits = tl.math.exp2(logits * LOG2E)
         exp_logits = tl.where(mask, exp_logits, 0.0)
         sum_val += tl.sum(exp_logits, axis=0)
@@ -215,7 +215,7 @@ def _scale_softmax_rowwise_kernel_contig(
         mask = offs < C
         vals = tl.load(x_row + offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
         logits = vals * scale - max_val
-        logits = tl.where(mask, logits, -float('inf'))
+        logits = tl.where(mask, logits, -float("inf"))
         exp_logits = tl.math.exp2(logits * LOG2E)
         out = tl.where(mask, exp_logits * inv_sum, 0.0)
         tl.store(y_row + offs * stride_yc, out.to(y_ptr.dtype.element_ty), mask=mask)
@@ -223,13 +223,13 @@ def _scale_softmax_rowwise_kernel_contig(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE': 128}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=2),
     ],
-    key=['C'],
+    key=["C"],
 )
 @triton.jit
 def _scale_softmax_rowwise_singlepass_kernel(
@@ -256,9 +256,11 @@ def _scale_softmax_rowwise_singlepass_kernel(
 
     offs = tl.arange(0, BLOCK_SIZE)
     mask = offs < C
-    vals = tl.load(x_row + offs * stride_xc, mask=mask, other=-float('inf')).to(tl.float32)
+    vals = tl.load(x_row + offs * stride_xc, mask=mask, other=-float("inf")).to(
+        tl.float32
+    )
     logits = vals * scale
-    logits = tl.where(mask, logits, -float('inf'))
+    logits = tl.where(mask, logits, -float("inf"))
 
     row_max = tl.max(logits, axis=0)
     exp_logits = tl.math.exp2((logits - row_max) * LOG2E)
@@ -270,8 +272,8 @@ def _scale_softmax_rowwise_singlepass_kernel(
 
 
 def _ensure_xpu_contiguous(t: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
-    if t.device.type != 'xpu' or t.dtype != dtype or not t.is_contiguous():
-        return t.to('xpu', dtype=dtype).contiguous()
+    if t.device.type != "xpu" or t.dtype != dtype or not t.is_contiguous():
+        return t.to("xpu", dtype=dtype).contiguous()
     return t
 
 
@@ -284,10 +286,18 @@ def kernel_function(
     x_xpu = _ensure_xpu_contiguous(x, torch.float16)
     scale_xpu = _ensure_xpu_contiguous(scale, torch.float32)
 
-    if w_fold.device.type != 'xpu' or w_fold.dtype != torch.float16 or not w_fold.is_contiguous():
-        w_fold = w_fold.to('xpu', dtype=torch.float16).contiguous()
-    if b_fold.device.type != 'xpu' or b_fold.dtype != torch.float16 or not b_fold.is_contiguous():
-        b_fold = b_fold.to('xpu', dtype=torch.float16).contiguous()
+    if (
+        w_fold.device.type != "xpu"
+        or w_fold.dtype != torch.float16
+        or not w_fold.is_contiguous()
+    ):
+        w_fold = w_fold.to("xpu", dtype=torch.float16).contiguous()
+    if (
+        b_fold.device.type != "xpu"
+        or b_fold.dtype != torch.float16
+        or not b_fold.is_contiguous()
+    ):
+        b_fold = b_fold.to("xpu", dtype=torch.float16).contiguous()
 
     out1 = F.linear(x_xpu, w_fold, b_fold)
     y = torch.empty_like(out1)
@@ -339,15 +349,17 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_features, out_features, bn_eps=1e-5, bn_momentum=0.1, scale_shape=(1,)):
+    def __init__(
+        self, in_features, out_features, bn_eps=1e-5, bn_momentum=0.1, scale_shape=(1,)
+    ):
         super().__init__()
         self.gemm = nn.Linear(in_features, out_features)
         self.bn = nn.BatchNorm1d(out_features, eps=bn_eps, momentum=bn_momentum)
         self.scale = nn.Parameter(torch.ones(scale_shape))
         self._bn_eps = bn_eps
 
-        self.register_buffer('_cached_w_fold', torch.empty(0))
-        self.register_buffer('_cached_b_fold', torch.empty(0))
+        self.register_buffer("_cached_w_fold", torch.empty(0))
+        self.register_buffer("_cached_b_fold", torch.empty(0))
 
         self._cache_valid_py = False
         self._params_on_xpu = False
@@ -364,13 +376,25 @@ class Model(nn.Module):
     def _ensure_params_on_xpu(self):
         if self._params_on_xpu:
             return
-        self.gemm.weight.data = self.gemm.weight.data.to('xpu', dtype=torch.float16).contiguous()
-        self.gemm.bias.data = self.gemm.bias.data.to('xpu', dtype=torch.float16).contiguous()
-        self.bn.weight.data = self.bn.weight.data.to('xpu', dtype=torch.float32).contiguous()
-        self.bn.bias.data = self.bn.bias.data.to('xpu', dtype=torch.float32).contiguous()
-        self.bn.running_mean.data = self.bn.running_mean.data.to('xpu', dtype=torch.float32).contiguous()
-        self.bn.running_var.data = self.bn.running_var.data.to('xpu', dtype=torch.float32).contiguous()
-        self.scale.data = self.scale.data.to('xpu', dtype=torch.float32).contiguous()
+        self.gemm.weight.data = self.gemm.weight.data.to(
+            "xpu", dtype=torch.float16
+        ).contiguous()
+        self.gemm.bias.data = self.gemm.bias.data.to(
+            "xpu", dtype=torch.float16
+        ).contiguous()
+        self.bn.weight.data = self.bn.weight.data.to(
+            "xpu", dtype=torch.float32
+        ).contiguous()
+        self.bn.bias.data = self.bn.bias.data.to(
+            "xpu", dtype=torch.float32
+        ).contiguous()
+        self.bn.running_mean.data = self.bn.running_mean.data.to(
+            "xpu", dtype=torch.float32
+        ).contiguous()
+        self.bn.running_var.data = self.bn.running_var.data.to(
+            "xpu", dtype=torch.float32
+        ).contiguous()
+        self.scale.data = self.scale.data.to("xpu", dtype=torch.float32).contiguous()
         self._params_on_xpu = True
 
     def _current_fold_version(self):
@@ -397,7 +421,11 @@ class Model(nn.Module):
         bn_scale_fp16 = bn_scale_fp32.to(torch.float16)
 
         self._cached_w_fold = (w_xpu * bn_scale_fp16[:, None]).contiguous()
-        self._cached_b_fold = (((b_xpu.to(torch.float32) - mean_xpu) * bn_scale_fp32) + beta_xpu).to(torch.float16).contiguous()
+        self._cached_b_fold = (
+            (((b_xpu.to(torch.float32) - mean_xpu) * bn_scale_fp32) + beta_xpu)
+            .to(torch.float16)
+            .contiguous()
+        )
         self._cache_valid_py = True
         self._fold_cache_version = self._current_fold_version()
 

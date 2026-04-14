@@ -19,10 +19,15 @@ def _fused_linear_bn_kernel(
     mean_ptr,
     var_ptr,
     y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yn,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yn,
     eps,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
@@ -78,7 +83,11 @@ def _fused_linear_bn_kernel(
 # -------------------------------------------------------------------------
 @triton.jit
 def _fused_bias_div_swish_kernel(
-    x_ptr, bias_ptr, out_ptr, n_elements, divisor,
+    x_ptr,
+    bias_ptr,
+    out_ptr,
+    n_elements,
+    divisor,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
@@ -218,10 +227,14 @@ def kernel_function(
 
     assert x_xpu.ndim == 2, "x must be a 2D tensor [M, K]"
     _, K = x_xpu.shape
-    assert fused_weight_xpu.ndim == 2 and fused_weight_xpu.shape[1] == K, "fused_weight must be [N, K]"
+    assert fused_weight_xpu.ndim == 2 and fused_weight_xpu.shape[1] == K, (
+        "fused_weight must be [N, K]"
+    )
     N = fused_weight_xpu.shape[0]
     assert fused_bias_xpu.shape == (N,), "fused_bias must be [N]"
-    assert bias_xpu.numel() == 1 and bias_xpu.shape == (1,), "bias must be a scalar tensor shape [1]"
+    assert bias_xpu.numel() == 1 and bias_xpu.shape == (1,), (
+        "bias must be a scalar tensor shape [1]"
+    )
 
     inter = F.linear(x_xpu, fused_weight_xpu, fused_bias_xpu)
 
@@ -259,7 +272,15 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_features, out_features, bn_eps=1e-5, bn_momentum=0.1, bias_shape=(1,), divide_value=1.0):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        bn_eps=1e-5,
+        bn_momentum=0.1,
+        bias_shape=(1,),
+        divide_value=1.0,
+    ):
         super().__init__()
         self.matmul = nn.Linear(in_features, out_features)
         self.bn = nn.BatchNorm1d(out_features, eps=bn_eps, momentum=bn_momentum)
@@ -272,34 +293,58 @@ class Model(nn.Module):
         self._cache_versions = None
 
     def _ensure_xpu_params(self):
-        if self.matmul.weight.device.type != "xpu" or self.matmul.weight.dtype != torch.float16:
-            self.matmul.weight.data = self.matmul.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.matmul.weight.device.type != "xpu"
+            or self.matmul.weight.dtype != torch.float16
+        ):
+            self.matmul.weight.data = self.matmul.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.matmul.weight.is_contiguous():
             self.matmul.weight.data = self.matmul.weight.data.contiguous()
 
         if self.matmul.bias is not None:
-            if self.matmul.bias.device.type != "xpu" or self.matmul.bias.dtype != torch.float16:
-                self.matmul.bias.data = self.matmul.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.matmul.bias.device.type != "xpu"
+                or self.matmul.bias.dtype != torch.float16
+            ):
+                self.matmul.bias.data = self.matmul.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.matmul.bias.is_contiguous():
                 self.matmul.bias.data = self.matmul.bias.data.contiguous()
 
         if self.bn.weight.device.type != "xpu" or self.bn.weight.dtype != torch.float16:
-            self.bn.weight.data = self.bn.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.bn.weight.data = self.bn.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.bn.weight.is_contiguous():
             self.bn.weight.data = self.bn.weight.data.contiguous()
 
         if self.bn.bias.device.type != "xpu" or self.bn.bias.dtype != torch.float16:
-            self.bn.bias.data = self.bn.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.bn.bias.data = self.bn.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.bn.bias.is_contiguous():
             self.bn.bias.data = self.bn.bias.data.contiguous()
 
-        if self.bn.running_mean.device.type != "xpu" or self.bn.running_mean.dtype != torch.float16:
-            self.bn.running_mean.data = self.bn.running_mean.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.bn.running_mean.device.type != "xpu"
+            or self.bn.running_mean.dtype != torch.float16
+        ):
+            self.bn.running_mean.data = self.bn.running_mean.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.bn.running_mean.is_contiguous():
             self.bn.running_mean.data = self.bn.running_mean.data.contiguous()
 
-        if self.bn.running_var.device.type != "xpu" or self.bn.running_var.dtype != torch.float16:
-            self.bn.running_var.data = self.bn.running_var.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.bn.running_var.device.type != "xpu"
+            or self.bn.running_var.dtype != torch.float16
+        ):
+            self.bn.running_var.data = self.bn.running_var.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.bn.running_var.is_contiguous():
             self.bn.running_var.data = self.bn.running_var.data.contiguous()
 
@@ -320,7 +365,11 @@ class Model(nn.Module):
             int(self.bn.running_var._version),
         )
 
-        if self._fused_weight is not None and self._fused_bias is not None and self._cache_versions == versions:
+        if (
+            self._fused_weight is not None
+            and self._fused_bias is not None
+            and self._cache_versions == versions
+        ):
             return
 
         w = self.matmul.weight
@@ -332,7 +381,9 @@ class Model(nn.Module):
 
         scale_f32 = gamma.float() * torch.rsqrt(var.float() + float(self.bn_eps))
         fused_weight = (w.float() * scale_f32[:, None]).to(torch.float16)
-        fused_bias = ((b.float() - mean.float()) * scale_f32 + beta.float()).to(torch.float16)
+        fused_bias = ((b.float() - mean.float()) * scale_f32 + beta.float()).to(
+            torch.float16
+        )
 
         self._fused_weight = fused_weight.contiguous()
         self._fused_bias = fused_bias.contiguous()

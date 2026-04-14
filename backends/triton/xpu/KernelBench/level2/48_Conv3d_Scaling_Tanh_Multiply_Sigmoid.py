@@ -10,22 +10,47 @@ import triton.language as tl
 # -----------------------------------------------------------------------------
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_W': 64, 'BLOCK_H': 4}, num_stages=2, num_warps=8),
-        triton.Config({'BLOCK_W': 32, 'BLOCK_H': 8}, num_stages=2, num_warps=8),
-        triton.Config({'BLOCK_W': 16, 'BLOCK_H': 16}, num_stages=2, num_warps=4),
+        triton.Config({"BLOCK_W": 64, "BLOCK_H": 4}, num_stages=2, num_warps=8),
+        triton.Config({"BLOCK_W": 32, "BLOCK_H": 8}, num_stages=2, num_warps=8),
+        triton.Config({"BLOCK_W": 16, "BLOCK_H": 16}, num_stages=2, num_warps=4),
     ],
     key=["W_OUT", "H_OUT"],
 )
 @triton.jit
 def _conv3d_bias_kernel(
-    x_ptr, w_ptr, b_ptr, o_ptr,
-    N, C_IN, D_IN, H_IN, W_IN,
-    C_OUT, D_OUT, H_OUT, W_OUT,
-    stride_xN, stride_xC, stride_xD, stride_xH, stride_xW,
-    stride_wCo, stride_wCi, stride_wKd, stride_wKh, stride_wKw,
-    stride_oN, stride_oC, stride_oD, stride_oH, stride_oW,
-    K_D: tl.constexpr, K_H: tl.constexpr, K_W: tl.constexpr,
-    BLOCK_W: tl.constexpr, BLOCK_H: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    o_ptr,
+    N,
+    C_IN,
+    D_IN,
+    H_IN,
+    W_IN,
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    stride_xN,
+    stride_xC,
+    stride_xD,
+    stride_xH,
+    stride_xW,
+    stride_wCo,
+    stride_wCi,
+    stride_wKd,
+    stride_wKh,
+    stride_wKw,
+    stride_oN,
+    stride_oC,
+    stride_oD,
+    stride_oH,
+    stride_oW,
+    K_D: tl.constexpr,
+    K_H: tl.constexpr,
+    K_W: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_H: tl.constexpr,
 ):
     """
     Direct Conv3D NCDHW with bias fusion in epilogue.
@@ -95,7 +120,11 @@ def conv3d_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tens
     Wrapper for Conv3D + bias addition on XPU.
     Enforces contiguous inputs for better memory behavior.
     """
-    assert isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    )
 
     if x.device.type != "xpu":
         x = x.to("xpu")
@@ -124,7 +153,9 @@ def conv3d_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tens
     W_out = W_in - (kW - 1)
     assert D_out > 0 and H_out > 0 and W_out > 0
 
-    y = torch.empty((N, C_out, D_out, H_out, W_out), dtype=torch.float16, device=x.device)
+    y = torch.empty(
+        (N, C_out, D_out, H_out, W_out), dtype=torch.float16, device=x.device
+    )
 
     sxN, sxC, sxD, sxH, sxW = x.stride()
     swCo, swCi, swKd, swKh, swKw = w.stride()
@@ -138,13 +169,37 @@ def conv3d_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tens
         )
 
     _conv3d_bias_kernel[grid](
-        x, w, b, y,
-        N, C_in, D_in, H_in, W_in,
-        C_out, D_out, H_out, W_out,
-        sxN, sxC, sxD, sxH, sxW,
-        swCo, swCi, swKd, swKh, swKw,
-        soN, soC, soD, soH, soW,
-        K_D=kD, K_H=kH, K_W=kW,
+        x,
+        w,
+        b,
+        y,
+        N,
+        C_in,
+        D_in,
+        H_in,
+        W_in,
+        C_out,
+        D_out,
+        H_out,
+        W_out,
+        sxN,
+        sxC,
+        sxD,
+        sxH,
+        sxW,
+        swCo,
+        swCi,
+        swKd,
+        swKh,
+        swKw,
+        soN,
+        soC,
+        soD,
+        soH,
+        soW,
+        K_D=kD,
+        K_H=kH,
+        K_W=kW,
     )
     return y
 
@@ -154,8 +209,13 @@ def conv3d_bias(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tens
 # -----------------------------------------------------------------------------
 @triton.jit
 def _fused_mul_tanh_mul_sigmoid_kernel(
-    x_ptr, scale_ptr, bias_ptr, out_ptr,
-    n_elements, D_HW, C,
+    x_ptr,
+    scale_ptr,
+    bias_ptr,
+    out_ptr,
+    n_elements,
+    D_HW,
+    C,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
@@ -219,8 +279,13 @@ def fused_mul_tanh_mul_sigmoid(
     grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
 
     _fused_mul_tanh_mul_sigmoid_kernel[grid](
-        x, sf, bp, y,
-        n_elements, D_HW, C,
+        x,
+        sf,
+        bp,
+        y,
+        n_elements,
+        D_HW,
+        C,
         BLOCK_SIZE=BLOCK_SIZE,
     )
     return y
@@ -302,7 +367,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape
+    ):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
         self.scaling_factor = nn.Parameter(torch.randn(bias_shape))
@@ -311,10 +378,16 @@ class Model(nn.Module):
 
     def _prepare_xpu_params(self):
         if not self._xpu_prepared:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             if self.conv.bias is not None:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
-            self.scaling_factor.data = self.scaling_factor.data.to("xpu", dtype=torch.float16).contiguous()
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
+            self.scaling_factor.data = self.scaling_factor.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()
             self._xpu_prepared = True
 

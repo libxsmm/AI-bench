@@ -11,14 +11,46 @@ LOG2E = 1.4426950408889634
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=3),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2}, num_warps=32, num_stages=3),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
+            num_warps=32,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
     ],
     key=["M", "N", "K"],
 )
@@ -102,9 +134,21 @@ def _linear_bias_scale_residual_kernel(
 
 
 def linear_scale_residual(x, weight_kn, bias, scale=2.0):
-    assert isinstance(x, torch.Tensor) and isinstance(weight_kn, torch.Tensor) and isinstance(bias, torch.Tensor)
-    assert x.device.type == "xpu" and weight_kn.device.type == "xpu" and bias.device.type == "xpu"
-    assert x.dtype == torch.float16 and weight_kn.dtype == torch.float16 and bias.dtype == torch.float16
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight_kn, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    )
+    assert (
+        x.device.type == "xpu"
+        and weight_kn.device.type == "xpu"
+        and bias.device.type == "xpu"
+    )
+    assert (
+        x.dtype == torch.float16
+        and weight_kn.dtype == torch.float16
+        and bias.dtype == torch.float16
+    )
 
     x = x.contiguous()
     weight_kn = weight_kn.contiguous()
@@ -216,7 +260,11 @@ def _clamp_lse_mish_kernel(
     mish = y * tanh_soft
     out_val = y * mish
 
-    tl.store(out_ptr + rows * stride_om + 0 * stride_on, out_val.to(tl.float16), mask=row_mask)
+    tl.store(
+        out_ptr + rows * stride_om + 0 * stride_on,
+        out_val.to(tl.float16),
+        mask=row_mask,
+    )
 
 
 def clamp_logsumexp_mish(x):
@@ -310,7 +358,9 @@ class Model(nn.Module):
         )
 
         if need_init:
-            weight_xpu = self.matmul.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            weight_xpu = self.matmul.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             bias_xpu = self.matmul.bias.data.to("xpu", dtype=torch.float16).contiguous()
             self.matmul.weight.data = weight_xpu
             self.matmul.bias.data = bias_xpu
@@ -322,9 +372,17 @@ class Model(nn.Module):
                 self.matmul.weight.data = self.matmul.weight.data.contiguous()
             if not self.matmul.bias.data.is_contiguous():
                 self.matmul.bias.data = self.matmul.bias.data.contiguous()
-            if self.weight_kn.device.type != "xpu" or self.weight_kn.dtype != torch.float16 or not self.weight_kn.is_contiguous():
+            if (
+                self.weight_kn.device.type != "xpu"
+                or self.weight_kn.dtype != torch.float16
+                or not self.weight_kn.is_contiguous()
+            ):
                 self.weight_kn = self.matmul.weight.data.t().contiguous()
-            if self.bias_xpu.device.type != "xpu" or self.bias_xpu.dtype != torch.float16 or not self.bias_xpu.is_contiguous():
+            if (
+                self.bias_xpu.device.type != "xpu"
+                or self.bias_xpu.dtype != torch.float16
+                or not self.bias_xpu.is_contiguous()
+            ):
                 self.bias_xpu = self.matmul.bias.data.contiguous()
 
     def forward(self, x):

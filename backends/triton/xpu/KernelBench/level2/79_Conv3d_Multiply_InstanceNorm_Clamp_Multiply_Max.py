@@ -19,10 +19,19 @@ def _conv3d_mul_reduce_kernel(
     y_ptr,
     sum_ptr,
     sumsq_ptr,
-    N, C_IN, C_OUT, D, H, W,
-    D_OUT, H_OUT, W_OUT,
+    N,
+    C_IN,
+    C_OUT,
+    D,
+    H,
+    W,
+    D_OUT,
+    H_OUT,
+    W_OUT,
     BLOCK_HW: tl.constexpr,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
 ):
     pid0 = tl.program_id(0)
     pid1 = tl.program_id(1)
@@ -90,8 +99,14 @@ def _instancenorm_clamp_mul_kernel(
     sum_ptr,
     sumsq_ptr,
     mult_ptr,
-    N, C_OUT, D_OUT, H_OUT, W_OUT,
-    eps, clamp_min, clamp_max,
+    N,
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    eps,
+    clamp_min,
+    clamp_max,
     BLOCK_HW: tl.constexpr,
 ):
     pid0 = tl.program_id(0)
@@ -138,21 +153,32 @@ def _instancenorm_clamp_mul_kernel(
 # -----------------------------------------------------------------------------
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_W': 32}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_W': 64}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_W': 128}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_W': 256}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_W': 256}, num_warps=32, num_stages=2),
+        triton.Config({"BLOCK_W": 32}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_W": 64}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_W": 128}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 256}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_W": 256}, num_warps=32, num_stages=2),
     ],
-    key=['W', 'C'],
+    key=["W", "C"],
 )
 @triton.jit
 def _reduce_max_c_dim1_kernel(
     x_ptr,
     y_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    out_stride_n, out_stride_d, out_stride_h, out_stride_w,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_d,
+    out_stride_h,
+    out_stride_w,
     C_CONST: tl.constexpr,
     BLOCK_W: tl.constexpr,
 ):
@@ -170,11 +196,11 @@ def _reduce_max_c_dim1_kernel(
 
     base = n * stride_n + d * stride_d + h * stride_h
 
-    acc = tl.full([BLOCK_W], -float('inf'), dtype=tl.float32)
+    acc = tl.full([BLOCK_W], -float("inf"), dtype=tl.float32)
 
     for c in range(C_CONST):
         x_ptrs = x_ptr + base + c * stride_c + offs_w * stride_w
-        vals = tl.load(x_ptrs, mask=mask_w, other=-float('inf')).to(tl.float32)
+        vals = tl.load(x_ptrs, mask=mask_w, other=-float("inf")).to(tl.float32)
         acc = tl.maximum(acc, vals)
 
     y_base = n * out_stride_n + d * out_stride_d + h * out_stride_h
@@ -184,20 +210,20 @@ def _reduce_max_c_dim1_kernel(
 
 def _post_kernel_autotune_configs():
     configs = [
-        triton.Config({'BLOCK_W': 32}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_W': 32}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_W': 64}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_W': 64}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_W': 64}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_W': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_W': 128}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_W': 128}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_W': 128}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_W': 128}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_W': 256}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_W': 256}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_W': 256}, num_warps=32, num_stages=1),
-        triton.Config({'BLOCK_W': 256}, num_warps=32, num_stages=2),
+        triton.Config({"BLOCK_W": 32}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_W": 32}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_W": 64}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_W": 64}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_W": 64}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_W": 64}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 128}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_W": 128}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_W": 128}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_W": 128}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_W": 256}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_W": 256}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_W": 256}, num_warps=32, num_stages=1),
+        triton.Config({"BLOCK_W": 256}, num_warps=32, num_stages=2),
     ]
     return configs
 
@@ -211,17 +237,22 @@ def _post_kernel_autotune_configs():
 # -----------------------------------------------------------------------------
 @triton.autotune(
     configs=_post_kernel_autotune_configs(),
-    key=['W_OUT', 'H_OUT', 'D_OUT', 'C_OUT'],
+    key=["W_OUT", "H_OUT", "D_OUT", "C_OUT"],
 )
 @triton.jit
 def _instancenorm_clamp_mul_reduce_max_fp32stats_kernel(
-    x_ptr,          # *[N, C, D, H, W] contiguous
-    sum_ptr,        # *[N, C] fp32
-    sumsq_ptr,      # *[N, C] fp32
-    mult_ptr,       # *[C]
-    out_ptr,        # *[N, D, H, W]
-    C_OUT, D_OUT, H_OUT, W_OUT,
-    eps, clamp_min, clamp_max,
+    x_ptr,  # *[N, C, D, H, W] contiguous
+    sum_ptr,  # *[N, C] fp32
+    sumsq_ptr,  # *[N, C] fp32
+    mult_ptr,  # *[C]
+    out_ptr,  # *[N, D, H, W]
+    C_OUT,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    eps,
+    clamp_min,
+    clamp_max,
     BLOCK_W: tl.constexpr,
     C_CONST: tl.constexpr,
 ):
@@ -240,7 +271,7 @@ def _instancenorm_clamp_mul_reduce_max_fp32stats_kernel(
     dhw = D_OUT * plane
     row_base = n * dhw + d * plane + h * W_OUT
 
-    acc = tl.full([BLOCK_W], -float('inf'), dtype=tl.float32)
+    acc = tl.full([BLOCK_W], -float("inf"), dtype=tl.float32)
     inv_count = 1.0 / (D_OUT * H_OUT * W_OUT)
 
     for c in range(C_CONST):
@@ -287,25 +318,42 @@ def kernel_function(
       - native XPU reductions for per-(n,c) sum/sumsq in fp32
       - single Triton fused post kernel for norm+clamp+mul+channel-max
     """
-    assert groups == 1 and stride == (1, 1, 1) and padding == (0, 0, 0) and dilation == (1, 1, 1)
+    assert (
+        groups == 1
+        and stride == (1, 1, 1)
+        and padding == (0, 0, 0)
+        and dilation == (1, 1, 1)
+    )
 
     if x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous():
         x_xpu = x.to("xpu", dtype=torch.float16).contiguous()
     else:
         x_xpu = x
 
-    if weight.device.type != "xpu" or weight.dtype != torch.float16 or not weight.is_contiguous():
+    if (
+        weight.device.type != "xpu"
+        or weight.dtype != torch.float16
+        or not weight.is_contiguous()
+    ):
         weight_xpu = weight.to("xpu", dtype=torch.float16).contiguous()
     else:
         weight_xpu = weight
 
-    if bias.device.type != "xpu" or bias.dtype != torch.float16 or not bias.is_contiguous():
+    if (
+        bias.device.type != "xpu"
+        or bias.dtype != torch.float16
+        or not bias.is_contiguous()
+    ):
         bias_xpu = bias.to("xpu", dtype=torch.float16).contiguous()
     else:
         bias_xpu = bias
 
     mult_1d = multiplier.reshape(-1)
-    if mult_1d.device.type != "xpu" or mult_1d.dtype != torch.float16 or not mult_1d.is_contiguous():
+    if (
+        mult_1d.device.type != "xpu"
+        or mult_1d.dtype != torch.float16
+        or not mult_1d.is_contiguous()
+    ):
         mult_xpu = mult_1d.to("xpu", dtype=torch.float16).contiguous()
     else:
         mult_xpu = mult_1d
@@ -336,11 +384,20 @@ def kernel_function(
 
     out = torch.empty((N, D_out, H_out, W_out), device=y0.device, dtype=y0.dtype)
 
-    grid_post = lambda META: (triton.cdiv(W_out, META['BLOCK_W']), D_out, N * H_out)
+    grid_post = lambda META: (triton.cdiv(W_out, META["BLOCK_W"]), D_out, N * H_out)
     _instancenorm_clamp_mul_reduce_max_fp32stats_kernel[grid_post](
-        y0, sums, sumsqs, mult_xpu, out,
-        C_out, D_out, H_out, W_out,
-        eps, clamp_min, clamp_max,
+        y0,
+        sums,
+        sumsqs,
+        mult_xpu,
+        out,
+        C_out,
+        D_out,
+        H_out,
+        W_out,
+        eps,
+        clamp_min,
+        clamp_max,
         C_CONST=C_out,
     )
 
@@ -362,11 +419,26 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, multiplier_shape, clamp_min, clamp_max]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        multiplier_shape,
+        clamp_min,
+        clamp_max,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, multiplier_shape, clamp_min, clamp_max):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        multiplier_shape,
+        clamp_min,
+        clamp_max,
+    ):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
         self.multiplier = nn.Parameter(torch.ones(multiplier_shape))
@@ -379,23 +451,42 @@ class Model(nn.Module):
         elif not x.is_contiguous():
             x = x.contiguous()
 
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16:
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.conv.weight.is_contiguous():
             self.conv.weight.data = self.conv.weight.data.contiguous()
 
         if self.conv.bias is not None:
-            if self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16:
-                self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv.bias.device.type != "xpu"
+                or self.conv.bias.dtype != torch.float16
+            ):
+                self.conv.bias.data = self.conv.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.conv.bias.is_contiguous():
                 self.conv.bias.data = self.conv.bias.data.contiguous()
 
-        if self.multiplier.device.type != "xpu" or self.multiplier.dtype != torch.float16:
-            self.multiplier.data = self.multiplier.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.multiplier.device.type != "xpu"
+            or self.multiplier.dtype != torch.float16
+        ):
+            self.multiplier.data = self.multiplier.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         elif not self.multiplier.is_contiguous():
             self.multiplier.data = self.multiplier.data.contiguous()
 
         return kernel_function(
-            x, self.conv.weight, self.conv.bias,
-            self.multiplier, self.clamp_min, self.clamp_max
+            x,
+            self.conv.weight,
+            self.conv.bias,
+            self.multiplier,
+            self.clamp_min,
+            self.clamp_max,
         )

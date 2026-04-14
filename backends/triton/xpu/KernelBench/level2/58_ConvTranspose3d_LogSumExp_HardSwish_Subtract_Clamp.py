@@ -67,18 +67,48 @@ def _elementwise_autotune_configs():
 )
 @triton.jit
 def _conv_transpose3d_fused_bias(
-    x_ptr, w_ptr, b_ptr, y_ptr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
     n_elements,
-    N, C_OUT, OD, OH, OW,
-    D_IN, H_IN, W_IN,
-    stride_xN, stride_xC, stride_xD, stride_xH, stride_xW,
-    stride_wCIN, stride_wCOUT, stride_wKD, stride_wKH, stride_wKW,
+    N,
+    C_OUT,
+    OD,
+    OH,
+    OW,
+    D_IN,
+    H_IN,
+    W_IN,
+    stride_xN,
+    stride_xC,
+    stride_xD,
+    stride_xH,
+    stride_xW,
+    stride_wCIN,
+    stride_wCOUT,
+    stride_wKD,
+    stride_wKH,
+    stride_wKW,
     stride_b,
-    stride_yN, stride_yC, stride_yD, stride_yH, stride_yW,
-    SD: tl.constexpr, SH: tl.constexpr, SW: tl.constexpr,
-    PD: tl.constexpr, PH: tl.constexpr, PW: tl.constexpr,
-    DD: tl.constexpr, DH: tl.constexpr, DW: tl.constexpr,
-    C_IN: tl.constexpr, KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
+    stride_yN,
+    stride_yC,
+    stride_yD,
+    stride_yH,
+    stride_yW,
+    SD: tl.constexpr,
+    SH: tl.constexpr,
+    SW: tl.constexpr,
+    PD: tl.constexpr,
+    PH: tl.constexpr,
+    PW: tl.constexpr,
+    DD: tl.constexpr,
+    DH: tl.constexpr,
+    DW: tl.constexpr,
+    C_IN: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -166,9 +196,14 @@ def _conv_transpose3d_fused_bias(
 
 
 def conv_transpose3d_fused_bias(
-    x, w, b,
-    stride=(2, 2, 2), padding=(1, 1, 1),
-    dilation=(1, 1, 1), output_padding=(0, 0, 0), groups=1
+    x,
+    w,
+    b,
+    stride=(2, 2, 2),
+    padding=(1, 1, 1),
+    dilation=(1, 1, 1),
+    output_padding=(0, 0, 0),
+    groups=1,
 ):
     if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
         raise RuntimeError("Intel XPU is not available")
@@ -195,7 +230,9 @@ def conv_transpose3d_fused_bias(
     H_out = (H_in - 1) * SH - 2 * PH + DH * (KH - 1) + output_padding[1] + 1
     W_out = (W_in - 1) * SW - 2 * PW + DW * (KW - 1) + output_padding[2] + 1
 
-    y = torch.empty((N, C_out, D_out, H_out, W_out), device=x_cont.device, dtype=x_cont.dtype)
+    y = torch.empty(
+        (N, C_out, D_out, H_out, W_out), device=x_cont.device, dtype=x_cont.dtype
+    )
 
     sxN, sxC, sxD, sxH, sxW = x_cont.stride()
     swCIN, swCOUT, swKD, swKH, swKW = w_cont.stride()
@@ -206,18 +243,48 @@ def conv_transpose3d_fused_bias(
     grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
 
     _conv_transpose3d_fused_bias[grid](
-        x_cont, w_cont, b, y,
+        x_cont,
+        w_cont,
+        b,
+        y,
         n_elements,
-        N, C_out, D_out, H_out, W_out,
-        D_in, H_in, W_in,
-        sxN, sxC, sxD, sxH, sxW,
-        swCIN, swCOUT, swKD, swKH, swKW,
+        N,
+        C_out,
+        D_out,
+        H_out,
+        W_out,
+        D_in,
+        H_in,
+        W_in,
+        sxN,
+        sxC,
+        sxD,
+        sxH,
+        sxW,
+        swCIN,
+        swCOUT,
+        swKD,
+        swKH,
+        swKW,
         sb,
-        syN, syC, syD, syH, syW,
-        SD=SD, SH=SH, SW=SW,
-        PD=PD, PH=PH, PW=PW,
-        DD=DD, DH=DH, DW=DW,
-        C_IN=C_in, KD=KD, KH=KH, KW=KW,
+        syN,
+        syC,
+        syD,
+        syH,
+        syW,
+        SD=SD,
+        SH=SH,
+        SW=SW,
+        PD=PD,
+        PH=PH,
+        PW=PW,
+        DD=DD,
+        DH=DH,
+        DW=DW,
+        C_IN=C_in,
+        KD=KD,
+        KH=KH,
+        KW=KW,
     )
     return y
 
@@ -231,10 +298,23 @@ def conv_transpose3d_fused_bias(
 )
 @triton.jit
 def _logsumexp_dim1_keep_kernel(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    sN, sC, sD, sH, sW,
-    oN, oC, oD, oH, oW,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    sN,
+    sC,
+    sD,
+    sH,
+    sW,
+    oN,
+    oC,
+    oD,
+    oH,
+    oW,
     BLOCK_W: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -283,10 +363,23 @@ def logsumexp_triton(x):
 
     grid = lambda meta: (N * D * H, triton.cdiv(W, meta["BLOCK_W"]))
     _logsumexp_dim1_keep_kernel[grid](
-        x_cont, y,
-        N, C, D, H, W,
-        sN, sC, sD, sH, sW,
-        oN, oC, oD, oH, oW,
+        x_cont,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
+        oD,
+        oH,
+        oW,
     )
     return y
 
@@ -300,8 +393,11 @@ def logsumexp_triton(x):
 )
 @triton.jit
 def _hardswish_like_kernel(
-    x_ptr, y_ptr, n_elements,
-    add_scalar, div_scalar,
+    x_ptr,
+    y_ptr,
+    n_elements,
+    add_scalar,
+    div_scalar,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -327,8 +423,11 @@ def hardswish_triton(x, add_scalar=3.0, div_scalar=6.0):
     y = torch.empty_like(x_cont)
     grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
     _hardswish_like_kernel[grid](
-        x_cont, y, n_elements,
-        float(add_scalar), float(div_scalar),
+        x_cont,
+        y,
+        n_elements,
+        float(add_scalar),
+        float(div_scalar),
     )
     return y
 
@@ -342,8 +441,12 @@ def hardswish_triton(x, add_scalar=3.0, div_scalar=6.0):
 )
 @triton.jit
 def _bias_sub_clamp_kernel(
-    x_ptr, bias_ptr, y_ptr, n_elements,
-    clamp_min, clamp_max,
+    x_ptr,
+    bias_ptr,
+    y_ptr,
+    n_elements,
+    clamp_min,
+    clamp_max,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -371,8 +474,12 @@ def bias_sub_clamp_triton(x, bias, clamp_min=-1.0, clamp_max=1.0):
     n_elements = x_cont.numel()
     grid = lambda meta: (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
     _bias_sub_clamp_kernel[grid](
-        x_cont, bias, y, n_elements,
-        float(clamp_min), float(clamp_max),
+        x_cont,
+        bias,
+        y,
+        n_elements,
+        float(clamp_min),
+        float(clamp_max),
     )
     return y
 
@@ -384,10 +491,26 @@ def kernel_function(x, conv_w, conv_b, bias_after):
     if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
         raise RuntimeError("Intel XPU not available")
 
-    x_xpu = x.to("xpu", dtype=torch.float16) if (x.device.type != "xpu" or x.dtype != torch.float16) else x
-    conv_w_xpu = conv_w.to("xpu", dtype=torch.float16) if (conv_w.device.type != "xpu" or conv_w.dtype != torch.float16) else conv_w
-    conv_b_xpu = conv_b.to("xpu", dtype=torch.float16) if (conv_b.device.type != "xpu" or conv_b.dtype != torch.float16) else conv_b
-    bias_after_xpu = bias_after.to("xpu", dtype=torch.float16) if (bias_after.device.type != "xpu" or bias_after.dtype != torch.float16) else bias_after
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16)
+        if (x.device.type != "xpu" or x.dtype != torch.float16)
+        else x
+    )
+    conv_w_xpu = (
+        conv_w.to("xpu", dtype=torch.float16)
+        if (conv_w.device.type != "xpu" or conv_w.dtype != torch.float16)
+        else conv_w
+    )
+    conv_b_xpu = (
+        conv_b.to("xpu", dtype=torch.float16)
+        if (conv_b.device.type != "xpu" or conv_b.dtype != torch.float16)
+        else conv_b
+    )
+    bias_after_xpu = (
+        bias_after.to("xpu", dtype=torch.float16)
+        if (bias_after.device.type != "xpu" or bias_after.dtype != torch.float16)
+        else bias_after
+    )
 
     y1 = conv_transpose3d_fused_bias(x_xpu, conv_w_xpu, conv_b_xpu)
     y2 = logsumexp_triton(y1)
@@ -415,7 +538,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias_shape):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, stride, padding, bias_shape
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
             in_channels, out_channels, kernel_size, stride=2, padding=1
@@ -427,9 +552,13 @@ class Model(nn.Module):
 
     def _move_params_once(self):
         if not self._moved_to_xpu:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             if self.conv_transpose.bias is not None:
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()
             self._moved_to_xpu = True
 

@@ -12,28 +12,104 @@ def _fused_linear_maxpool1d_configs():
     # Avoid grf_mode inside triton.Config() per XPU backend constraint.
     return [
         # original / conservative
-        triton.Config({"BM": 32, "BNP": 32, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=3),
-        triton.Config({"BM": 64, "BNP": 32, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=3),
-        triton.Config({"BM": 32, "BNP": 64, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=3),
-        triton.Config({"BM": 64, "BNP": 64, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=3),
-        triton.Config({"BM": 32, "BNP": 32, "BK": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=3),
+        triton.Config(
+            {"BM": 32, "BNP": 32, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BM": 64, "BNP": 32, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BM": 32, "BNP": 64, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BM": 64, "BNP": 64, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BM": 32, "BNP": 32, "BK": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=3,
+        ),
         # suggested / medium
-        triton.Config({"BM": 64, "BNP": 64, "BK": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BM": 64, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BM": 64, "BNP": 128, "BK": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 64, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 64, "BK": 64, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 128, "BK": 16, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=3),
-        triton.Config({"BM": 128, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 128, "BK": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
+        triton.Config(
+            {"BM": 64, "BNP": 64, "BK": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 64, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 64, "BNP": 128, "BK": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 64, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 64, "BK": 64, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 128, "BK": 16, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=3,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 128, "BK": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
         # swizzle alternatives
-        triton.Config({"BM": 64, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 2}, num_warps=8, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 4}, num_warps=16, num_stages=2),
+        triton.Config(
+            {"BM": 64, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 2},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 128, "BK": 32, "GROUP_SIZE_M": 4},
+            num_warps=16,
+            num_stages=2,
+        ),
         # required large-tile XPU exploration, including 256x256 / 32-warps
-        triton.Config({"BM": 256, "BNP": 128, "BK": 16, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BM": 128, "BNP": 256, "BK": 16, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BM": 256, "BNP": 256, "BK": 16, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
+        triton.Config(
+            {"BM": 256, "BNP": 128, "BK": 16, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 128, "BNP": 256, "BK": 16, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BM": 256, "BNP": 256, "BK": 16, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
     ]
 
 
@@ -51,8 +127,12 @@ def _row_sum_scale_configs():
         triton.Config({"BLOCK_M": 64, "BLOCK_SIZE_C": 256}, num_warps=8, num_stages=2),
         triton.Config({"BLOCK_M": 64, "BLOCK_SIZE_C": 512}, num_warps=8, num_stages=3),
         triton.Config({"BLOCK_M": 128, "BLOCK_SIZE_C": 128}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_SIZE_C": 256}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_SIZE_C": 512}, num_warps=16, num_stages=3),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_SIZE_C": 256}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_SIZE_C": 512}, num_warps=16, num_stages=3
+        ),
     ]
 
 
@@ -60,6 +140,7 @@ class Model(nn.Module):
     """
     Model that performs matrix multiplication, max pooling, sum, and scaling.
     """
+
     def __init__(self, in_features, out_features, kernel_size, scale_factor):
         super(Model, self).__init__()
         self.matmul = nn.Linear(in_features, out_features)
@@ -75,19 +156,31 @@ class Model(nn.Module):
             x = x.contiguous()
 
         if not self._xpu_ready:
-            if self.matmul.weight.device.type != "xpu" or self.matmul.weight.dtype != torch.float16:
-                self.matmul.weight.data = self.matmul.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.matmul.weight.device.type != "xpu"
+                or self.matmul.weight.dtype != torch.float16
+            ):
+                self.matmul.weight.data = self.matmul.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             else:
                 self.matmul.weight.data = self.matmul.weight.data.contiguous()
 
             if self.matmul.bias is not None:
-                if self.matmul.bias.device.type != "xpu" or self.matmul.bias.dtype != torch.float16:
-                    self.matmul.bias.data = self.matmul.bias.data.to("xpu", dtype=torch.float16).contiguous()
+                if (
+                    self.matmul.bias.device.type != "xpu"
+                    or self.matmul.bias.dtype != torch.float16
+                ):
+                    self.matmul.bias.data = self.matmul.bias.data.to(
+                        "xpu", dtype=torch.float16
+                    ).contiguous()
                 else:
                     self.matmul.bias.data = self.matmul.bias.data.contiguous()
             self._xpu_ready = True
 
-        return kernel_function(x, self.matmul.weight, self.matmul.bias, self.scale_factor)
+        return kernel_function(
+            x, self.matmul.weight, self.matmul.bias, self.scale_factor
+        )
 
 
 batch_size = 128
@@ -201,7 +294,11 @@ def _fused_linear_maxpool1d_kernel(
     pooled = tl.maximum(acc0, acc1)
 
     o_ptrs = o_ptr + offs_m[:, None] * stride_om + offs_np[None, :] * stride_on
-    tl.store(o_ptrs, pooled.to(o_ptr.dtype.element_ty), mask=mask_m[:, None] & mask_np[None, :])
+    tl.store(
+        o_ptrs,
+        pooled.to(o_ptr.dtype.element_ty),
+        mask=mask_m[:, None] & mask_np[None, :],
+    )
 
 
 @triton.autotune(
@@ -212,8 +309,10 @@ def _fused_linear_maxpool1d_kernel(
 def _row_sum_scale_kernel(
     x_ptr,
     y_ptr,
-    N, C,
-    stride_xn, stride_xc,
+    N,
+    C,
+    stride_xn,
+    stride_xc,
     stride_yn,
     scale: tl.float32,
     BLOCK_M: tl.constexpr,
@@ -229,17 +328,25 @@ def _row_sum_scale_kernel(
     for ct in range(0, num_ctiles):
         offs_c = ct * BLOCK_SIZE_C + tl.arange(0, BLOCK_SIZE_C)
         x_ptrs = x_ptr + offs_m[:, None] * stride_xn + offs_c[None, :] * stride_xc
-        x_tile = tl.load(x_ptrs, mask=mask_m[:, None] & (offs_c[None, :] < C), other=0.0)
+        x_tile = tl.load(
+            x_ptrs, mask=mask_m[:, None] & (offs_c[None, :] < C), other=0.0
+        )
         acc += tl.sum(x_tile.to(tl.float32), axis=1)
 
     out = (acc * scale).to(y_ptr.dtype.element_ty)
     tl.store(y_ptr + offs_m * stride_yn, out, mask=mask_m)
 
 
-def fused_linear_maxpool1d(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+def fused_linear_maxpool1d(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
     assert x.device.type == "xpu"
     assert weight.device == x.device and bias.device == x.device
-    assert x.dtype == torch.float16 and weight.dtype == torch.float16 and bias.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and weight.dtype == torch.float16
+        and bias.dtype == torch.float16
+    )
     assert x.ndim == 2 and weight.ndim == 2 and bias.ndim == 1
 
     M, K = x.shape
@@ -254,11 +361,19 @@ def fused_linear_maxpool1d(x: torch.Tensor, weight: torch.Tensor, bias: torch.Te
         return (triton.cdiv(M, meta["BM"]) * triton.cdiv(N_POOL, meta["BNP"]),)
 
     _fused_linear_maxpool1d_kernel[grid](
-        x, weight, bias, out,
-        M, N_OUT, K,
-        x.stride(0), x.stride(1),
-        weight.stride(0), weight.stride(1),
-        out.stride(0), out.stride(1),
+        x,
+        weight,
+        bias,
+        out,
+        M,
+        N_OUT,
+        K,
+        x.stride(0),
+        x.stride(1),
+        weight.stride(0),
+        weight.stride(1),
+        out.stride(0),
+        out.stride(1),
     )
     return out
 
@@ -272,9 +387,12 @@ def row_sum_scale(x: torch.Tensor, scale_factor: float) -> torch.Tensor:
         return (triton.cdiv(N, meta["BLOCK_M"]),)
 
     _row_sum_scale_kernel[grid](
-        x, y,
-        N, C,
-        x.stride(0), x.stride(1),
+        x,
+        y,
+        N,
+        C,
+        x.stride(0),
+        x.stride(1),
         y.stride(0),
         float(scale_factor),
     )

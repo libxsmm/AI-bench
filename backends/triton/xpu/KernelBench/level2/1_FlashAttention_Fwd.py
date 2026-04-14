@@ -105,16 +105,28 @@ def _attn_fwd(
 
     y_dim = Z * H * N_CTX
     desc_q = tl.make_tensor_descriptor(
-        Q, shape=[y_dim, HEAD_DIM], strides=[HEAD_DIM, 1], block_shape=[BLOCK_M, HEAD_DIM]
+        Q,
+        shape=[y_dim, HEAD_DIM],
+        strides=[HEAD_DIM, 1],
+        block_shape=[BLOCK_M, HEAD_DIM],
     )
     desc_v = tl.make_tensor_descriptor(
-        V, shape=[y_dim, HEAD_DIM], strides=[HEAD_DIM, 1], block_shape=[BLOCK_N, HEAD_DIM]
+        V,
+        shape=[y_dim, HEAD_DIM],
+        strides=[HEAD_DIM, 1],
+        block_shape=[BLOCK_N, HEAD_DIM],
     )
     desc_k = tl.make_tensor_descriptor(
-        K, shape=[y_dim, HEAD_DIM], strides=[HEAD_DIM, 1], block_shape=[BLOCK_N, HEAD_DIM]
+        K,
+        shape=[y_dim, HEAD_DIM],
+        strides=[HEAD_DIM, 1],
+        block_shape=[BLOCK_N, HEAD_DIM],
     )
     desc_o = tl.make_tensor_descriptor(
-        O, shape=[y_dim, HEAD_DIM], strides=[HEAD_DIM, 1], block_shape=[BLOCK_M, HEAD_DIM]
+        O,
+        shape=[y_dim, HEAD_DIM],
+        strides=[HEAD_DIM, 1],
+        block_shape=[BLOCK_M, HEAD_DIM],
     )
 
     offset_y = off_z * (N_CTX * H) + off_h * N_CTX
@@ -194,7 +206,9 @@ def _attn_fwd(
 
 
 configs = [
-    triton.Config({"BLOCK_M": BM, "BLOCK_N": BN, "grf_mode": "256"}, num_stages=s, num_warps=w)
+    triton.Config(
+        {"BLOCK_M": BM, "BLOCK_N": BN, "grf_mode": "256"}, num_stages=s, num_warps=w
+    )
     for BM in [128, 256]
     for BN in [32, 64]
     for s in [2, 3, 4]
@@ -219,10 +233,12 @@ def _attn_bwd_preprocess(
     off_hz = tl.program_id(1)
     off_n = tl.arange(0, HEAD_DIM)
     # load
-    o = tl.load(O + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :])
-    do = tl.load(DO + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]).to(
-        tl.float32
+    o = tl.load(
+        O + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]
     )
+    do = tl.load(
+        DO + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]
+    ).to(tl.float32)
     delta = tl.sum(o * do, axis=1)
     # write-back
     tl.store(Delta + off_hz * N_CTX + off_m, delta)
@@ -257,7 +273,10 @@ def _attn_bwd_dkdv(
 ):
     offs_n = start_n + tl.arange(0, BLOCK_N1)
     qT_desc = tl.make_tensor_descriptor(
-        Q, shape=[HEAD_DIM, N_CTX], strides=[stride_d, stride_tok], block_shape=[HEAD_DIM, BLOCK_M1]
+        Q,
+        shape=[HEAD_DIM, N_CTX],
+        strides=[stride_d, stride_tok],
+        block_shape=[HEAD_DIM, BLOCK_M1],
     )
 
     do_desc = tl.make_tensor_descriptor(
@@ -325,11 +344,17 @@ def _attn_bwd_dq(
 ):
     offs_m = start_m + tl.arange(0, BLOCK_M2)
     kT_desc = tl.make_tensor_descriptor(
-        K, shape=[HEAD_DIM, N_CTX], strides=[stride_d, stride_tok], block_shape=[HEAD_DIM, BLOCK_N2]
+        K,
+        shape=[HEAD_DIM, N_CTX],
+        strides=[stride_d, stride_tok],
+        block_shape=[HEAD_DIM, BLOCK_N2],
     )
 
     vT_desc = tl.make_tensor_descriptor(
-        V, shape=[HEAD_DIM, N_CTX], strides=[stride_d, stride_tok], block_shape=[HEAD_DIM, BLOCK_N2]
+        V,
+        shape=[HEAD_DIM, N_CTX],
+        strides=[stride_d, stride_tok],
+        block_shape=[HEAD_DIM, BLOCK_N2],
     )
     # D (= delta) is pre-divided by ds_scale.
     Di = tl.load(D + offs_m)
@@ -560,7 +585,11 @@ class _attention(torch.autograd.Function):
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
         stage = 3 if causal else 1
-        grid = lambda args: (q.shape[0], q.shape[1], triton.cdiv(q.shape[2], args["BLOCK_M"]))
+        grid = lambda args: (
+            q.shape[0],
+            q.shape[1],
+            triton.cdiv(q.shape[2], args["BLOCK_M"]),
+        )
         n_ctx = q.shape[2]
         if n_ctx <= 512:
             grid = lambda args: (
@@ -568,7 +597,9 @@ class _attention(torch.autograd.Function):
                 1,
                 q.shape[0] * q.shape[1],
             )
-        M = torch.empty((q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
+        M = torch.empty(
+            (q.shape[0], q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32
+        )
 
         _attention.tune_attn_fwd[grid](  # pylint: disable=unsubscriptable-object
             sm_scale,

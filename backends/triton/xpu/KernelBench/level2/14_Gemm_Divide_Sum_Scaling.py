@@ -6,26 +6,41 @@ import triton.language as tl
 
 # Keep the original kernel present for benchmark compatibility/reference.
 _ORIGINAL_AUTOTUNE_CONFIGS = [
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_M': 64, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=4, num_stages=2),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=8, num_stages=2
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+    ),
+    triton.Config(
+        {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=4, num_stages=2
+    ),
+    triton.Config(
+        {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=4, num_stages=2
+    ),
 ]
 
 
-@triton.autotune(configs=_ORIGINAL_AUTOTUNE_CONFIGS, key=['N', 'I', 'H'])
+@triton.autotune(configs=_ORIGINAL_AUTOTUNE_CONFIGS, key=["N", "I", "H"])
 @triton.jit
 def _fused_rowsum_kernel(
     x_ptr,
     weight_ptr,
     out_ptr,
-    N, I, H,
-    stride_xm, stride_xk,
-    stride_wh, stride_wk,
-    stride_om, stride_on,
+    N,
+    I,
+    H,
+    stride_xm,
+    stride_xk,
+    stride_wh,
+    stride_wk,
+    stride_om,
+    stride_on,
     scale_half,
     scale_final,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
 ):
     pid_m = tl.program_id(0)
     offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
@@ -51,7 +66,9 @@ def _fused_rowsum_kernel(
             a_ptrs = x_ptr + offs_m[:, None] * stride_xm + offs_k[None, :] * stride_xk
             a = tl.load(a_ptrs, mask=(mask_m[:, None] & mask_k[None, :]), other=0.0)
 
-            b_ptrs = weight_ptr + offs_n[None, :] * stride_wh + offs_k[:, None] * stride_wk
+            b_ptrs = (
+                weight_ptr + offs_n[None, :] * stride_wh + offs_k[:, None] * stride_wk
+            )
             b = tl.load(b_ptrs, mask=(mask_k[:, None] & mask_n[None, :]), other=0.0)
 
             s_k = tl.sum(b, axis=1)
@@ -67,24 +84,22 @@ def _fused_rowsum_kernel(
 def _rowdot_autotune_configs():
     configs = [
         # Small-row fallback / occupancy-friendly
-        triton.Config({'BLOCK_M': 64, 'BLOCK_K': 8}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_K': 16}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_K': 32}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_K': 64}, num_warps=8, num_stages=3),
-
+        triton.Config({"BLOCK_M": 64, "BLOCK_K": 8}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_M": 64, "BLOCK_K": 16}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_M": 64, "BLOCK_K": 32}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_M": 64, "BLOCK_K": 64}, num_warps=8, num_stages=3),
         # Mid-size tiles
-        triton.Config({'BLOCK_M': 128, 'BLOCK_K': 8}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_K': 16}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_K': 32}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_K': 64}, num_warps=16, num_stages=3),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_K': 128}, num_warps=16, num_stages=4),
-
+        triton.Config({"BLOCK_M": 128, "BLOCK_K": 8}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_M": 128, "BLOCK_K": 16}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_M": 128, "BLOCK_K": 32}, num_warps=8, num_stages=3),
+        triton.Config({"BLOCK_M": 128, "BLOCK_K": 64}, num_warps=16, num_stages=3),
+        triton.Config({"BLOCK_M": 128, "BLOCK_K": 128}, num_warps=16, num_stages=4),
         # Large XPU-oriented tiles
-        triton.Config({'BLOCK_M': 256, 'BLOCK_K': 8}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_M': 256, 'BLOCK_K': 16}, num_warps=32, num_stages=3),
-        triton.Config({'BLOCK_M': 256, 'BLOCK_K': 32}, num_warps=32, num_stages=3),
-        triton.Config({'BLOCK_M': 256, 'BLOCK_K': 64}, num_warps=32, num_stages=3),
-        triton.Config({'BLOCK_M': 256, 'BLOCK_K': 128}, num_warps=32, num_stages=4),
+        triton.Config({"BLOCK_M": 256, "BLOCK_K": 8}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_M": 256, "BLOCK_K": 16}, num_warps=32, num_stages=3),
+        triton.Config({"BLOCK_M": 256, "BLOCK_K": 32}, num_warps=32, num_stages=3),
+        triton.Config({"BLOCK_M": 256, "BLOCK_K": 64}, num_warps=32, num_stages=3),
+        triton.Config({"BLOCK_M": 256, "BLOCK_K": 128}, num_warps=32, num_stages=4),
     ]
     return configs
 
@@ -94,15 +109,17 @@ _ROW_REDUCTION_AUTOTUNE_CONFIGS = _rowdot_autotune_configs()
 
 @triton.autotune(
     configs=_ROW_REDUCTION_AUTOTUNE_CONFIGS,
-    key=['N', 'I', 'stride_xm', 'stride_xk', 'stride_ws'],
+    key=["N", "I", "stride_xm", "stride_xk", "stride_ws"],
 )
 @triton.jit
 def _rowdot_kernel(
-    x_ptr,           # [N, I] fp16
-    ws_ptr,          # [I] fp16
-    out_ptr,         # [N, 1] fp16
-    N, I,
-    stride_xm, stride_xk,
+    x_ptr,  # [N, I] fp16
+    ws_ptr,  # [I] fp16
+    out_ptr,  # [N, 1] fp16
+    N,
+    I,
+    stride_xm,
+    stride_xk,
     stride_ws,
     stride_om,
     scale,
@@ -163,7 +180,9 @@ def kernel_function(x, weight_sum, scaling_factor=1.5):
 
     N, I = x_xpu.shape
     if ws_xpu.shape[0] != I:
-        raise ValueError(f"Incompatible shapes: x has I={I}, weight_sum has {ws_xpu.shape[0]}")
+        raise ValueError(
+            f"Incompatible shapes: x has I={I}, weight_sum has {ws_xpu.shape[0]}"
+        )
 
     if isinstance(scaling_factor, torch.Tensor):
         raise TypeError(
@@ -178,12 +197,16 @@ def kernel_function(x, weight_sum, scaling_factor=1.5):
     stride_om = out.stride(0)
 
     def grid(meta):
-        return (triton.cdiv(N, meta['BLOCK_M']),)
+        return (triton.cdiv(N, meta["BLOCK_M"]),)
 
     _rowdot_kernel[grid](
-        x_xpu, ws_xpu, out,
-        N, I,
-        stride_xm, stride_xk,
+        x_xpu,
+        ws_xpu,
+        out,
+        N,
+        I,
+        stride_xm,
+        stride_xk,
         stride_ws,
         stride_om,
         0.5 * sf,

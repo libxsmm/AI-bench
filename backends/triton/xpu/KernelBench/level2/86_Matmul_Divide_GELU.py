@@ -245,8 +245,16 @@ class Model(nn.Module):
 
     def _lazy_init_xpu(self):
         if self._packed_w is None or self._bias_xpu is None:
-            w = self.linear.weight.detach().to(device="xpu", dtype=torch.float16).contiguous()
-            b = self.linear.bias.detach().to(device="xpu", dtype=torch.float16).contiguous()
+            w = (
+                self.linear.weight.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
+            b = (
+                self.linear.bias.detach()
+                .to(device="xpu", dtype=torch.float16)
+                .contiguous()
+            )
             self._packed_w = w.t().contiguous()  # [K, N]
             self._bias_xpu = b
 

@@ -13,6 +13,7 @@ class Model(torch.nn.Module):
     A model that performs a matrix multiplication, applies Swish activation,
     sums with a bias term, and normalizes with GroupNorm.
     """
+
     def __init__(self, in_features, out_features, num_groups, bias_shape):
         super(Model, self).__init__()
         self.matmul = torch.nn.Linear(in_features, out_features)
@@ -97,13 +98,25 @@ def _autotune_configs():
 @triton.autotune(configs=_autotune_configs(), key=["M", "N", "K"])
 @triton.jit
 def _fused_linear_swish_add_kernel(
-    x_ptr, w_ptr, b1_ptr, b2_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wk, stride_wn,
-    stride_ym, stride_yn,
-    HAS_BIAS1: tl.constexpr, HAS_BIAS2: tl.constexpr,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b1_ptr,
+    b2_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wk,
+    stride_wn,
+    stride_ym,
+    stride_yn,
+    HAS_BIAS1: tl.constexpr,
+    HAS_BIAS2: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     GROUP_SIZE_M: tl.constexpr,
     LOG2E: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -172,10 +185,7 @@ def _fused_linear_swish_add_kernel(
 
 
 def _sg0_fused(
-    x: torch.Tensor,
-    W_t: torch.Tensor,
-    b_linear: torch.Tensor,
-    b_add: torch.Tensor
+    x: torch.Tensor, W_t: torch.Tensor, b_linear: torch.Tensor, b_add: torch.Tensor
 ) -> torch.Tensor:
     assert x.ndim == 2 and W_t.ndim == 2
     M, Kx = x.shape
@@ -194,12 +204,22 @@ def _sg0_fused(
         return (triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(N, meta["BLOCK_N"]),)
 
     _fused_linear_swish_add_kernel[grid](
-        x, W_t, b_linear, b_add, y,
-        M, N, Kx,
-        stride_xm, stride_xk,
-        stride_wk, stride_wn,
-        stride_ym, stride_yn,
-        HAS_BIAS1=True, HAS_BIAS2=True,
+        x,
+        W_t,
+        b_linear,
+        b_add,
+        y,
+        M,
+        N,
+        Kx,
+        stride_xm,
+        stride_xk,
+        stride_wk,
+        stride_wn,
+        stride_ym,
+        stride_yn,
+        HAS_BIAS1=True,
+        HAS_BIAS2=True,
         LOG2E=1.4426950408889634,
         grf_mode="auto",
     )
@@ -228,8 +248,15 @@ def _groupnorm_autotune_configs():
 )
 @triton.jit
 def _groupnorm_affine_kernel(
-    x_ptr, weight_ptr, bias_ptr, y_ptr,
-    N, C, stride_n, stride_c, eps,
+    x_ptr,
+    weight_ptr,
+    bias_ptr,
+    y_ptr,
+    N,
+    C,
+    stride_n,
+    stride_c,
+    eps,
     CHANNELS_PER_GROUP: tl.constexpr,
     BLOCK_ROWS: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -246,8 +273,16 @@ def _groupnorm_affine_kernel(
     col_mask = c_idxs < C
     mask = row_mask[:, None] & col_mask[None, :]
 
-    x_ptrs = x_ptr + row_offsets[:, None].to(tl.int64) * stride_n + c_idxs[None, :].to(tl.int64) * stride_c
-    y_ptrs = y_ptr + row_offsets[:, None].to(tl.int64) * stride_n + c_idxs[None, :].to(tl.int64) * stride_c
+    x_ptrs = (
+        x_ptr
+        + row_offsets[:, None].to(tl.int64) * stride_n
+        + c_idxs[None, :].to(tl.int64) * stride_c
+    )
+    y_ptrs = (
+        y_ptr
+        + row_offsets[:, None].to(tl.int64) * stride_n
+        + c_idxs[None, :].to(tl.int64) * stride_c
+    )
 
     x_val = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
     mean = tl.sum(x_val, axis=1) / float(CHANNELS_PER_GROUP)
@@ -267,7 +302,7 @@ def _sg1_groupnorm(
     weight: torch.Tensor,
     bias: torch.Tensor,
     num_groups: int,
-    eps: float = 1e-5
+    eps: float = 1e-5,
 ) -> torch.Tensor:
     assert x.ndim == 2
     N, C = x.shape
@@ -285,8 +320,15 @@ def _sg1_groupnorm(
         return (triton.cdiv(N, meta["BLOCK_ROWS"]), num_groups)
 
     _groupnorm_affine_kernel[grid](
-        x, weight, bias, y,
-        N, C, stride_n, stride_c, eps,
+        x,
+        weight,
+        bias,
+        y,
+        N,
+        C,
+        stride_n,
+        stride_c,
+        eps,
         CHANNELS_PER_GROUP=channels_per_group,
         grf_mode="auto",
     )
@@ -306,15 +348,27 @@ def _post_gemm_autotune_configs():
         triton.Config({"BLOCK_ROWS": 16, "BLOCK_GROUPS": 1}, num_warps=4, num_stages=1),
         triton.Config({"BLOCK_ROWS": 16, "BLOCK_GROUPS": 2}, num_warps=8, num_stages=1),
         triton.Config({"BLOCK_ROWS": 16, "BLOCK_GROUPS": 4}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_ROWS": 16, "BLOCK_GROUPS": 8}, num_warps=16, num_stages=2),
+        triton.Config(
+            {"BLOCK_ROWS": 16, "BLOCK_GROUPS": 8}, num_warps=16, num_stages=2
+        ),
         triton.Config({"BLOCK_ROWS": 32, "BLOCK_GROUPS": 1}, num_warps=8, num_stages=1),
         triton.Config({"BLOCK_ROWS": 32, "BLOCK_GROUPS": 2}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_ROWS": 32, "BLOCK_GROUPS": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_ROWS": 32, "BLOCK_GROUPS": 8}, num_warps=16, num_stages=2),
+        triton.Config(
+            {"BLOCK_ROWS": 32, "BLOCK_GROUPS": 4}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_ROWS": 32, "BLOCK_GROUPS": 8}, num_warps=16, num_stages=2
+        ),
         triton.Config({"BLOCK_ROWS": 64, "BLOCK_GROUPS": 1}, num_warps=8, num_stages=1),
-        triton.Config({"BLOCK_ROWS": 64, "BLOCK_GROUPS": 2}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_ROWS": 64, "BLOCK_GROUPS": 4}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_ROWS": 64, "BLOCK_GROUPS": 8}, num_warps=32, num_stages=3),
+        triton.Config(
+            {"BLOCK_ROWS": 64, "BLOCK_GROUPS": 2}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_ROWS": 64, "BLOCK_GROUPS": 4}, num_warps=16, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_ROWS": 64, "BLOCK_GROUPS": 8}, num_warps=32, num_stages=3
+        ),
     ]
 
 
@@ -324,10 +378,17 @@ def _post_gemm_autotune_configs():
 )
 @triton.jit
 def _swish_bias_groupnorm_kernel(
-    x_ptr, b2_ptr, gamma_ptr, beta_ptr, y_ptr,
-    N_ROWS, C,
-    stride_xn, stride_xc,
-    stride_yn, stride_yc,
+    x_ptr,
+    b2_ptr,
+    gamma_ptr,
+    beta_ptr,
+    y_ptr,
+    N_ROWS,
+    C,
+    stride_xn,
+    stride_xc,
+    stride_yn,
+    stride_yc,
     eps,
     NUM_GROUPS,
     CHANNELS_PER_GROUP: tl.constexpr,
@@ -416,10 +477,17 @@ def _post_gemm_fused(
         )
 
     _swish_bias_groupnorm_kernel[grid](
-        x_linear, b_add, gn_weight, gn_bias, y,
-        n_rows, c,
-        stride_xn, stride_xc,
-        stride_yn, stride_yc,
+        x_linear,
+        b_add,
+        gn_weight,
+        gn_bias,
+        y,
+        n_rows,
+        c,
+        stride_xn,
+        stride_xc,
+        stride_yn,
+        stride_yc,
         eps,
         num_groups,
         CHANNELS_PER_GROUP=channels_per_group,
@@ -484,7 +552,9 @@ def kernel_function(
         gn_bias_xpu = gn_bias_xpu.contiguous()
 
     mid = torch.nn.functional.linear(x_xpu, W_xpu, b_linear_xpu)
-    return _post_gemm_fused(mid, b_add_xpu, gn_weight_xpu, gn_bias_xpu, num_groups, eps=1e-5)
+    return _post_gemm_fused(
+        mid, b_add_xpu, gn_weight_xpu, gn_bias_xpu, num_groups, eps=1e-5
+    )
 
 
 batch_size = 32768
@@ -521,15 +591,29 @@ class Model(nn.Module):
         target_dtype = self.matmul.weight.dtype
 
         if self.matmul.weight.device.type != "xpu":
-            self.matmul.weight.data = self.matmul.weight.data.to("xpu", dtype=target_dtype).contiguous()
-        elif self.matmul.weight.dtype != target_dtype or not self.matmul.weight.is_contiguous():
-            self.matmul.weight.data = self.matmul.weight.data.to(dtype=target_dtype).contiguous()
+            self.matmul.weight.data = self.matmul.weight.data.to(
+                "xpu", dtype=target_dtype
+            ).contiguous()
+        elif (
+            self.matmul.weight.dtype != target_dtype
+            or not self.matmul.weight.is_contiguous()
+        ):
+            self.matmul.weight.data = self.matmul.weight.data.to(
+                dtype=target_dtype
+            ).contiguous()
 
         if self.matmul.bias is not None:
             if self.matmul.bias.device.type != "xpu":
-                self.matmul.bias.data = self.matmul.bias.data.to("xpu", dtype=target_dtype).contiguous()
-            elif self.matmul.bias.dtype != target_dtype or not self.matmul.bias.is_contiguous():
-                self.matmul.bias.data = self.matmul.bias.data.to(dtype=target_dtype).contiguous()
+                self.matmul.bias.data = self.matmul.bias.data.to(
+                    "xpu", dtype=target_dtype
+                ).contiguous()
+            elif (
+                self.matmul.bias.dtype != target_dtype
+                or not self.matmul.bias.is_contiguous()
+            ):
+                self.matmul.bias.data = self.matmul.bias.data.to(
+                    dtype=target_dtype
+                ).contiguous()
 
         if self.bias.device.type != "xpu":
             self.bias.data = self.bias.data.to("xpu", dtype=target_dtype).contiguous()
@@ -537,14 +621,28 @@ class Model(nn.Module):
             self.bias.data = self.bias.data.to(dtype=target_dtype).contiguous()
 
         if self.group_norm.weight.device.type != "xpu":
-            self.group_norm.weight.data = self.group_norm.weight.data.to("xpu", dtype=target_dtype).contiguous()
-        elif self.group_norm.weight.dtype != target_dtype or not self.group_norm.weight.is_contiguous():
-            self.group_norm.weight.data = self.group_norm.weight.data.to(dtype=target_dtype).contiguous()
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                "xpu", dtype=target_dtype
+            ).contiguous()
+        elif (
+            self.group_norm.weight.dtype != target_dtype
+            or not self.group_norm.weight.is_contiguous()
+        ):
+            self.group_norm.weight.data = self.group_norm.weight.data.to(
+                dtype=target_dtype
+            ).contiguous()
 
         if self.group_norm.bias.device.type != "xpu":
-            self.group_norm.bias.data = self.group_norm.bias.data.to("xpu", dtype=target_dtype).contiguous()
-        elif self.group_norm.bias.dtype != target_dtype or not self.group_norm.bias.is_contiguous():
-            self.group_norm.bias.data = self.group_norm.bias.data.to(dtype=target_dtype).contiguous()
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                "xpu", dtype=target_dtype
+            ).contiguous()
+        elif (
+            self.group_norm.bias.dtype != target_dtype
+            or not self.group_norm.bias.is_contiguous()
+        ):
+            self.group_norm.bias.data = self.group_norm.bias.data.to(
+                dtype=target_dtype
+            ).contiguous()
 
         self._packed_weight_t = self.matmul.weight.t().contiguous()
 

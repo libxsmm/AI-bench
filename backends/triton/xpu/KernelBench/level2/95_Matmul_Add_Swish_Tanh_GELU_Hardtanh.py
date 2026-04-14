@@ -208,10 +208,17 @@ def _get_fused_epilogue(bias: torch.Tensor, add_value: torch.Tensor) -> torch.Te
     return fused
 
 
-def _sg1_forward(x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor, add_value: torch.Tensor) -> torch.Tensor:
+def _sg1_forward(
+    x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor, add_value: torch.Tensor
+) -> torch.Tensor:
     assert x.device == weight_t.device == bias.device == add_value.device
     assert x.dtype == weight_t.dtype == bias.dtype == add_value.dtype
-    assert x.dim() == 2 and weight_t.dim() == 2 and bias.dim() == 1 and add_value.dim() == 1
+    assert (
+        x.dim() == 2
+        and weight_t.dim() == 2
+        and bias.dim() == 1
+        and add_value.dim() == 1
+    )
 
     x = x.contiguous()
     weight_t = weight_t.contiguous()
@@ -320,7 +327,9 @@ def _sg2_act_chain_kernel(
     tl.store(y_ptr + offs, clamped.to(x.dtype), mask=mask)
 
 
-def _sg2_forward(x: torch.Tensor, min_val: float = -1.0, max_val: float = 1.0) -> torch.Tensor:
+def _sg2_forward(
+    x: torch.Tensor, min_val: float = -1.0, max_val: float = 1.0
+) -> torch.Tensor:
     assert x.device.type == "xpu"
     assert x.dtype in (torch.float16, torch.bfloat16)
     x = x.contiguous()
@@ -344,7 +353,9 @@ def _sg2_forward(x: torch.Tensor, min_val: float = -1.0, max_val: float = 1.0) -
 # Top-Level Kernel Function
 # Expects packed weight_t in shape [K, N]
 # ----------------------------
-def kernel_function(x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor, add_value: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight_t: torch.Tensor, bias: torch.Tensor, add_value: torch.Tensor
+) -> torch.Tensor:
     assert isinstance(x, torch.Tensor) and isinstance(weight_t, torch.Tensor)
     assert isinstance(bias, torch.Tensor) and isinstance(add_value, torch.Tensor)
 
@@ -396,19 +407,37 @@ class Model(nn.Module):
         self.matmul = nn.Linear(in_features, out_features)
         self.add_value = nn.Parameter(torch.zeros(add_value_shape))
 
-        self.register_buffer("_cached_weight_t_xpu", torch.empty(0, dtype=torch.float16), persistent=False)
-        self.register_buffer("_cached_bias_xpu", torch.empty(0, dtype=torch.float16), persistent=False)
-        self.register_buffer("_cached_add_value_xpu", torch.empty(0, dtype=torch.float16), persistent=False)
-        self.register_buffer("_cached_fused_bias_add_xpu", torch.empty(0, dtype=torch.float16), persistent=False)
+        self.register_buffer(
+            "_cached_weight_t_xpu",
+            torch.empty(0, dtype=torch.float16),
+            persistent=False,
+        )
+        self.register_buffer(
+            "_cached_bias_xpu", torch.empty(0, dtype=torch.float16), persistent=False
+        )
+        self.register_buffer(
+            "_cached_add_value_xpu",
+            torch.empty(0, dtype=torch.float16),
+            persistent=False,
+        )
+        self.register_buffer(
+            "_cached_fused_bias_add_xpu",
+            torch.empty(0, dtype=torch.float16),
+            persistent=False,
+        )
         self._cache_ready = False
         self._weight_version = -1
         self._bias_version = -1
         self._add_value_version = -1
 
     def _refresh_xpu_cache(self):
-        weight_xpu = self.matmul.weight.detach().to("xpu", dtype=torch.float16).contiguous()
+        weight_xpu = (
+            self.matmul.weight.detach().to("xpu", dtype=torch.float16).contiguous()
+        )
         bias_xpu = self.matmul.bias.detach().to("xpu", dtype=torch.float16).contiguous()
-        add_value_xpu = self.add_value.detach().to("xpu", dtype=torch.float16).contiguous()
+        add_value_xpu = (
+            self.add_value.detach().to("xpu", dtype=torch.float16).contiguous()
+        )
 
         self._cached_weight_t_xpu = weight_xpu.t().contiguous()
         self._cached_bias_xpu = bias_xpu

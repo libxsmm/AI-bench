@@ -58,20 +58,34 @@ def _erf_approx(x):
     sign = tl.where(x >= 0, 1.0, -1.0)
     ax = tl.abs(x)
     t = 1.0 / (1.0 + p * ax)
-    y = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t)
+    y = ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t
     y = 1.0 - y * tl.exp(-ax * ax)
     return sign * y
 
 
 @triton.jit
 def _linear_bn_fwd_kernel(
-    x_ptr, w_ptr, b_ptr, gamma_ptr, beta_ptr, mean_ptr, var_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yn,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    gamma_ptr,
+    beta_ptr,
+    mean_ptr,
+    var_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yn,
     eps,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -128,10 +142,16 @@ def _linear_bn_fwd_kernel(
 
 @triton.jit
 def _gelu_relu_kernel(
-    x_ptr, y_ptr, N, M,
-    stride_x0, stride_x1,
-    stride_y0, stride_y1,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr,
+    x_ptr,
+    y_ptr,
+    N,
+    M,
+    stride_x0,
+    stride_x1,
+    stride_y0,
+    stride_y1,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -154,13 +174,23 @@ def _gelu_relu_kernel(
 )
 @triton.jit
 def _linear_gelu_relu_kernel(
-    x_ptr, w_ptr, shift_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yn,
+    x_ptr,
+    w_ptr,
+    shift_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yn,
     GROUP_SIZE_M: tl.constexpr,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -257,14 +287,29 @@ def _linear_bn(x, w, b, gamma, beta, mean, var, eps):
     BLOCK_M, BLOCK_N, BLOCK_K = 256, 256, 32
     grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
     _linear_bn_fwd_kernel[grid](
-        x_xpu, w_xpu, b_xpu, gamma_xpu, beta_xpu, mean_xpu, var_xpu, y,
-        M, N, K,
-        stride_xm, stride_xk,
-        stride_wn, stride_wk,
-        stride_ym, stride_yn,
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        gamma_xpu,
+        beta_xpu,
+        mean_xpu,
+        var_xpu,
+        y,
+        M,
+        N,
+        K,
+        stride_xm,
+        stride_xk,
+        stride_wn,
+        stride_wk,
+        stride_ym,
+        stride_yn,
         float(eps),
-        BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_K=BLOCK_K,
-        num_warps=32, num_stages=3,
+        BLOCK_M=BLOCK_M,
+        BLOCK_N=BLOCK_N,
+        BLOCK_K=BLOCK_K,
+        num_warps=32,
+        num_stages=3,
     )
     return y
 
@@ -278,10 +323,18 @@ def _gelu_relu(x):
     BLOCK_M, BLOCK_N = 128, 128
     grid = (triton.cdiv(N, BLOCK_M), triton.cdiv(M, BLOCK_N))
     _gelu_relu_kernel[grid](
-        x_xpu, y, N, M,
-        s0, s1, s0y, s1y,
-        BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N,
-        num_warps=8, num_stages=2,
+        x_xpu,
+        y,
+        N,
+        M,
+        s0,
+        s1,
+        s0y,
+        s1y,
+        BLOCK_M=BLOCK_M,
+        BLOCK_N=BLOCK_N,
+        num_warps=8,
+        num_stages=2,
     )
     return y
 
@@ -302,16 +355,22 @@ def kernel_function(x, w_fold, shift):
     stride_ym, stride_yn = y.stride(0), y.stride(1)
 
     def grid(meta):
-        return (
-            triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(N, meta["BLOCK_N"]),
-        )
+        return (triton.cdiv(M, meta["BLOCK_M"]) * triton.cdiv(N, meta["BLOCK_N"]),)
 
     _linear_gelu_relu_kernel[grid](
-        x_xpu, w_fold_xpu, shift_xpu, y,
-        M, N, K,
-        stride_xm, stride_xk,
-        stride_wn, stride_wk,
-        stride_ym, stride_yn,
+        x_xpu,
+        w_fold_xpu,
+        shift_xpu,
+        y,
+        M,
+        N,
+        K,
+        stride_xm,
+        stride_xk,
+        stride_wn,
+        stride_wk,
+        stride_ym,
+        stride_yn,
         grf_mode="auto",
     )
     return y
@@ -354,11 +413,18 @@ class Model(nn.Module):
             int(beta._version),
             int(mean._version),
             int(var._version),
-            w.device.type, b.device.type,
-            gamma.device.type, beta.device.type,
-            mean.device.type, var.device.type,
+            w.device.type,
+            b.device.type,
+            gamma.device.type,
+            beta.device.type,
+            mean.device.type,
+            var.device.type,
         )
-        if self._cache_key == key and self._cached_w_fold is not None and self._cached_shift is not None:
+        if (
+            self._cache_key == key
+            and self._cached_w_fold is not None
+            and self._cached_shift is not None
+        ):
             return
 
         w_fp32 = w.detach().to("xpu", dtype=torch.float32).contiguous()

@@ -281,7 +281,12 @@ def _double_maxpool3d_fused_kernel(
         d_valid = (d0_base + di) < D
         for hi in range(4):
             h_valid = (h0_base + hi) < H
-            ptrs = base_ptrs[:, :, None] + di * stride_d + hi * stride_h + offs_wi[None, None, :]
+            ptrs = (
+                base_ptrs[:, :, None]
+                + di * stride_d
+                + hi * stride_h
+                + offs_wi[None, None, :]
+            )
             w_valid = (w0_base[None, :, None] + wi_idx[None, None, :]) < W
             mask = (
                 row_mask[:, None, None]
@@ -302,7 +307,11 @@ def _double_maxpool3d_fused_kernel(
         + ho_i64[:, None] * out_stride_h
         + w2_offsets.to(tl.int64)[None, :] * out_stride_w
     )
-    tl.store(y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=row_mask[:, None] & w2_mask[None, :])
+    tl.store(
+        y_ptrs,
+        acc.to(y_ptr.dtype.element_ty),
+        mask=row_mask[:, None] & w2_mask[None, :],
+    )
 
 
 def _double_pool_out_len(L: int) -> int:
@@ -315,15 +324,35 @@ def _double_pool_out_len(L: int) -> int:
     return (L1 - 2) // 2 + 1
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU support (torch.xpu) is required")
 
-    x_xpu = x if x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous() else x.to("xpu", dtype=torch.float16).contiguous()
-    weight_xpu = weight if weight.device.type == "xpu" and weight.dtype == torch.float16 and weight.is_contiguous() else weight.to("xpu", dtype=torch.float16).contiguous()
-    bias_xpu = bias if bias.device.type == "xpu" and bias.dtype == torch.float16 and bias.is_contiguous() else bias.to("xpu", dtype=torch.float16).contiguous()
+    x_xpu = (
+        x
+        if x.device.type == "xpu" and x.dtype == torch.float16 and x.is_contiguous()
+        else x.to("xpu", dtype=torch.float16).contiguous()
+    )
+    weight_xpu = (
+        weight
+        if weight.device.type == "xpu"
+        and weight.dtype == torch.float16
+        and weight.is_contiguous()
+        else weight.to("xpu", dtype=torch.float16).contiguous()
+    )
+    bias_xpu = (
+        bias
+        if bias.device.type == "xpu"
+        and bias.dtype == torch.float16
+        and bias.is_contiguous()
+        else bias.to("xpu", dtype=torch.float16).contiguous()
+    )
 
-    assert x_xpu.ndim == 5 and weight_xpu.ndim == 5 and bias_xpu.ndim == 1, "Invalid tensor ranks"
+    assert x_xpu.ndim == 5 and weight_xpu.ndim == 5 and bias_xpu.ndim == 1, (
+        "Invalid tensor ranks"
+    )
     N, C, D, H, W = x_xpu.shape
     OC, Cw, KD, KH, KW = weight_xpu.shape
     assert C == 3 and Cw == 3, "This optimized kernel specializes the hot C=3 path"
@@ -345,7 +374,10 @@ def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -
     total_pos = N * Do * Ho * Wo
 
     def grid_conv(meta):
-        return (triton.cdiv(total_pos, meta["BLOCK_POS"]) * triton.cdiv(OC, meta["BLOCK_OC"]),)
+        return (
+            triton.cdiv(total_pos, meta["BLOCK_POS"])
+            * triton.cdiv(OC, meta["BLOCK_OC"]),
+        )
 
     _conv3d_bias_softmax_fused[grid_conv](
         x_xpu,
@@ -448,8 +480,12 @@ class Model(nn.Module):
     def _move_params_once(self):
         if self._xpu_cached:
             return
-        self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
+        self.conv.weight.data = self.conv.weight.data.to(
+            "xpu", dtype=torch.float16
+        ).contiguous()
+        self.conv.bias.data = self.conv.bias.data.to(
+            "xpu", dtype=torch.float16
+        ).contiguous()
         self._xpu_cached = True
 
     def forward(self, x):

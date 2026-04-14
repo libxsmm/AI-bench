@@ -76,11 +76,21 @@ def _precompute_epilogue_kernel(
     mask_n = offs_n < N
 
     bias = tl.load(b_ptr + offs_n * stride_b_n, mask=mask_n, other=0.0).to(tl.float32)
-    scale = tl.load(scale_ptr + offs_n * stride_scale_n, mask=mask_n, other=0.0).to(tl.float32)
-    mean = tl.load(mean_ptr + offs_n * stride_mean_n, mask=mask_n, other=0.0).to(tl.float32)
-    var = tl.load(var_ptr + offs_n * stride_var_n, mask=mask_n, other=0.0).to(tl.float32)
-    gamma = tl.load(bn_w_ptr + offs_n * stride_bn_w_n, mask=mask_n, other=1.0).to(tl.float32)
-    beta = tl.load(bn_b_ptr + offs_n * stride_bn_b_n, mask=mask_n, other=0.0).to(tl.float32)
+    scale = tl.load(scale_ptr + offs_n * stride_scale_n, mask=mask_n, other=0.0).to(
+        tl.float32
+    )
+    mean = tl.load(mean_ptr + offs_n * stride_mean_n, mask=mask_n, other=0.0).to(
+        tl.float32
+    )
+    var = tl.load(var_ptr + offs_n * stride_var_n, mask=mask_n, other=0.0).to(
+        tl.float32
+    )
+    gamma = tl.load(bn_w_ptr + offs_n * stride_bn_w_n, mask=mask_n, other=1.0).to(
+        tl.float32
+    )
+    beta = tl.load(bn_b_ptr + offs_n * stride_bn_b_n, mask=mask_n, other=0.0).to(
+        tl.float32
+    )
 
     inv_std = tl.rsqrt(var + eps)
     gain = gamma * inv_std
@@ -124,8 +134,12 @@ def _epilogue_apply_kernel(
     y_ptrs = y_ptr + offs_m[:, None] * stride_y_m + offs_n[None, :] * stride_y_n
     y = tl.load(y_ptrs, mask=mask, other=0.0).to(tl.float32)
 
-    mul = tl.load(fused_mul_ptr + offs_n * stride_fused_mul_n, mask=mask_n, other=0.0).to(tl.float32)
-    add = tl.load(fused_add_ptr + offs_n * stride_fused_add_n, mask=mask_n, other=0.0).to(tl.float32)
+    mul = tl.load(
+        fused_mul_ptr + offs_n * stride_fused_mul_n, mask=mask_n, other=0.0
+    ).to(tl.float32)
+    add = tl.load(
+        fused_add_ptr + offs_n * stride_fused_add_n, mask=mask_n, other=0.0
+    ).to(tl.float32)
 
     out = y * mul[None, :] + add[None, :]
     out_ptrs = out_ptr + offs_m[:, None] * stride_out_m + offs_n[None, :] * stride_out_n
@@ -299,8 +313,12 @@ class Model(nn.Module):
         self.scale.data = _to_xpu_contig(self.scale.data, torch.float16)
         self.bn.weight.data = _to_xpu_contig(self.bn.weight.data, torch.float16)
         self.bn.bias.data = _to_xpu_contig(self.bn.bias.data, torch.float16)
-        self.bn.running_mean.data = _to_xpu_contig(self.bn.running_mean.data, torch.float32)
-        self.bn.running_var.data = _to_xpu_contig(self.bn.running_var.data, torch.float32)
+        self.bn.running_mean.data = _to_xpu_contig(
+            self.bn.running_mean.data, torch.float32
+        )
+        self.bn.running_var.data = _to_xpu_contig(
+            self.bn.running_var.data, torch.float32
+        )
 
     def _ensure_cached_weight(self):
         self._ensure_xpu_params()
@@ -320,10 +338,18 @@ class Model(nn.Module):
             _tensor_cache_key(self.bn.running_var),
             float(self.eps),
         )
-        if key != self._cached_affine_key or self._cached_fused_mul is None or self._cached_fused_add is None:
+        if (
+            key != self._cached_affine_key
+            or self._cached_fused_mul is None
+            or self._cached_fused_add is None
+        ):
             n = self.scale.numel()
-            self._cached_fused_mul = torch.empty((n,), device="xpu", dtype=torch.float32)
-            self._cached_fused_add = torch.empty((n,), device="xpu", dtype=torch.float32)
+            self._cached_fused_mul = torch.empty(
+                (n,), device="xpu", dtype=torch.float32
+            )
+            self._cached_fused_add = torch.empty(
+                (n,), device="xpu", dtype=torch.float32
+            )
             BLOCK_N = 256
             grid = (triton.cdiv(n, BLOCK_N),)
             _precompute_epilogue_kernel[grid](

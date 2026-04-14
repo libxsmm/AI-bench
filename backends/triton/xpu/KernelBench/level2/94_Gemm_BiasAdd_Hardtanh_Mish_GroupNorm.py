@@ -7,18 +7,66 @@ import triton.language as tl
 
 def _gemm_autotune_configs():
     return [
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4}, num_warps=32, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 2}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=16, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=8, num_stages=2),
-        triton.Config({"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1}, num_warps=4, num_stages=2),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
+            num_warps=32,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 2},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=16,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=8,
+            num_stages=2,
+        ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
+            num_warps=4,
+            num_stages=2,
+        ),
     ]
 
 
@@ -93,7 +141,9 @@ def _fused_linear_bias_hardtanh_mish_kernel(
 
     offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
     tl.max_contiguous(offs_n, BLOCK_N)
-    fused_bias = tl.load(fused_bias_ptr + offs_n, mask=offs_n < N, other=0.0).to(tl.float32)
+    fused_bias = tl.load(fused_bias_ptr + offs_n, mask=offs_n < N, other=0.0).to(
+        tl.float32
+    )
     acc += fused_bias[None, :]
 
     acc = tl.maximum(tl.minimum(acc, MAX_VAL), MIN_VAL)
@@ -105,11 +155,11 @@ def _fused_linear_bias_hardtanh_mish_kernel(
     x_clamped = acc
     log2e = 1.4426950408889634
 
-    acc = tl.math.exp2(acc * log2e)   # exp(x)
-    acc = acc + 1.0                   # 1 + exp(x)
-    acc = acc * acc                   # (1 + exp(x))^2
-    acc = (acc - 1.0) / (acc + 1.0)   # tanh(softplus(x))
-    acc = x_clamped * acc             # mish(x)
+    acc = tl.math.exp2(acc * log2e)  # exp(x)
+    acc = acc + 1.0  # 1 + exp(x)
+    acc = acc * acc  # (1 + exp(x))^2
+    acc = (acc - 1.0) / (acc + 1.0)  # tanh(softplus(x))
+    acc = x_clamped * acc  # mish(x)
 
     y_bp = tl.make_block_ptr(
         base=y_ptr,
@@ -210,7 +260,9 @@ def kernel_function(
 
     y1 = torch.empty((M, N), device=x_xpu.device, dtype=x_xpu.dtype)
 
-    grid1 = lambda META: (triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(N, META["BLOCK_N"]),)
+    grid1 = lambda META: (
+        triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(N, META["BLOCK_N"]),
+    )
     _fused_linear_bias_hardtanh_mish_kernel[grid1](
         x_xpu,
         weight_t_xpu,
@@ -287,28 +339,50 @@ class Model(nn.Module):
 
     def _prepare_xpu_params_once(self):
         if not self._params_prepared:
-            if self.gemm.weight.device.type != "xpu" or self.gemm.weight.dtype != torch.float16:
-                self.gemm.weight.data = self.gemm.weight.data.to(device="xpu", dtype=torch.float16).contiguous()
+            if (
+                self.gemm.weight.device.type != "xpu"
+                or self.gemm.weight.dtype != torch.float16
+            ):
+                self.gemm.weight.data = self.gemm.weight.data.to(
+                    device="xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.gemm.weight.is_contiguous():
                 self.gemm.weight.data = self.gemm.weight.data.contiguous()
 
-            if self.gemm.bias.device.type != "xpu" or self.gemm.bias.dtype != torch.float16:
-                self.gemm.bias.data = self.gemm.bias.data.to(device="xpu", dtype=torch.float16).contiguous()
+            if (
+                self.gemm.bias.device.type != "xpu"
+                or self.gemm.bias.dtype != torch.float16
+            ):
+                self.gemm.bias.data = self.gemm.bias.data.to(
+                    device="xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.gemm.bias.is_contiguous():
                 self.gemm.bias.data = self.gemm.bias.data.contiguous()
 
             if self.bias.device.type != "xpu" or self.bias.dtype != torch.float16:
-                self.bias.data = self.bias.data.to(device="xpu", dtype=torch.float16).contiguous()
+                self.bias.data = self.bias.data.to(
+                    device="xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.bias.is_contiguous():
                 self.bias.data = self.bias.data.contiguous()
 
-            if self.group_norm.weight.device.type != "xpu" or self.group_norm.weight.dtype != torch.float16:
-                self.group_norm.weight.data = self.group_norm.weight.data.to(device="xpu", dtype=torch.float16).contiguous()
+            if (
+                self.group_norm.weight.device.type != "xpu"
+                or self.group_norm.weight.dtype != torch.float16
+            ):
+                self.group_norm.weight.data = self.group_norm.weight.data.to(
+                    device="xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.group_norm.weight.is_contiguous():
                 self.group_norm.weight.data = self.group_norm.weight.data.contiguous()
 
-            if self.group_norm.bias.device.type != "xpu" or self.group_norm.bias.dtype != torch.float16:
-                self.group_norm.bias.data = self.group_norm.bias.data.to(device="xpu", dtype=torch.float16).contiguous()
+            if (
+                self.group_norm.bias.device.type != "xpu"
+                or self.group_norm.bias.dtype != torch.float16
+            ):
+                self.group_norm.bias.data = self.group_norm.bias.data.to(
+                    device="xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.group_norm.bias.is_contiguous():
                 self.group_norm.bias.data = self.group_norm.bias.data.contiguous()
 

@@ -9,24 +9,54 @@ import triton.language as tl
 # They are not used on the optimized hot path.
 # -----------------------------------------------------------------------------
 _linear_configs = [
-    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32}, num_warps=8, num_stages=3),
-    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32}, num_warps=16, num_stages=3),
-    triton.Config({'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32}, num_warps=16, num_stages=3),
-    triton.Config({'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64}, num_warps=8, num_stages=3),
-    triton.Config({'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 64}, num_warps=8, num_stages=3),
+    triton.Config(
+        {"BLOCK_SIZE_M": 128, "BLOCK_SIZE_N": 128, "BLOCK_SIZE_K": 32},
+        num_warps=8,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_SIZE_M": 128, "BLOCK_SIZE_N": 256, "BLOCK_SIZE_K": 32},
+        num_warps=16,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_SIZE_M": 256, "BLOCK_SIZE_N": 128, "BLOCK_SIZE_K": 32},
+        num_warps=16,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_SIZE_M": 64, "BLOCK_SIZE_N": 128, "BLOCK_SIZE_K": 64},
+        num_warps=8,
+        num_stages=3,
+    ),
+    triton.Config(
+        {"BLOCK_SIZE_M": 128, "BLOCK_SIZE_N": 64, "BLOCK_SIZE_K": 64},
+        num_warps=8,
+        num_stages=3,
+    ),
 ]
 
 
 @triton.autotune(configs=_linear_configs, key=["M", "N", "K"])
 @triton.jit
 def _linear_matmul_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yn,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yn,
     ADD_BIAS: tl.constexpr,
-    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
+    BLOCK_SIZE_M: tl.constexpr,
+    BLOCK_SIZE_N: tl.constexpr,
+    BLOCK_SIZE_K: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -56,12 +86,26 @@ def _linear_matmul_bias_kernel(
     tl.store(y_ptrs, acc, mask=y_mask)
 
 
-def linear_forward(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
-    if not (isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor) and isinstance(bias, torch.Tensor)):
+def linear_forward(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("linear_forward expects tensors (x, weight, bias)")
-    if x.device.type != "xpu" or weight.device.type != "xpu" or bias.device.type != "xpu":
+    if (
+        x.device.type != "xpu"
+        or weight.device.type != "xpu"
+        or bias.device.type != "xpu"
+    ):
         raise ValueError("All tensors must be on Intel XPU device ('xpu').")
-    if x.dtype != torch.float16 or weight.dtype != torch.float16 or bias.dtype != torch.float16:
+    if (
+        x.dtype != torch.float16
+        or weight.dtype != torch.float16
+        or bias.dtype != torch.float16
+    ):
         raise TypeError("All tensors must be float16 for this kernel.")
     if x.ndim != 2 or weight.ndim != 2 or bias.ndim != 1:
         raise ValueError("Shapes must be: x[B, I], weight[O, I], bias[O].")
@@ -70,7 +114,9 @@ def linear_forward(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) ->
     if I != Iw:
         raise ValueError(f"Incompatible shapes: x has I={I}, weight has I={Iw}.")
     if bias.shape[0] != O:
-        raise ValueError(f"Incompatible shapes: weight has O={O}, bias has O={bias.shape[0]}.")
+        raise ValueError(
+            f"Incompatible shapes: weight has O={O}, bias has O={bias.shape[0]}."
+        )
     M, N, K = B, O, I
     y = torch.empty((M, N), dtype=torch.float32, device=x.device)
     stride_xm, stride_xk = x.stride()
@@ -78,32 +124,47 @@ def linear_forward(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) ->
     stride_ym, stride_yn = y.stride()
 
     def grid(meta):
-        return (triton.cdiv(M, meta["BLOCK_SIZE_M"]), triton.cdiv(N, meta["BLOCK_SIZE_N"]))
+        return (
+            triton.cdiv(M, meta["BLOCK_SIZE_M"]),
+            triton.cdiv(N, meta["BLOCK_SIZE_N"]),
+        )
+
     _linear_matmul_bias_kernel[grid](
-        x, weight, bias, y,
-        M, N, K,
-        stride_xm, stride_xk,
-        stride_wn, stride_wk,
-        stride_ym, stride_yn,
-        True
+        x,
+        weight,
+        bias,
+        y,
+        M,
+        N,
+        K,
+        stride_xm,
+        stride_xk,
+        stride_wn,
+        stride_wk,
+        stride_ym,
+        stride_yn,
+        True,
     )
     return y
 
 
 _rowwise_configs = [
-    triton.Config({'BLOCK_SIZE': 128}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=2),
 ]
 
 
 @triton.autotune(configs=_rowwise_configs, key=["O"])
 @triton.jit
 def _rowwise_sum_kernel(
-    x_ptr, y_ptr,
-    B, O,
-    stride_x_b, stride_x_o,
+    x_ptr,
+    y_ptr,
+    B,
+    O,
+    stride_x_b,
+    stride_x_o,
     stride_y_b,
     BLOCK_SIZE: tl.constexpr,
 ):
@@ -132,13 +193,18 @@ def rowwise_sum_forward(x: torch.Tensor) -> torch.Tensor:
 
     def grid(meta):
         return (B,)
+
     _rowwise_sum_kernel[grid](
-        x, y,
-        B, O,
-        x.stride(0), x.stride(1),
+        x,
+        y,
+        B,
+        O,
+        x.stride(0),
+        x.stride(1),
         y.stride(0),
     )
     return y
+
 
 # -----------------------------------------------------------------------------
 # Optimized algorithm:
@@ -149,19 +215,22 @@ def rowwise_sum_forward(x: torch.Tensor) -> torch.Tensor:
 
 
 _colsum_configs = [
-    triton.Config({'BLOCK_SIZE_K': 128}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE_K': 256}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE_K': 512}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE_K': 1024}, num_warps=16, num_stages=3),
+    triton.Config({"BLOCK_SIZE_K": 128}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE_K": 256}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE_K": 512}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE_K": 1024}, num_warps=16, num_stages=3),
 ]
 
 
 @triton.autotune(configs=_colsum_configs, key=["K"])
 @triton.jit
 def _weight_colsum_kernel(
-    w_ptr, out_ptr,
-    O, K,
-    stride_wo, stride_wk,
+    w_ptr,
+    out_ptr,
+    O,
+    K,
+    stride_wo,
+    stride_wk,
     stride_ok,
     BLOCK_SIZE_K: tl.constexpr,
 ):
@@ -171,23 +240,26 @@ def _weight_colsum_kernel(
 
     acc = tl.zeros((BLOCK_SIZE_K,), dtype=tl.float32)
     for o in tl.range(0, O):
-        vals = tl.load(w_ptr + o * stride_wo + offs_k * stride_wk, mask=k_mask, other=0.0)
+        vals = tl.load(
+            w_ptr + o * stride_wo + offs_k * stride_wk, mask=k_mask, other=0.0
+        )
         acc += vals.to(tl.float32)
 
     tl.store(out_ptr + offs_k * stride_ok, acc, mask=k_mask)
 
 
 _biassum_configs = [
-    triton.Config({'BLOCK_SIZE_O': 256}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE_O': 512}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE_O': 1024}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE_O": 256}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE_O": 512}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE_O": 1024}, num_warps=8, num_stages=2),
 ]
 
 
 @triton.autotune(configs=_biassum_configs, key=["O"])
 @triton.jit
 def _bias_sum_kernel(
-    b_ptr, out_ptr,
+    b_ptr,
+    out_ptr,
     O,
     stride_bo,
     BLOCK_SIZE_O: tl.constexpr,
@@ -205,22 +277,30 @@ def _bias_sum_kernel(
 
 
 _dot_configs = [
-    triton.Config({'BLOCK_SIZE_B': 1, 'BLOCK_SIZE_K': 256}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE_B': 2, 'BLOCK_SIZE_K': 256}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE_B': 4, 'BLOCK_SIZE_K': 256}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE_B': 4, 'BLOCK_SIZE_K': 512}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE_B': 8, 'BLOCK_SIZE_K': 512}, num_warps=16, num_stages=3),
-    triton.Config({'BLOCK_SIZE_B': 8, 'BLOCK_SIZE_K': 1024}, num_warps=16, num_stages=3),
+    triton.Config({"BLOCK_SIZE_B": 1, "BLOCK_SIZE_K": 256}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE_B": 2, "BLOCK_SIZE_K": 256}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE_B": 4, "BLOCK_SIZE_K": 256}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE_B": 4, "BLOCK_SIZE_K": 512}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE_B": 8, "BLOCK_SIZE_K": 512}, num_warps=16, num_stages=3),
+    triton.Config(
+        {"BLOCK_SIZE_B": 8, "BLOCK_SIZE_K": 1024}, num_warps=16, num_stages=3
+    ),
 ]
 
 
 @triton.autotune(configs=_dot_configs, key=["B", "K"])
 @triton.jit
 def _batched_row_dot_plus_scalar_kernel(
-    x_ptr, wsum_ptr, bsum_ptr, y_ptr,
-    B, K,
-    stride_xb, stride_xk,
-    stride_yb, stride_yk,
+    x_ptr,
+    wsum_ptr,
+    bsum_ptr,
+    y_ptr,
+    B,
+    K,
+    stride_xb,
+    stride_xk,
+    stride_yb,
+    stride_yk,
     BLOCK_SIZE_B: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
 ):
@@ -235,7 +315,9 @@ def _batched_row_dot_plus_scalar_kernel(
         k_mask = offs_k < K
 
         x_ptrs = x_ptr + offs_b[:, None] * stride_xb + offs_k[None, :] * stride_xk
-        x_vals = tl.load(x_ptrs, mask=b_mask[:, None] & k_mask[None, :], other=0.0).to(tl.float32)
+        x_vals = tl.load(x_ptrs, mask=b_mask[:, None] & k_mask[None, :], other=0.0).to(
+            tl.float32
+        )
         w_vals = tl.load(wsum_ptr + offs_k, mask=k_mask, other=0.0).to(tl.float32)
         acc += tl.sum(x_vals * w_vals[None, :], axis=1)
 
@@ -255,10 +337,14 @@ def compute_weight_colsum(weight: torch.Tensor) -> torch.Tensor:
 
     def grid(meta):
         return (triton.cdiv(K, meta["BLOCK_SIZE_K"]),)
+
     _weight_colsum_kernel[grid](
-        weight, out,
-        O, K,
-        weight.stride(0), weight.stride(1),
+        weight,
+        out,
+        O,
+        K,
+        weight.stride(0),
+        weight.stride(1),
         out.stride(0),
     )
     return out
@@ -273,15 +359,22 @@ def compute_bias_sum(bias: torch.Tensor) -> torch.Tensor:
         raise ValueError("bias must be 1D [O]")
     out = torch.empty((), device=bias.device, dtype=torch.float32)
     _bias_sum_kernel[(1,)](
-        bias, out,
+        bias,
+        out,
         bias.shape[0],
         bias.stride(0),
     )
     return out
 
 
-def contracted_forward(x: torch.Tensor, weight_colsum: torch.Tensor, bias_sum: torch.Tensor) -> torch.Tensor:
-    if x.device.type != "xpu" or weight_colsum.device.type != "xpu" or bias_sum.device.type != "xpu":
+def contracted_forward(
+    x: torch.Tensor, weight_colsum: torch.Tensor, bias_sum: torch.Tensor
+) -> torch.Tensor:
+    if (
+        x.device.type != "xpu"
+        or weight_colsum.device.type != "xpu"
+        or bias_sum.device.type != "xpu"
+    ):
         raise ValueError("All tensors must be on Intel XPU device ('xpu').")
     if x.dtype != torch.float16:
         raise TypeError("x must be float16.")
@@ -294,7 +387,9 @@ def contracted_forward(x: torch.Tensor, weight_colsum: torch.Tensor, bias_sum: t
 
     B, K = x.shape
     if weight_colsum.shape[0] != K:
-        raise ValueError(f"Incompatible shapes: x has K={K}, weight_colsum has K={weight_colsum.shape[0]}.")
+        raise ValueError(
+            f"Incompatible shapes: x has K={K}, weight_colsum has K={weight_colsum.shape[0]}."
+        )
 
     y = torch.empty((B, 1), device=x.device, dtype=torch.float32)
 
@@ -302,18 +397,46 @@ def contracted_forward(x: torch.Tensor, weight_colsum: torch.Tensor, bias_sum: t
         return (triton.cdiv(B, meta["BLOCK_SIZE_B"]),)
 
     _batched_row_dot_plus_scalar_kernel[grid](
-        x, weight_colsum, bias_sum, y,
-        B, K,
-        x.stride(0), x.stride(1),
-        y.stride(0), y.stride(1),
+        x,
+        weight_colsum,
+        bias_sum,
+        y,
+        B,
+        K,
+        x.stride(0),
+        x.stride(1),
+        y.stride(0),
+        y.stride(1),
     )
     return y
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
-    x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()) else x
-    w_xpu = weight.to("xpu", dtype=torch.float16).contiguous() if (weight.device.type != "xpu" or weight.dtype != torch.float16 or not weight.is_contiguous()) else weight
-    b_xpu = bias.to("xpu", dtype=torch.float16).contiguous() if (bias.device.type != "xpu" or bias.dtype != torch.float16 or not bias.is_contiguous()) else bias
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16).contiguous()
+        if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous())
+        else x
+    )
+    w_xpu = (
+        weight.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            weight.device.type != "xpu"
+            or weight.dtype != torch.float16
+            or not weight.is_contiguous()
+        )
+        else weight
+    )
+    b_xpu = (
+        bias.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            bias.device.type != "xpu"
+            or bias.dtype != torch.float16
+            or not bias.is_contiguous()
+        )
+        else bias
+    )
 
     weight_colsum = compute_weight_colsum(w_xpu)
     bias_sum = compute_bias_sum(b_xpu)
@@ -345,15 +468,29 @@ class Model(nn.Module):
         self._cache_version = None
 
     def _ensure_xpu_params(self):
-        if self.linear.weight.device.type != "xpu" or self.linear.weight.dtype != torch.float16 or not self.linear.weight.is_contiguous():
-            self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.linear.weight.device.type != "xpu"
+            or self.linear.weight.dtype != torch.float16
+            or not self.linear.weight.is_contiguous()
+        ):
+            self.linear.weight.data = self.linear.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         if self.linear.bias is not None:
-            if self.linear.bias.device.type != "xpu" or self.linear.bias.dtype != torch.float16 or not self.linear.bias.is_contiguous():
-                self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.linear.bias.device.type != "xpu"
+                or self.linear.bias.dtype != torch.float16
+                or not self.linear.bias.is_contiguous()
+            ):
+                self.linear.bias.data = self.linear.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
 
     def _maybe_refresh_cache(self):
         weight_ver = int(self.linear.weight._version)
-        bias_ver = int(self.linear.bias._version) if self.linear.bias is not None else -1
+        bias_ver = (
+            int(self.linear.bias._version) if self.linear.bias is not None else -1
+        )
         version = (
             weight_ver,
             bias_ver,
@@ -361,16 +498,32 @@ class Model(nn.Module):
             self.linear.weight.dtype,
             tuple(self.linear.weight.shape),
         )
-        if self._cache_version != version or self._cached_weight_colsum is None or self._cached_bias_sum is None:
+        if (
+            self._cache_version != version
+            or self._cached_weight_colsum is None
+            or self._cached_bias_sum is None
+        ):
             self._cached_weight_colsum = compute_weight_colsum(self.linear.weight)
             if self.linear.bias is not None:
                 self._cached_bias_sum = compute_bias_sum(self.linear.bias)
             else:
-                self._cached_bias_sum = torch.zeros((), device=self.linear.weight.device, dtype=torch.float32)
+                self._cached_bias_sum = torch.zeros(
+                    (), device=self.linear.weight.device, dtype=torch.float32
+                )
             self._cache_version = version
 
     def forward(self, x):
-        x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()) else x
+        x_xpu = (
+            x.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                x.device.type != "xpu"
+                or x.dtype != torch.float16
+                or not x.is_contiguous()
+            )
+            else x
+        )
         self._ensure_xpu_params()
         self._maybe_refresh_cache()
-        return contracted_forward(x_xpu, self._cached_weight_colsum, self._cached_bias_sum).to(x.dtype)
+        return contracted_forward(
+            x_xpu, self._cached_weight_colsum, self._cached_bias_sum
+        ).to(x.dtype)

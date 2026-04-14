@@ -12,15 +12,51 @@ import triton.language as tl
 # -------------------------------------------------------------------------
 @triton.jit
 def _conv_transpose3d_add_kernel(
-    x_ptr, w_ptr, b_ptr, add_ptr, y_ptr,
-    N, Cin, Cout, D, H, W, outD, outH, outW,
-    stride_xN, stride_xC, stride_xD, stride_xH, stride_xW,
-    stride_wCIN, stride_wCOUT, stride_wKD, stride_wKH, stride_wKW,
-    stride_yN, stride_yC, stride_yD, stride_yH, stride_yW,
-    stride_addN, stride_addC, stride_addD, stride_addH, stride_addW,
-    SD, SH, SW, PD, PH, PW,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
-    BLOCK_CO: tl.constexpr, BLOCK_X: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    add_ptr,
+    y_ptr,
+    N,
+    Cin,
+    Cout,
+    D,
+    H,
+    W,
+    outD,
+    outH,
+    outW,
+    stride_xN,
+    stride_xC,
+    stride_xD,
+    stride_xH,
+    stride_xW,
+    stride_wCIN,
+    stride_wCOUT,
+    stride_wKD,
+    stride_wKH,
+    stride_wKW,
+    stride_yN,
+    stride_yC,
+    stride_yD,
+    stride_yH,
+    stride_yW,
+    stride_addN,
+    stride_addC,
+    stride_addD,
+    stride_addH,
+    stride_addW,
+    SD,
+    SH,
+    SW,
+    PD,
+    PH,
+    PW,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    BLOCK_CO: tl.constexpr,
+    BLOCK_X: tl.constexpr,
 ):
     pid_x = tl.program_id(0)
     pid_co = tl.program_id(1)
@@ -60,7 +96,9 @@ def _conv_transpose3d_add_kernel(
                     x_in_range = (ix >= 0) & (ix < W)
                     mask = ox_mask & x_div & x_in_range & zy_valid
 
-                    base_x = n * stride_xN + ci * stride_xC + iz * stride_xD + iy * stride_xH
+                    base_x = (
+                        n * stride_xN + ci * stride_xC + iz * stride_xD + iy * stride_xH
+                    )
                     x_ptrs = x_ptr + base_x + ix * stride_xW
                     x_vals = tl.load(x_ptrs, mask=mask, other=0.0).to(tl.float32)
 
@@ -77,21 +115,36 @@ def _conv_transpose3d_add_kernel(
                     acc += w_vals[:, None] * x_vals[None, :]
 
     b_vals = tl.load(b_ptr + co_offsets, mask=co_mask, other=0.0).to(tl.float32)
-    add_vals = tl.load(add_ptr + co_offsets * stride_addC, mask=co_mask, other=0.0).to(tl.float32)
+    add_vals = tl.load(add_ptr + co_offsets * stride_addC, mask=co_mask, other=0.0).to(
+        tl.float32
+    )
     acc = acc + b_vals[:, None] + add_vals[:, None]
 
     y_base = n * stride_yN + oz * stride_yD + oy * stride_yH
-    y_ptrs = y_ptr + y_base + co_offsets[:, None] * stride_yC + ox_offsets[None, :] * stride_yW
+    y_ptrs = (
+        y_ptr
+        + y_base
+        + co_offsets[:, None] * stride_yC
+        + ox_offsets[None, :] * stride_yW
+    )
     mask2 = co_mask[:, None] & ox_mask[None, :]
     tl.store(y_ptrs, acc.to(tl.float32), mask=mask2)
 
 
 def conv_transpose3d_add(
-    x, w, b, sum_weight,
-    stride=(2, 2, 2), padding=(1, 1, 1), output_padding=(1, 1, 1), groups=1
+    x,
+    w,
+    b,
+    sum_weight,
+    stride=(2, 2, 2),
+    padding=(1, 1, 1),
+    output_padding=(1, 1, 1),
+    groups=1,
 ):
     assert hasattr(torch, "xpu") and torch.xpu.is_available(), "XPU not available"
-    assert x.is_xpu and w.is_xpu and b.is_xpu and sum_weight.is_xpu, "tensors must be on xpu"
+    assert x.is_xpu and w.is_xpu and b.is_xpu and sum_weight.is_xpu, (
+        "tensors must be on xpu"
+    )
     assert groups == 1, "only groups=1 supported"
     N, Cin, D, H, W = x.shape
     Cout = w.shape[1]
@@ -114,16 +167,53 @@ def conv_transpose3d_add(
         N * outD * outH,
     )
     _conv_transpose3d_add_kernel[grid](
-        x, w, b, sum_weight, y,
-        N, Cin, Cout, D, H, W, outD, outH, outW,
-        sx[0], sx[1], sx[2], sx[3], sx[4],
-        sw[0], sw[1], sw[2], sw[3], sw[4],
-        sy[0], sy[1], sy[2], sy[3], sy[4],
-        sa[0], sa[1], sa[2], sa[3], sa[4],
-        SD, SH, SW, PD, PH, PW,
-        KD=kD, KH=kH, KW=kW,
-        BLOCK_CO=32, BLOCK_X=64,
-        num_warps=8, num_stages=2
+        x,
+        w,
+        b,
+        sum_weight,
+        y,
+        N,
+        Cin,
+        Cout,
+        D,
+        H,
+        W,
+        outD,
+        outH,
+        outW,
+        sx[0],
+        sx[1],
+        sx[2],
+        sx[3],
+        sx[4],
+        sw[0],
+        sw[1],
+        sw[2],
+        sw[3],
+        sw[4],
+        sy[0],
+        sy[1],
+        sy[2],
+        sy[3],
+        sy[4],
+        sa[0],
+        sa[1],
+        sa[2],
+        sa[3],
+        sa[4],
+        SD,
+        SH,
+        SW,
+        PD,
+        PH,
+        PW,
+        KD=kD,
+        KH=kH,
+        KW=kW,
+        BLOCK_CO=32,
+        BLOCK_X=64,
+        num_warps=8,
+        num_stages=2,
     )
     return y
 
@@ -133,8 +223,16 @@ def conv_transpose3d_add(
 # -------------------------------------------------------------------------
 @triton.jit
 def _layernorm_lastdim_kernel(
-    x_ptr, y_ptr, w_ptr, b_ptr,
-    M, N, eps, HAS_WEIGHT: tl.constexpr, HAS_BIAS: tl.constexpr, BLOCK_SIZE: tl.constexpr
+    x_ptr,
+    y_ptr,
+    w_ptr,
+    b_ptr,
+    M,
+    N,
+    eps,
+    HAS_WEIGHT: tl.constexpr,
+    HAS_BIAS: tl.constexpr,
+    BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(0)
     row_start = pid * N
@@ -169,9 +267,18 @@ def layernorm(x, weight, bias, eps=1e-5):
     BLOCK = N_last
     grid = (M,)
     _layernorm_lastdim_kernel[grid](
-        x_contig, y, w, b,
-        M, N_last, eps, HAS_WEIGHT=True, HAS_BIAS=True, BLOCK_SIZE=BLOCK,
-        num_warps=4, num_stages=1
+        x_contig,
+        y,
+        w,
+        b,
+        M,
+        N_last,
+        eps,
+        HAS_WEIGHT=True,
+        HAS_BIAS=True,
+        BLOCK_SIZE=BLOCK,
+        num_warps=4,
+        num_stages=1,
     )
     return y.view_as(x)
 
@@ -184,7 +291,13 @@ def _gelu_via_erf_approx(x):
     inv_sqrt2 = 0.7071067811865476
     z = x * inv_sqrt2
     p = 0.3275911
-    a1, a2, a3, a4, a5 = 0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429
+    a1, a2, a3, a4, a5 = (
+        0.254829592,
+        -0.284496736,
+        1.421413741,
+        -1.453152027,
+        1.061405429,
+    )
     az = tl.abs(z)
     t = 1.0 / (1.0 + p * az)
     poly = a5
@@ -202,11 +315,27 @@ def _gelu_via_erf_approx(x):
 
 @triton.jit
 def _avgpool3d_k2s2_gelu_kernel(
-    x_ptr, y_ptr,
-    N, C, D, H, W, DO, HO, WO,
-    sN, sC, sD, sH, sW,
-    oN, oC, oD, oH, oW,
-    BLOCK_W: tl.constexpr
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    DO,
+    HO,
+    WO,
+    sN,
+    sC,
+    sD,
+    sH,
+    sW,
+    oN,
+    oC,
+    oD,
+    oH,
+    oW,
+    BLOCK_W: tl.constexpr,
 ):
     pid_nc = tl.program_id(0)
     pid_dh = tl.program_id(1)
@@ -261,12 +390,29 @@ def avgpool3d_k2s2_gelu(x):
     BLOCK_W = 128
     grid = (N * C, DO * HO, triton.cdiv(WO, BLOCK_W))
     _avgpool3d_k2s2_gelu_kernel[grid](
-        x, y,
-        N, C, D, H, W, DO, HO, WO,
-        sN, sC, sD, sH, sW,
-        oN, oC, oD, oH, oW,
+        x,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        DO,
+        HO,
+        WO,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
+        oD,
+        oH,
+        oW,
         BLOCK_W=BLOCK_W,
-        num_warps=8, num_stages=2
+        num_warps=8,
+        num_stages=2,
     )
     return y
 
@@ -300,8 +446,12 @@ def kernel_function(x, conv_w, conv_b, sum_weight, ln_weight, ln_bias):
     x_xpu = _to_xpu_contig(x, torch.float16)
 
     y1 = F.conv_transpose3d(
-        x_xpu, conv_w, conv_b,
-        stride=(2, 2, 2), padding=(1, 1, 1), output_padding=(1, 1, 1)
+        x_xpu,
+        conv_w,
+        conv_b,
+        stride=(2, 2, 2),
+        padding=(1, 1, 1),
+        output_padding=(1, 1, 1),
     )
     y2 = layernorm(y1, ln_weight, ln_bias, eps=1e-5)
     y3 = avgpool3d_k2s2_gelu(y2)
@@ -329,15 +479,40 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, sum_weight, norm_shape, pool_kernel_size]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        sum_weight,
+        norm_shape,
+        pool_kernel_size,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, sum_weight, norm_shape, pool_kernel_size):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        sum_weight,
+        norm_shape,
+        pool_kernel_size,
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
-            in_channels, out_channels, kernel_size,
-            stride=stride, padding=padding, output_padding=output_padding
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
         )
         self.sum_weight = sum_weight
         out_c = out_channels
@@ -355,25 +530,47 @@ class Model(nn.Module):
         x = x.contiguous()
 
         if not self._xpu_params_ready:
-            if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16:
-                self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv_transpose.weight.device.type != "xpu"
+                or self.conv_transpose.weight.dtype != torch.float16
+            ):
+                self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.conv_transpose.weight.is_contiguous():
-                self.conv_transpose.weight.data = self.conv_transpose.weight.data.contiguous()
+                self.conv_transpose.weight.data = (
+                    self.conv_transpose.weight.data.contiguous()
+                )
 
             if self.conv_transpose.bias is not None:
-                desired_bias_dtype = self.conv_transpose.bias.dtype if self.conv_transpose.bias.dtype == torch.float16 else torch.float32
-                if self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != desired_bias_dtype:
-                    self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=desired_bias_dtype).contiguous()
+                desired_bias_dtype = (
+                    self.conv_transpose.bias.dtype
+                    if self.conv_transpose.bias.dtype == torch.float16
+                    else torch.float32
+                )
+                if (
+                    self.conv_transpose.bias.device.type != "xpu"
+                    or self.conv_transpose.bias.dtype != desired_bias_dtype
+                ):
+                    self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                        "xpu", dtype=desired_bias_dtype
+                    ).contiguous()
                 elif not self.conv_transpose.bias.is_contiguous():
-                    self.conv_transpose.bias.data = self.conv_transpose.bias.data.contiguous()
+                    self.conv_transpose.bias.data = (
+                        self.conv_transpose.bias.data.contiguous()
+                    )
 
             if self.layer_norm.weight.device.type != "xpu":
-                self.layer_norm.weight.data = self.layer_norm.weight.data.to("xpu").contiguous()
+                self.layer_norm.weight.data = self.layer_norm.weight.data.to(
+                    "xpu"
+                ).contiguous()
             elif not self.layer_norm.weight.is_contiguous():
                 self.layer_norm.weight.data = self.layer_norm.weight.data.contiguous()
 
             if self.layer_norm.bias.device.type != "xpu":
-                self.layer_norm.bias.data = self.layer_norm.bias.data.to("xpu").contiguous()
+                self.layer_norm.bias.data = self.layer_norm.bias.data.to(
+                    "xpu"
+                ).contiguous()
             elif not self.layer_norm.bias.is_contiguous():
                 self.layer_norm.bias.data = self.layer_norm.bias.data.contiguous()
 
@@ -382,7 +579,9 @@ class Model(nn.Module):
         if isinstance(self.sum_weight, (int, float)):
             meta = (x.device.type, x.dtype, float(self.sum_weight))
             if self._cached_sum_weight_xpu is None or self._cached_sum_meta != meta:
-                self._cached_sum_weight_xpu = torch.tensor(float(self.sum_weight), device="xpu", dtype=x.dtype)
+                self._cached_sum_weight_xpu = torch.tensor(
+                    float(self.sum_weight), device="xpu", dtype=x.dtype
+                )
                 self._cached_sum_meta = meta
             sum_weight = self._cached_sum_weight_xpu
         else:

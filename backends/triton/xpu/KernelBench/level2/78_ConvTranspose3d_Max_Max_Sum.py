@@ -12,22 +12,51 @@ import triton.language as tl
 # ----------------------------------------------------------------------
 @triton.jit
 def _conv_transpose3d_bias_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
     # Problem sizes
-    N: tl.constexpr, C_IN, C_OUT,
-    D_IN, H_IN, W_IN,
-    D_OUT, H_OUT, W_OUT,
+    N: tl.constexpr,
+    C_IN,
+    C_OUT,
+    D_IN,
+    H_IN,
+    W_IN,
+    D_OUT,
+    H_OUT,
+    W_OUT,
     # Strides for x (N, C, D, H, W)
-    SXN, SXC, SXD, SXH, SXW,
+    SXN,
+    SXC,
+    SXD,
+    SXH,
+    SXW,
     # Strides for w (C_in, C_out, KD, KH, KW)
-    SWCI, SWCO, SWKD, SWKH, SWKW,
+    SWCI,
+    SWCO,
+    SWKD,
+    SWKH,
+    SWKW,
     # Strides for y (N, C, D, H, W)
-    SYN, SYC, SYD, SYH, SYW,
+    SYN,
+    SYC,
+    SYD,
+    SYH,
+    SYW,
     # Transpose-conv hyper-parameters (compile-time)
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
-    STRD: tl.constexpr, STRH: tl.constexpr, STRW: tl.constexpr,
-    PADD: tl.constexpr, PADH: tl.constexpr, PADW: tl.constexpr,
-    DILD: tl.constexpr, DILH: tl.constexpr, DILW: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    STRD: tl.constexpr,
+    STRH: tl.constexpr,
+    STRW: tl.constexpr,
+    PADD: tl.constexpr,
+    PADH: tl.constexpr,
+    PADW: tl.constexpr,
+    DILD: tl.constexpr,
+    DILH: tl.constexpr,
+    DILW: tl.constexpr,
     # Kernel meta parameter
     BLOCK_SIZE: tl.constexpr,
 ):
@@ -85,9 +114,13 @@ def _conv_transpose3d_bias_kernel(
 
                     valid_all = mask_out & cond_d & cond_h & cond_w
 
-                    x_offsets = base_in_ci + id_clamp * SXD + ih_clamp * SXH + iw_clamp * SXW
+                    x_offsets = (
+                        base_in_ci + id_clamp * SXD + ih_clamp * SXH + iw_clamp * SXW
+                    )
                     x_ptrs = x_ptr + x_offsets
-                    w_offsets = ci * SWCI + co * SWCO + kd * SWKD + kh * SWKH + kw * SWKW
+                    w_offsets = (
+                        ci * SWCI + co * SWCO + kd * SWKD + kh * SWKH + kw * SWKW
+                    )
                     w_ptrs = w_ptr + w_offsets
 
                     x_vals = tl.load(x_ptrs, mask=valid_all, other=0.0)
@@ -98,12 +131,18 @@ def _conv_transpose3d_bias_kernel(
     tl.store(y_ptrs, acc.to(tl.float32), mask=mask_out)
 
 
-def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+def conv_transpose3d_triton(
+    x: torch.Tensor, w: torch.Tensor, b: torch.Tensor
+) -> torch.Tensor:
     """
     Triton wrapper for ConvTranspose3d + Bias.
     """
     # Validations
-    assert isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    )
     assert x.device == w.device == b.device
     assert hasattr(torch, "xpu") and torch.xpu.is_available(), "Intel XPU not available"
     assert x.device.type == "xpu"
@@ -118,11 +157,33 @@ def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -
     dilation = (1, 1, 1)
     output_padding = (0, 0, 0)
     # Output sizes
-    D_out = (D_in - 1) * stride[0] - 2 * padding[0] + dilation[0] * (KD - 1) + output_padding[0] + 1
-    H_out = (H_in - 1) * stride[1] - 2 * padding[1] + dilation[1] * (KH - 1) + output_padding[1] + 1
-    W_out = (W_in - 1) * stride[2] - 2 * padding[2] + dilation[2] * (KW - 1) + output_padding[2] + 1
+    D_out = (
+        (D_in - 1) * stride[0]
+        - 2 * padding[0]
+        + dilation[0] * (KD - 1)
+        + output_padding[0]
+        + 1
+    )
+    H_out = (
+        (H_in - 1) * stride[1]
+        - 2 * padding[1]
+        + dilation[1] * (KH - 1)
+        + output_padding[1]
+        + 1
+    )
+    W_out = (
+        (W_in - 1) * stride[2]
+        - 2 * padding[2]
+        + dilation[2] * (KW - 1)
+        + output_padding[2]
+        + 1
+    )
     # dtypes
-    assert x.dtype == torch.float16 and w.dtype == torch.float16 and b.dtype == torch.float16
+    assert (
+        x.dtype == torch.float16
+        and w.dtype == torch.float16
+        and b.dtype == torch.float16
+    )
     # Allocate output
     y = torch.empty((N, C_out, D_out, H_out, W_out), device=x.device, dtype=x.dtype)
     # Strides
@@ -134,20 +195,51 @@ def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -
 
     def grid(meta):
         return (triton.cdiv(n_elements, meta["BLOCK_SIZE"]),)
+
     _conv_transpose3d_bias_kernel[grid](
-        x, w, b, y,
-        N, C_in, C_out,
-        D_in, H_in, W_in,
-        D_out, H_out, W_out,
-        SXN, SXC, SXD, SXH, SXW,
-        SWCI, SWCO, SWKD, SWKH, SWKW,
-        SYN, SYC, SYD, SYH, SYW,
-        KD=KD, KH=KH, KW=KW,
-        STRD=stride[0], STRH=stride[1], STRW=stride[2],
-        PADD=padding[0], PADH=padding[1], PADW=padding[2],
-        DILD=dilation[0], DILH=dilation[1], DILW=dilation[2],
+        x,
+        w,
+        b,
+        y,
+        N,
+        C_in,
+        C_out,
+        D_in,
+        H_in,
+        W_in,
+        D_out,
+        H_out,
+        W_out,
+        SXN,
+        SXC,
+        SXD,
+        SXH,
+        SXW,
+        SWCI,
+        SWCO,
+        SWKD,
+        SWKH,
+        SWKW,
+        SYN,
+        SYC,
+        SYD,
+        SYH,
+        SYW,
+        KD=KD,
+        KH=KH,
+        KW=KW,
+        STRD=stride[0],
+        STRH=stride[1],
+        STRW=stride[2],
+        PADD=padding[0],
+        PADH=padding[1],
+        PADW=padding[2],
+        DILD=dilation[0],
+        DILH=dilation[1],
+        DILW=dilation[2],
         BLOCK_SIZE=256,
-        num_warps=8, num_stages=2
+        num_warps=8,
+        num_stages=2,
     )
     return y
 
@@ -157,12 +249,28 @@ def conv_transpose3d_triton(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -
 # ----------------------------------------------------------------------
 @triton.jit
 def _fused_maxpool3d_sum_channels(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    D2, H2, W2,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    out_stride_n, out_stride_c, out_stride_d, out_stride_h, out_stride_w,
-    BLOCK_WO: tl.constexpr, K_COMB: tl.constexpr
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    D2,
+    H2,
+    W2,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_d,
+    out_stride_h,
+    out_stride_w,
+    BLOCK_WO: tl.constexpr,
+    K_COMB: tl.constexpr,
 ):
     """
     Fused kernel:
@@ -207,9 +315,14 @@ def _fused_maxpool3d_sum_channels(
                     max_val = tl.maximum(max_val, x_val_f32)
         acc_sum += max_val
 
-    out_ptrs = (y_ptr + n * out_stride_n + 0 * out_stride_c +
-                pid_d2 * out_stride_d + h2 * out_stride_h +
-                offs_wo * out_stride_w)
+    out_ptrs = (
+        y_ptr
+        + n * out_stride_n
+        + 0 * out_stride_c
+        + pid_d2 * out_stride_d
+        + h2 * out_stride_h
+        + offs_wo * out_stride_w
+    )
     tl.store(out_ptrs, acc_sum.to(y_ptr.dtype.element_ty), mask=mask_wo)
 
 
@@ -242,13 +355,30 @@ def fused_maxpool3d_sum_channels_triton(x: torch.Tensor) -> torch.Tensor:
 
     grid = (triton.cdiv(W2, BLOCK_WO), D2, N * H2)
     _fused_maxpool3d_sum_channels[grid](
-        x, y,
-        N, C, D, H, W,
-        D2, H2, W2,
-        sN, sC, sD, sH, sW,
-        oN, oC, oD, oH, oW,
-        BLOCK_WO=BLOCK_WO, K_COMB=K_COMB,
-        num_warps=8, num_stages=1
+        x,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        D2,
+        H2,
+        W2,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
+        oD,
+        oH,
+        oW,
+        BLOCK_WO=BLOCK_WO,
+        K_COMB=K_COMB,
+        num_warps=8,
+        num_stages=1,
     )
     return y
 
@@ -262,13 +392,18 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.
       ConvTranspose3d -> MaxPool3d(k=2)->MaxPool3d(k=3) -> Sum over channels.
     """
     # Validate inputs
-    assert isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    )
     assert x.device.type == "xpu" and w.device.type == "xpu" and b.device.type == "xpu"
     # Step 1: ConvTranspose3d + bias
     y1 = conv_transpose3d_triton(x, w, b)
     # Step 2: fused maxpool + sum
     y2 = fused_maxpool3d_sum_channels_triton(y1)
     return y2
+
 
 # ----------------------------------------------------------------------
 # Self-test
@@ -295,9 +430,9 @@ def get_init_inputs():
 class Model(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, stride=stride, padding=padding
+        )
 
     def forward(self, x):
-        return kernel_function(
-            x, self.conv_transpose.weight, self.conv_transpose.bias
-        )
+        return kernel_function(x, self.conv_transpose.weight, self.conv_transpose.bias)

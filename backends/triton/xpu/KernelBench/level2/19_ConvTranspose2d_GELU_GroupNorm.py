@@ -63,10 +63,27 @@ def conv_transpose2d_gelu_kernel(
     w_ptr,
     b_ptr,
     y_ptr,
-    N, Cin, Hin, Win, Cout, Kh, Kw, Hout, Wout,
-    stride_xn, stride_xc, stride_xh, stride_xw,
-    stride_wn, stride_wc, stride_wh, stride_ww,
-    stride_yn, stride_yc, stride_yh, stride_yw,
+    N,
+    Cin,
+    Hin,
+    Win,
+    Cout,
+    Kh,
+    Kw,
+    Hout,
+    Wout,
+    stride_xn,
+    stride_xc,
+    stride_xh,
+    stride_xw,
+    stride_wn,
+    stride_wc,
+    stride_wh,
+    stride_ww,
+    stride_yn,
+    stride_yc,
+    stride_yh,
+    stride_yw,
     BLOCK_H: tl.constexpr,
     BLOCK_W: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -100,63 +117,81 @@ def conv_transpose2d_gelu_kernel(
         ih0 = offs_h[:, None] - 0
         iw0 = offs_w[None, :] - 0
         m0 = mask_hw & (ih0 >= 0) & (ih0 < Hin) & (iw0 >= 0) & (iw0 < Win)
-        x0 = tl.load(x_ptr + x_base + ih0 * stride_xh + iw0 * stride_xw, mask=m0, other=0.0)
+        x0 = tl.load(
+            x_ptr + x_base + ih0 * stride_xh + iw0 * stride_xw, mask=m0, other=0.0
+        )
         w0 = tl.load(w_ptr + w_base + 0 * stride_wh + 0 * stride_ww)
         acc += x0 * w0
 
         ih1 = offs_h[:, None] - 0
         iw1 = offs_w[None, :] - 1
         m1 = mask_hw & (ih1 >= 0) & (ih1 < Hin) & (iw1 >= 0) & (iw1 < Win)
-        x1 = tl.load(x_ptr + x_base + ih1 * stride_xh + iw1 * stride_xw, mask=m1, other=0.0)
+        x1 = tl.load(
+            x_ptr + x_base + ih1 * stride_xh + iw1 * stride_xw, mask=m1, other=0.0
+        )
         w1 = tl.load(w_ptr + w_base + 0 * stride_wh + 1 * stride_ww)
         acc += x1 * w1
 
         ih2 = offs_h[:, None] - 0
         iw2 = offs_w[None, :] - 2
         m2 = mask_hw & (ih2 >= 0) & (ih2 < Hin) & (iw2 >= 0) & (iw2 < Win)
-        x2 = tl.load(x_ptr + x_base + ih2 * stride_xh + iw2 * stride_xw, mask=m2, other=0.0)
+        x2 = tl.load(
+            x_ptr + x_base + ih2 * stride_xh + iw2 * stride_xw, mask=m2, other=0.0
+        )
         w2 = tl.load(w_ptr + w_base + 0 * stride_wh + 2 * stride_ww)
         acc += x2 * w2
 
         ih3 = offs_h[:, None] - 1
         iw3 = offs_w[None, :] - 0
         m3 = mask_hw & (ih3 >= 0) & (ih3 < Hin) & (iw3 >= 0) & (iw3 < Win)
-        x3 = tl.load(x_ptr + x_base + ih3 * stride_xh + iw3 * stride_xw, mask=m3, other=0.0)
+        x3 = tl.load(
+            x_ptr + x_base + ih3 * stride_xh + iw3 * stride_xw, mask=m3, other=0.0
+        )
         w3 = tl.load(w_ptr + w_base + 1 * stride_wh + 0 * stride_ww)
         acc += x3 * w3
 
         ih4 = offs_h[:, None] - 1
         iw4 = offs_w[None, :] - 1
         m4 = mask_hw & (ih4 >= 0) & (ih4 < Hin) & (iw4 >= 0) & (iw4 < Win)
-        x4 = tl.load(x_ptr + x_base + ih4 * stride_xh + iw4 * stride_xw, mask=m4, other=0.0)
+        x4 = tl.load(
+            x_ptr + x_base + ih4 * stride_xh + iw4 * stride_xw, mask=m4, other=0.0
+        )
         w4 = tl.load(w_ptr + w_base + 1 * stride_wh + 1 * stride_ww)
         acc += x4 * w4
 
         ih5 = offs_h[:, None] - 1
         iw5 = offs_w[None, :] - 2
         m5 = mask_hw & (ih5 >= 0) & (ih5 < Hin) & (iw5 >= 0) & (iw5 < Win)
-        x5 = tl.load(x_ptr + x_base + ih5 * stride_xh + iw5 * stride_xw, mask=m5, other=0.0)
+        x5 = tl.load(
+            x_ptr + x_base + ih5 * stride_xh + iw5 * stride_xw, mask=m5, other=0.0
+        )
         w5 = tl.load(w_ptr + w_base + 1 * stride_wh + 2 * stride_ww)
         acc += x5 * w5
 
         ih6 = offs_h[:, None] - 2
         iw6 = offs_w[None, :] - 0
         m6 = mask_hw & (ih6 >= 0) & (ih6 < Hin) & (iw6 >= 0) & (iw6 < Win)
-        x6 = tl.load(x_ptr + x_base + ih6 * stride_xh + iw6 * stride_xw, mask=m6, other=0.0)
+        x6 = tl.load(
+            x_ptr + x_base + ih6 * stride_xh + iw6 * stride_xw, mask=m6, other=0.0
+        )
         w6 = tl.load(w_ptr + w_base + 2 * stride_wh + 0 * stride_ww)
         acc += x6 * w6
 
         ih7 = offs_h[:, None] - 2
         iw7 = offs_w[None, :] - 1
         m7 = mask_hw & (ih7 >= 0) & (ih7 < Hin) & (iw7 >= 0) & (iw7 < Win)
-        x7 = tl.load(x_ptr + x_base + ih7 * stride_xh + iw7 * stride_xw, mask=m7, other=0.0)
+        x7 = tl.load(
+            x_ptr + x_base + ih7 * stride_xh + iw7 * stride_xw, mask=m7, other=0.0
+        )
         w7 = tl.load(w_ptr + w_base + 2 * stride_wh + 1 * stride_ww)
         acc += x7 * w7
 
         ih8 = offs_h[:, None] - 2
         iw8 = offs_w[None, :] - 2
         m8 = mask_hw & (ih8 >= 0) & (ih8 < Hin) & (iw8 >= 0) & (iw8 < Win)
-        x8 = tl.load(x_ptr + x_base + ih8 * stride_xh + iw8 * stride_xw, mask=m8, other=0.0)
+        x8 = tl.load(
+            x_ptr + x_base + ih8 * stride_xh + iw8 * stride_xw, mask=m8, other=0.0
+        )
         w8 = tl.load(w_ptr + w_base + 2 * stride_wh + 2 * stride_ww)
         acc += x8 * w8
 
@@ -187,9 +222,20 @@ def group_norm_kernel(
     y_ptr,
     gamma_ptr,
     beta_ptr,
-    N, C, H, W, num_groups, eps,
-    stride_xn, stride_xc, stride_xh, stride_xw,
-    stride_yn, stride_yc, stride_yh, stride_yw,
+    N,
+    C,
+    H,
+    W,
+    num_groups,
+    eps,
+    stride_xn,
+    stride_xc,
+    stride_xh,
+    stride_xw,
+    stride_yn,
+    stride_yc,
+    stride_yh,
+    stride_yw,
     BLOCK_W: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -217,7 +263,9 @@ def group_norm_kernel(
                 order=(0,),
             )
             for _ in range(0, W, BLOCK_W):
-                x_vals = tl.load(x_row_bp, boundary_check=(0,), padding_option="zero").to(tl.float32)
+                x_vals = tl.load(
+                    x_row_bp, boundary_check=(0,), padding_option="zero"
+                ).to(tl.float32)
                 sum_val += tl.sum(x_vals, axis=0)
                 sum_sq += tl.sum(x_vals * x_vals, axis=0)
                 x_row_bp = tl.advance(x_row_bp, (BLOCK_W,))
@@ -252,7 +300,9 @@ def group_norm_kernel(
                 order=(0,),
             )
             for _ in range(0, W, BLOCK_W):
-                x_vals = tl.load(x_row_bp, boundary_check=(0,), padding_option="zero").to(tl.float32)
+                x_vals = tl.load(
+                    x_row_bp, boundary_check=(0,), padding_option="zero"
+                ).to(tl.float32)
                 y_vals = (x_vals - mean) * rstd
                 y_vals = y_vals * gamma + beta
                 tl.store(y_row_bp, y_vals.to(tl.float16), boundary_check=(0,))
@@ -301,21 +351,55 @@ def kernel_function(x, conv_w, conv_b, gn_weight, gn_bias, num_groups):
         N * Cout,
     )
     conv_transpose2d_gelu_kernel[grid_conv](
-        x, conv_w, conv_b, y_act,
-        N, Cin, Hin, Win, Cout, Kh, Kw, Hout, Wout,
-        sxn, sxc, sxh, sxw,
-        swn, swc, swh, sww,
-        syn, syc, syh, syw,
+        x,
+        conv_w,
+        conv_b,
+        y_act,
+        N,
+        Cin,
+        Hin,
+        Win,
+        Cout,
+        Kh,
+        Kw,
+        Hout,
+        Wout,
+        sxn,
+        sxc,
+        sxh,
+        sxw,
+        swn,
+        swc,
+        swh,
+        sww,
+        syn,
+        syc,
+        syh,
+        syw,
         grf_mode="auto",
     )
 
     eps = 1e-5
     grid_gn = (N * num_groups,)
     group_norm_kernel[grid_gn](
-        y_act, y_out, gn_weight, gn_bias,
-        N, Cout, Hout, Wout, num_groups, eps,
-        sgn_xn, sgn_xc, sgn_xh, sgn_xw,
-        sgn_yn, sgn_yc, sgn_yh, sgn_yw,
+        y_act,
+        y_out,
+        gn_weight,
+        gn_bias,
+        N,
+        Cout,
+        Hout,
+        Wout,
+        num_groups,
+        eps,
+        sgn_xn,
+        sgn_xc,
+        sgn_xh,
+        sgn_xw,
+        sgn_yn,
+        sgn_yc,
+        sgn_yh,
+        sgn_yw,
         grf_mode="auto",
     )
 
@@ -323,9 +407,13 @@ def kernel_function(x, conv_w, conv_b, gn_weight, gn_bias, num_groups):
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, groups, num_groups):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, stride, groups, num_groups
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride)
+        self.conv_transpose = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size, stride=stride
+        )
         self.group_norm = nn.GroupNorm(num_groups=num_groups, num_channels=out_channels)
 
     def forward(self, x):

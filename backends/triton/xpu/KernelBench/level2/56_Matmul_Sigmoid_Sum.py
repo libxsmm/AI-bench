@@ -10,107 +10,127 @@ def _get_splitk_gemm_configs():
         # Small / fallback tiles
         triton.Config(
             {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=4, num_stages=2
+            num_warps=4,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
-            num_warps=8, num_stages=2
+            num_warps=8,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=8, num_stages=2
+            num_warps=8,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
-            num_warps=8, num_stages=2
+            num_warps=8,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=8, num_stages=2
+            num_warps=8,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
-            num_warps=8, num_stages=2
+            num_warps=8,
+            num_stages=2,
         ),
-
         # Suggested / balanced XPU configs
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 16, "GROUP_SIZE_M": 1},
-            num_warps=16, num_stages=3
+            num_warps=16,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=16, num_stages=2
+            num_warps=16,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
-            num_warps=16, num_stages=2
+            num_warps=16,
+            num_stages=2,
         ),
-
         # Broader swizzle sweep
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
-            num_warps=16, num_stages=3
+            num_warps=16,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-            num_warps=16, num_stages=3
+            num_warps=16,
+            num_stages=3,
         ),
-
         # Larger N tiles
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=16, num_stages=3
+            num_warps=16,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
-            num_warps=16, num_stages=3
+            num_warps=16,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-            num_warps=16, num_stages=3
+            num_warps=16,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=32, num_stages=3
+            num_warps=32,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
-            num_warps=32, num_stages=3
+            num_warps=32,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-            num_warps=32, num_stages=3
+            num_warps=32,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 1},
-            num_warps=32, num_stages=2
+            num_warps=32,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 64, "GROUP_SIZE_M": 2},
-            num_warps=32, num_stages=2
+            num_warps=32,
+            num_stages=2,
         ),
-
         # Mandatory large-tile XPU coverage
         triton.Config(
             {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=32, num_stages=2
+            num_warps=32,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
-            num_warps=32, num_stages=2
+            num_warps=32,
+            num_stages=2,
         ),
         triton.Config(
             {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 1},
-            num_warps=32, num_stages=3
+            num_warps=32,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 2},
-            num_warps=32, num_stages=3
+            num_warps=32,
+            num_stages=3,
         ),
         triton.Config(
             {"BLOCK_M": 256, "BLOCK_N": 256, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-            num_warps=32, num_stages=3
+            num_warps=32,
+            num_stages=3,
         ),
     ]
 
@@ -118,44 +138,34 @@ def _get_splitk_gemm_configs():
 def _get_reduce_configs():
     return [
         triton.Config(
-            {"BLOCK_M": 32, "BLOCK_N": 128, "CHUNK_N": 64},
-            num_warps=4, num_stages=2
+            {"BLOCK_M": 32, "BLOCK_N": 128, "CHUNK_N": 64}, num_warps=4, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 64, "BLOCK_N": 128, "CHUNK_N": 64},
-            num_warps=8, num_stages=2
+            {"BLOCK_M": 64, "BLOCK_N": 128, "CHUNK_N": 64}, num_warps=8, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 64, "BLOCK_N": 256, "CHUNK_N": 64},
-            num_warps=8, num_stages=2
+            {"BLOCK_M": 64, "BLOCK_N": 256, "CHUNK_N": 64}, num_warps=8, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 64, "BLOCK_N": 256, "CHUNK_N": 128},
-            num_warps=16, num_stages=2
+            {"BLOCK_M": 64, "BLOCK_N": 256, "CHUNK_N": 128}, num_warps=16, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 128, "BLOCK_N": 256, "CHUNK_N": 64},
-            num_warps=16, num_stages=2
+            {"BLOCK_M": 128, "BLOCK_N": 256, "CHUNK_N": 64}, num_warps=16, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 128, "BLOCK_N": 256, "CHUNK_N": 128},
-            num_warps=32, num_stages=2
+            {"BLOCK_M": 128, "BLOCK_N": 256, "CHUNK_N": 128}, num_warps=32, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 128, "BLOCK_N": 512, "CHUNK_N": 64},
-            num_warps=16, num_stages=2
+            {"BLOCK_M": 128, "BLOCK_N": 512, "CHUNK_N": 64}, num_warps=16, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 128, "BLOCK_N": 512, "CHUNK_N": 128},
-            num_warps=32, num_stages=2
+            {"BLOCK_M": 128, "BLOCK_N": 512, "CHUNK_N": 128}, num_warps=32, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 256, "BLOCK_N": 256, "CHUNK_N": 64},
-            num_warps=16, num_stages=2
+            {"BLOCK_M": 256, "BLOCK_N": 256, "CHUNK_N": 64}, num_warps=16, num_stages=2
         ),
         triton.Config(
-            {"BLOCK_M": 256, "BLOCK_N": 256, "CHUNK_N": 128},
-            num_warps=32, num_stages=2
+            {"BLOCK_M": 256, "BLOCK_N": 256, "CHUNK_N": 128}, num_warps=32, num_stages=2
         ),
     ]
 
@@ -166,11 +176,20 @@ def _get_reduce_configs():
 )
 @triton.jit
 def _fused_linear_sigmoid_sum_kernel_splitk(
-    x_ptr, w_ptr, b_ptr, partial_ptr,
-    B, I, H,
-    stride_xb, stride_xi,
-    stride_wh, stride_wi,
-    stride_pb, stride_ph, stride_ps,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    partial_ptr,
+    B,
+    I,
+    H,
+    stride_xb,
+    stride_xi,
+    stride_wh,
+    stride_wi,
+    stride_pb,
+    stride_ph,
+    stride_ps,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
     BLOCK_K: tl.constexpr,
@@ -250,9 +269,14 @@ def _fused_linear_sigmoid_sum_kernel_splitk(
 )
 @triton.jit
 def _reduce_sigmoid_sum_kernel_streamk(
-    partial_ptr, b_ptr, y_ptr,
-    B, H,
-    stride_pb, stride_ph, stride_ps,
+    partial_ptr,
+    b_ptr,
+    y_ptr,
+    B,
+    H,
+    stride_pb,
+    stride_ph,
+    stride_ps,
     stride_yb,
     SPLIT_K: tl.constexpr,
     BLOCK_M: tl.constexpr,
@@ -298,8 +322,11 @@ def _reduce_sigmoid_sum_kernel_streamk(
 
 
 def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    assert isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(b, torch.Tensor), \
-        "x, w, b must be torch.Tensors"
+    assert (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(b, torch.Tensor)
+    ), "x, w, b must be torch.Tensors"
     assert x.dtype == w.dtype == b.dtype == torch.float16, "Only float16 is supported"
 
     x_xpu = x if x.device.type == "xpu" else x.to("xpu", dtype=torch.float16)
@@ -329,20 +356,34 @@ def kernel_function(x: torch.Tensor, w: torch.Tensor, b: torch.Tensor) -> torch.
         SPLIT_K,
     )
     _fused_linear_sigmoid_sum_kernel_splitk[grid_main](
-        x_xpu, w_xpu, b_xpu, partial,
-        B, I, H,
-        x_xpu.stride(0), x_xpu.stride(1),
-        w_xpu.stride(0), w_xpu.stride(1),
-        partial.stride(0), partial.stride(1), partial.stride(2),
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        partial,
+        B,
+        I,
+        H,
+        x_xpu.stride(0),
+        x_xpu.stride(1),
+        w_xpu.stride(0),
+        w_xpu.stride(1),
+        partial.stride(0),
+        partial.stride(1),
+        partial.stride(2),
         SPLIT_K=SPLIT_K,
         grf_mode="auto",
     )
 
     grid_reduce = lambda META: (triton.cdiv(B, META["BLOCK_M"]),)
     _reduce_sigmoid_sum_kernel_streamk[grid_reduce](
-        partial, b_xpu, y,
-        B, H,
-        partial.stride(0), partial.stride(1), partial.stride(2),
+        partial,
+        b_xpu,
+        y,
+        B,
+        H,
+        partial.stride(0),
+        partial.stride(1),
+        partial.stride(2),
         y.stride(0),
         SPLIT_K=SPLIT_K,
         grf_mode="auto",
@@ -379,17 +420,31 @@ class Model(nn.Module):
             x = x.contiguous()
 
         if not self._weights_on_xpu:
-            self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.linear.weight.data = self.linear.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.linear.bias.data = self.linear.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self._weights_on_xpu = True
         else:
-            if self.linear.weight.device.type != "xpu" or self.linear.weight.dtype != torch.float16:
-                self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.linear.weight.device.type != "xpu"
+                or self.linear.weight.dtype != torch.float16
+            ):
+                self.linear.weight.data = self.linear.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.linear.weight.is_contiguous():
                 self.linear.weight.data = self.linear.weight.data.contiguous()
 
-            if self.linear.bias.device.type != "xpu" or self.linear.bias.dtype != torch.float16:
-                self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.linear.bias.device.type != "xpu"
+                or self.linear.bias.dtype != torch.float16
+            ):
+                self.linear.bias.data = self.linear.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.linear.bias.is_contiguous():
                 self.linear.bias.data = self.linear.bias.data.contiguous()
 

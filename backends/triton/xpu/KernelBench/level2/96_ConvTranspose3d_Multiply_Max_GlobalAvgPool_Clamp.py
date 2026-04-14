@@ -80,15 +80,35 @@ def _conv_transpose3d_fused_kernel(
     b_ptr,
     scale_ptr,
     y_ptr,
-    N, C_OUT,
-    D, H, W,
-    D_OUT, H_OUT, W_OUT,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
-    w_stride_ci, w_stride_co, w_stride_kd, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
+    N,
+    C_OUT,
+    D,
+    H,
+    W,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
+    w_stride_ci,
+    w_stride_co,
+    w_stride_kd,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
     BLOCK_SIZE: tl.constexpr,
-    KD: tl.constexpr, KH: tl.constexpr, KW: tl.constexpr,
-    STRIDE: tl.constexpr, PAD: tl.constexpr,
+    KD: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
+    STRIDE: tl.constexpr,
+    PAD: tl.constexpr,
     C_IN: tl.constexpr,
 ):
     pid_spatial = tl.program_id(0)
@@ -111,22 +131,33 @@ def _conv_transpose3d_fused_kernel(
         w_ci_base = w_ptr + ci * w_stride_ci + co * w_stride_co
         for kd in range(KD):
             base_d = od + PAD - kd
-            even_d = ((base_d & (STRIDE - 1)) == 0)
+            even_d = (base_d & (STRIDE - 1)) == 0
             idv = base_d // STRIDE
             valid_d = (idv >= 0) & (idv < D) & even_d & out_mask
             for kh in range(KH):
                 base_h = oh + PAD - kh
-                even_h = ((base_h & (STRIDE - 1)) == 0)
+                even_h = (base_h & (STRIDE - 1)) == 0
                 ihv = base_h // STRIDE
                 valid_dh = valid_d & (ihv >= 0) & (ihv < H) & even_h
                 for kw in range(KW):
                     base_w = ow + PAD - kw
-                    even_w = ((base_w & (STRIDE - 1)) == 0)
+                    even_w = (base_w & (STRIDE - 1)) == 0
                     iwv = base_w // STRIDE
                     valid = valid_dh & (iwv >= 0) & (iwv < W) & even_w
-                    x_ptrs = x_n_base + ci * x_stride_c + idv * x_stride_d + ihv * x_stride_h + iwv * x_stride_w
+                    x_ptrs = (
+                        x_n_base
+                        + ci * x_stride_c
+                        + idv * x_stride_d
+                        + ihv * x_stride_h
+                        + iwv * x_stride_w
+                    )
                     x_vals = tl.load(x_ptrs, mask=valid, other=0.0)
-                    w_val = tl.load(w_ci_base + kd * w_stride_kd + kh * w_stride_kh + kw * w_stride_kw)
+                    w_val = tl.load(
+                        w_ci_base
+                        + kd * w_stride_kd
+                        + kh * w_stride_kh
+                        + kw * w_stride_kw
+                    )
                     acc += x_vals * w_val
     acc = (acc + bias_val) * scale_val
     y_ptrs = y_base + od * y_stride_d + oh * y_stride_h + ow * y_stride_w
@@ -149,12 +180,29 @@ def _conv_transpose3d_fused_kernel_specialized(
     b_ptr,
     scale_ptr,
     y_ptr,
-    N, C_OUT,
-    D, H, W,
-    D_OUT, H_OUT, W_OUT,
-    x_stride_n, x_stride_c, x_stride_d, x_stride_h, x_stride_w,
-    w_stride_ci, w_stride_co, w_stride_kd, w_stride_kh, w_stride_kw,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
+    N,
+    C_OUT,
+    D,
+    H,
+    W,
+    D_OUT,
+    H_OUT,
+    W_OUT,
+    x_stride_n,
+    x_stride_c,
+    x_stride_d,
+    x_stride_h,
+    x_stride_w,
+    w_stride_ci,
+    w_stride_co,
+    w_stride_kd,
+    w_stride_kh,
+    w_stride_kw,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
     BLOCK_SIZE: tl.constexpr,
     C_IN: tl.constexpr,
     grf_mode: tl.constexpr,
@@ -207,9 +255,9 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kd + w_stride_kh + w_stride_kw
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kd + w_stride_kh + w_stride_kw).to(
+            tl.float32
+        )
 
         valid = out_mask & valid_d_l & valid_h_c & valid_w_c
         x_vals = tl.load(
@@ -217,9 +265,7 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kh + w_stride_kw
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kh + w_stride_kw).to(tl.float32)
 
         valid = out_mask & valid_d_c & valid_h_l & valid_w_c
         x_vals = tl.load(
@@ -227,9 +273,7 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kd + w_stride_kw
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kd + w_stride_kw).to(tl.float32)
 
         valid = out_mask & valid_d_c & valid_h_c & valid_w_l
         x_vals = tl.load(
@@ -237,9 +281,7 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kd + w_stride_kh
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kd + w_stride_kh).to(tl.float32)
 
         valid = out_mask & valid_d_l & valid_h_l & valid_w_c
         x_vals = tl.load(
@@ -247,9 +289,7 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kw
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kw).to(tl.float32)
 
         valid = out_mask & valid_d_l & valid_h_c & valid_w_l
         x_vals = tl.load(
@@ -257,9 +297,7 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kh
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kh).to(tl.float32)
 
         valid = out_mask & valid_d_c & valid_h_l & valid_w_l
         x_vals = tl.load(
@@ -267,9 +305,7 @@ def _conv_transpose3d_fused_kernel_specialized(
             mask=valid,
             other=0.0,
         ).to(tl.float32)
-        acc += x_vals * tl.load(
-            w_ci_base + w_stride_kd
-        ).to(tl.float32)
+        acc += x_vals * tl.load(w_ci_base + w_stride_kd).to(tl.float32)
 
         valid = out_mask & valid_d_l & valid_h_l & valid_w_l
         x_vals = tl.load(
@@ -293,15 +329,38 @@ def _conv_transpose3d_fused_kernel_specialized(
 )
 @triton.jit
 def _max_pool3d_kernel(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    OD, OH, OW,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    y_stride_n, y_stride_c, y_stride_d, y_stride_h, y_stride_w,
-    KERNEL_D: tl.constexpr, KERNEL_H: tl.constexpr, KERNEL_W: tl.constexpr,
-    STRIDE_D: tl.constexpr, STRIDE_H: tl.constexpr, STRIDE_W: tl.constexpr,
-    PAD_D: tl.constexpr, PAD_H: tl.constexpr, PAD_W: tl.constexpr,
-    DIL_D: tl.constexpr, DIL_H: tl.constexpr, DIL_W: tl.constexpr,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    OD,
+    OH,
+    OW,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    y_stride_n,
+    y_stride_c,
+    y_stride_d,
+    y_stride_h,
+    y_stride_w,
+    KERNEL_D: tl.constexpr,
+    KERNEL_H: tl.constexpr,
+    KERNEL_W: tl.constexpr,
+    STRIDE_D: tl.constexpr,
+    STRIDE_H: tl.constexpr,
+    STRIDE_W: tl.constexpr,
+    PAD_D: tl.constexpr,
+    PAD_H: tl.constexpr,
+    PAD_W: tl.constexpr,
+    DIL_D: tl.constexpr,
+    DIL_H: tl.constexpr,
+    DIL_W: tl.constexpr,
     BLOCK_W: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -325,7 +384,9 @@ def _max_pool3d_kernel(
         for kh in range(KERNEL_H):
             in_h = oh * STRIDE_H - PAD_H + kh * DIL_H
             valid_h = (in_h >= 0) & (in_h < H)
-            base_ptr = x_ptr + n * stride_n + c * stride_c + in_d * stride_d + in_h * stride_h
+            base_ptr = (
+                x_ptr + n * stride_n + c * stride_c + in_d * stride_d + in_h * stride_h
+            )
             for kw in range(KERNEL_W):
                 in_w = ow * STRIDE_W - PAD_W + kw * DIL_W
                 valid_w = (in_w >= 0) & (in_w < W)
@@ -347,10 +408,23 @@ def _max_pool3d_kernel(
 )
 @triton.jit
 def _avgpool3d_clamp_ncdhw_1x1x1(
-    x_ptr, y_ptr,
-    N, C, D, H, W,
-    stride_n, stride_c, stride_d, stride_h, stride_w,
-    out_stride_n, out_stride_c, out_stride_d, out_stride_h, out_stride_w,
+    x_ptr,
+    y_ptr,
+    N,
+    C,
+    D,
+    H,
+    W,
+    stride_n,
+    stride_c,
+    stride_d,
+    stride_h,
+    stride_w,
+    out_stride_n,
+    out_stride_c,
+    out_stride_d,
+    out_stride_h,
+    out_stride_w,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr,
 ):
@@ -380,13 +454,21 @@ def _avgpool3d_clamp_ncdhw_1x1x1(
 
 
 def _conv_transpose3d_mul_scale(x, weight, bias, scale):
-    if not (isinstance(x, torch.Tensor) and isinstance(weight, torch.Tensor)
-            and isinstance(bias, torch.Tensor) and isinstance(scale, torch.Tensor)):
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(weight, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+        and isinstance(scale, torch.Tensor)
+    ):
         raise TypeError("All arguments must be torch.Tensors")
     if x.device.type != "xpu":
         raise RuntimeError("Input must be on XPU")
-    if x.dtype != torch.float16 or weight.dtype != torch.float16 \
-       or bias.dtype != torch.float16 or scale.dtype != torch.float16:
+    if (
+        x.dtype != torch.float16
+        or weight.dtype != torch.float16
+        or bias.dtype != torch.float16
+        or scale.dtype != torch.float16
+    ):
         raise TypeError("All tensors must be float16")
     if x.ndim != 5 or weight.ndim != 5 or bias.ndim != 1 or scale.ndim != 0:
         raise ValueError("Expected x:5D, weight:5D, bias:1D, scale:0D")
@@ -412,13 +494,34 @@ def _conv_transpose3d_mul_scale(x, weight, bias, scale):
         return (triton.cdiv(D_out * H_out * W_out, meta["BLOCK_SIZE"]), N * C_out)
 
     _conv_transpose3d_fused_kernel_specialized[grid](
-        x, weight, bias, scale, y,
-        N, C_out,
-        D, H, W,
-        D_out, H_out, W_out,
-        xs_n, xs_c, xs_d, xs_h, xs_w,
-        ws_ci, ws_co, ws_kd, ws_kh, ws_kw,
-        ys_n, ys_c, ys_d, ys_h, ys_w,
+        x,
+        weight,
+        bias,
+        scale,
+        y,
+        N,
+        C_out,
+        D,
+        H,
+        W,
+        D_out,
+        H_out,
+        W_out,
+        xs_n,
+        xs_c,
+        xs_d,
+        xs_h,
+        xs_w,
+        ws_ci,
+        ws_co,
+        ws_kd,
+        ws_kh,
+        ws_kw,
+        ys_n,
+        ys_c,
+        ys_d,
+        ys_h,
+        ys_w,
         C_IN=C_in,
         grf_mode="auto",
     )
@@ -458,15 +561,38 @@ def _max_pool3d_triton(x):
         return (N * C * OD * OH, triton.cdiv(OW, meta["BLOCK_W"]))
 
     _max_pool3d_kernel[grid](
-        x, y,
-        N, C, D, H, W,
-        OD, OH, OW,
-        sN, sC, sD, sH, sW,
-        yN, yC, yD, yH, yW,
-        KERNEL_D=kd, KERNEL_H=kh, KERNEL_W=kw,
-        STRIDE_D=sd, STRIDE_H=sh, STRIDE_W=sw,
-        PAD_D=pd, PAD_H=ph, PAD_W=pw,
-        DIL_D=dd, DIL_H=dh, DIL_W=dw,
+        x,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        OD,
+        OH,
+        OW,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        yN,
+        yC,
+        yD,
+        yH,
+        yW,
+        KERNEL_D=kd,
+        KERNEL_H=kh,
+        KERNEL_W=kw,
+        STRIDE_D=sd,
+        STRIDE_H=sh,
+        STRIDE_W=sw,
+        PAD_D=pd,
+        PAD_H=ph,
+        PAD_W=pw,
+        DIL_D=dd,
+        DIL_H=dh,
+        DIL_W=dw,
         grf_mode="auto",
     )
     return y
@@ -487,10 +613,23 @@ def _adaptive_avg_pool3d_clamp(x):
 
     grid = (N * C,)
     _avgpool3d_clamp_ncdhw_1x1x1[grid](
-        x, y,
-        N, C, D, H, W,
-        sN, sC, sD, sH, sW,
-        oN, oC, oD, oH, oW,
+        x,
+        y,
+        N,
+        C,
+        D,
+        H,
+        W,
+        sN,
+        sC,
+        sD,
+        sH,
+        sW,
+        oN,
+        oC,
+        oD,
+        oH,
+        oW,
         grf_mode="auto",
     )
     return y
@@ -503,18 +642,38 @@ def kernel_function(x, weight, bias, scale):
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("Intel XPU is not available")
 
-    x_xpu = x.to("xpu", dtype=torch.float16).contiguous() if (
-        x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous()
-    ) else x
-    weight_xpu = weight.to("xpu", dtype=torch.float16).contiguous() if (
-        weight.device.type != "xpu" or weight.dtype != torch.float16 or not weight.is_contiguous()
-    ) else weight
-    bias_xpu = bias.to("xpu", dtype=torch.float16).contiguous() if (
-        bias.device.type != "xpu" or bias.dtype != torch.float16 or not bias.is_contiguous()
-    ) else bias
-    scale_xpu = scale.to("xpu", dtype=torch.float16).contiguous() if (
-        scale.device.type != "xpu" or scale.dtype != torch.float16 or scale.numel() != 1
-    ) else scale
+    x_xpu = (
+        x.to("xpu", dtype=torch.float16).contiguous()
+        if (x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous())
+        else x
+    )
+    weight_xpu = (
+        weight.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            weight.device.type != "xpu"
+            or weight.dtype != torch.float16
+            or not weight.is_contiguous()
+        )
+        else weight
+    )
+    bias_xpu = (
+        bias.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            bias.device.type != "xpu"
+            or bias.dtype != torch.float16
+            or not bias.is_contiguous()
+        )
+        else bias
+    )
+    scale_xpu = (
+        scale.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            scale.device.type != "xpu"
+            or scale.dtype != torch.float16
+            or scale.numel() != 1
+        )
+        else scale
+    )
 
     y1 = _conv_transpose3d_mul_scale(x_xpu, weight_xpu, bias_xpu, scale_xpu)
     y2 = _max_pool3d_triton(y1)
@@ -538,13 +697,32 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, scale, maxpool_kernel_size]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        scale,
+        maxpool_kernel_size,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, scale, maxpool_kernel_size):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        scale,
+        maxpool_kernel_size,
+    ):
         super().__init__()
-        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=2, padding=1)
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, stride=2, padding=1
+        )
         self.scale = nn.Parameter(torch.tensor(float(scale)))
         self.stride = stride
         self.padding = padding
@@ -553,15 +731,31 @@ class Model(nn.Module):
 
     def _ensure_xpu_params(self):
         if not self._params_on_xpu:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
             self.scale.data = self.scale.data.to("xpu", dtype=torch.float16)
             self._params_on_xpu = True
         else:
-            if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16 or not self.conv_transpose.weight.is_contiguous():
-                self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
-            if self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != torch.float16 or not self.conv_transpose.bias.is_contiguous():
-                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.conv_transpose.weight.device.type != "xpu"
+                or self.conv_transpose.weight.dtype != torch.float16
+                or not self.conv_transpose.weight.is_contiguous()
+            ):
+                self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
+            if (
+                self.conv_transpose.bias.device.type != "xpu"
+                or self.conv_transpose.bias.dtype != torch.float16
+                or not self.conv_transpose.bias.is_contiguous()
+            ):
+                self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             if self.scale.device.type != "xpu" or self.scale.dtype != torch.float16:
                 self.scale.data = self.scale.data.to("xpu", dtype=torch.float16)
 
@@ -569,4 +763,6 @@ class Model(nn.Module):
         if x.device.type != "xpu" or x.dtype != torch.float16 or not x.is_contiguous():
             x = x.to("xpu", dtype=torch.float16).contiguous()
         self._ensure_xpu_params()
-        return kernel_function(x, self.conv_transpose.weight, self.conv_transpose.bias, self.scale)
+        return kernel_function(
+            x, self.conv_transpose.weight, self.conv_transpose.bias, self.scale
+        )

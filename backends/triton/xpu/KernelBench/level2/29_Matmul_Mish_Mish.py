@@ -9,6 +9,7 @@ class Model(nn.Module):
     """
     Simple model that performs a matrix multiplication, applies Mish, and applies Mish again.
     """
+
     def __init__(self, in_features, out_features):
         super(Model, self).__init__()
         self.linear = nn.Linear(in_features, out_features)
@@ -24,19 +25,33 @@ class Model(nn.Module):
             self._packed_weight = w.t().contiguous()
             self._xpu_params_ready = True
         else:
-            if self.linear.weight.data.device.type != "xpu" or self.linear.weight.data.dtype != torch.float16:
-                self.linear.weight.data = self.linear.weight.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.linear.weight.data.device.type != "xpu"
+                or self.linear.weight.data.dtype != torch.float16
+            ):
+                self.linear.weight.data = self.linear.weight.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
                 self._packed_weight = self.linear.weight.data.t().contiguous()
             elif not self.linear.weight.data.is_contiguous():
                 self.linear.weight.data = self.linear.weight.data.contiguous()
                 self._packed_weight = self.linear.weight.data.t().contiguous()
 
-            if self.linear.bias.data.device.type != "xpu" or self.linear.bias.data.dtype != torch.float16:
-                self.linear.bias.data = self.linear.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            if (
+                self.linear.bias.data.device.type != "xpu"
+                or self.linear.bias.data.dtype != torch.float16
+            ):
+                self.linear.bias.data = self.linear.bias.data.to(
+                    "xpu", dtype=torch.float16
+                ).contiguous()
             elif not self.linear.bias.data.is_contiguous():
                 self.linear.bias.data = self.linear.bias.data.contiguous()
 
-            if self._packed_weight is None or self._packed_weight.device.type != "xpu" or not self._packed_weight.is_contiguous():
+            if (
+                self._packed_weight is None
+                or self._packed_weight.device.type != "xpu"
+                or not self._packed_weight.is_contiguous()
+            ):
                 self._packed_weight = self.linear.weight.data.t().contiguous()
 
     def forward(self, x):
@@ -86,156 +101,284 @@ _gemm_configs = [
     # Large-tile XPU-oriented configs; includes required 256x256 / 32-warps cases.
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 16,
-            'GROUP_SIZE_M': 1, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 16,
+            "GROUP_SIZE_M": 1,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=32, num_stages=3,
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 1, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 1,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=32, num_stages=3,
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=32, num_stages=3,
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 8, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 8,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=32, num_stages=2,
+        num_warps=32,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 1, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 1,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=3,
+        num_warps=16,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=3,
+        num_warps=16,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 1, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 1,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=3,
+        num_warps=16,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=3,
+        num_warps=16,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 2, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 2,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=2,
+        num_warps=16,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64,
-            'GROUP_SIZE_M': 2, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 2,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=2,
+        num_warps=16,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=2,
+        num_warps=16,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 64,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=16, num_stages=2,
+        num_warps=16,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 64,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 64,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 64,
-            'GROUP_SIZE_M': 4, 'EVEN_M': True, 'EVEN_N': True, 'EVEN_K': True,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 64,
+            "BLOCK_SIZE_K": 64,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": True,
+            "EVEN_N": True,
+            "EVEN_K": True,
         },
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     ),
     # Fallback arbitrary-shape configs.
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 16,
-            'GROUP_SIZE_M': 1, 'EVEN_M': False, 'EVEN_N': False, 'EVEN_K': False,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 16,
+            "GROUP_SIZE_M": 1,
+            "EVEN_M": False,
+            "EVEN_N": False,
+            "EVEN_K": False,
         },
-        num_warps=32, num_stages=3,
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 256, 'BLOCK_SIZE_N': 256, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': False, 'EVEN_N': False, 'EVEN_K': False,
+            "BLOCK_SIZE_M": 256,
+            "BLOCK_SIZE_N": 256,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": False,
+            "EVEN_N": False,
+            "EVEN_K": False,
         },
-        num_warps=32, num_stages=3,
+        num_warps=32,
+        num_stages=3,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 128, 'BLOCK_SIZE_N': 128, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 1, 'EVEN_M': False, 'EVEN_N': False, 'EVEN_K': False,
+            "BLOCK_SIZE_M": 128,
+            "BLOCK_SIZE_N": 128,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 1,
+            "EVEN_M": False,
+            "EVEN_N": False,
+            "EVEN_K": False,
         },
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     ),
     triton.Config(
         {
-            'BLOCK_SIZE_M': 64, 'BLOCK_SIZE_N': 64, 'BLOCK_SIZE_K': 32,
-            'GROUP_SIZE_M': 4, 'EVEN_M': False, 'EVEN_N': False, 'EVEN_K': False,
+            "BLOCK_SIZE_M": 64,
+            "BLOCK_SIZE_N": 64,
+            "BLOCK_SIZE_K": 32,
+            "GROUP_SIZE_M": 4,
+            "EVEN_M": False,
+            "EVEN_N": False,
+            "EVEN_K": False,
         },
-        num_warps=8, num_stages=2,
+        num_warps=8,
+        num_stages=2,
     ),
 ]
 
 
-@triton.autotune(configs=_gemm_configs, key=['M', 'N', 'K'])
+@triton.autotune(configs=_gemm_configs, key=["M", "N", "K"])
 @triton.jit
 def _fused_linear_mish2_kernel(
-    x_ptr, w_ptr, b_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wk, stride_wn,
-    stride_ym, stride_yn,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wk,
+    stride_wn,
+    stride_ym,
+    stride_yn,
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
@@ -317,20 +460,22 @@ def _fused_linear_mish2_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_SIZE': 2048}, num_warps=16, num_stages=2),
-        triton.Config({'BLOCK_SIZE': 2048}, num_warps=16, num_stages=3),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=32, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=3),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=16, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=16, num_stages=3),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=32, num_stages=2),
     ],
-    key=['numel'],
+    key=["numel"],
 )
 @triton.jit
 def _mish2_kernel(
-    x_ptr, y_ptr, numel,
+    x_ptr,
+    y_ptr,
+    numel,
     BLOCK_SIZE: tl.constexpr,
 ):
     pid = tl.program_id(0)
@@ -355,7 +500,9 @@ def _mish2_kernel(
     tl.store(y_ptr + offs, x.to(y_ptr.dtype.element_ty), mask=mask)
 
 
-def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -> torch.Tensor:
+def kernel_function(
+    x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor
+) -> torch.Tensor:
     assert x.ndim == 2 and weight.ndim == 2 and bias.ndim == 1
 
     if x.device.type != "xpu" or x.dtype != torch.float16:
@@ -386,21 +533,31 @@ def kernel_function(x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor) -
     stride_gm, stride_gn = gemm_out.stride()
 
     def grid(meta):
-        return (triton.cdiv(M, meta['BLOCK_SIZE_M']) * triton.cdiv(N, meta['BLOCK_SIZE_N']),)
+        return (
+            triton.cdiv(M, meta["BLOCK_SIZE_M"]) * triton.cdiv(N, meta["BLOCK_SIZE_N"]),
+        )
 
     _fused_linear_mish2_kernel[grid](
-        x_xpu, w_xpu, b_xpu, gemm_out,
-        M, N, Kx,
-        stride_xm, stride_xk,
-        stride_wk, stride_wn,
-        stride_gm, stride_gn,
+        x_xpu,
+        w_xpu,
+        b_xpu,
+        gemm_out,
+        M,
+        N,
+        Kx,
+        stride_xm,
+        stride_xk,
+        stride_wk,
+        stride_wn,
+        stride_gm,
+        stride_gn,
         grf_mode="auto",
     )
 
     numel = gemm_out.numel()
 
     def elt_grid(meta):
-        return (triton.cdiv(numel, meta['BLOCK_SIZE']),)
+        return (triton.cdiv(numel, meta["BLOCK_SIZE"]),)
 
     _mish2_kernel[elt_grid](gemm_out, y, numel)
     return y

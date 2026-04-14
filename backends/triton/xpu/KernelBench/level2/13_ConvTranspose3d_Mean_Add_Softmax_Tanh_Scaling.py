@@ -330,7 +330,9 @@ def get_init_inputs():
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, scaling_factor):
+    def __init__(
+        self, in_channels, out_channels, kernel_size, stride, padding, scaling_factor
+    ):
         super().__init__()
         self.conv_transpose = nn.ConvTranspose3d(
             in_channels, out_channels, kernel_size, stride=stride, padding=padding
@@ -344,12 +346,20 @@ class Model(nn.Module):
         elif x.dtype != torch.float16:
             x = x.to(dtype=torch.float16)
 
-        if self.conv_transpose.weight.device.type != "xpu" or self.conv_transpose.weight.dtype != torch.float16:
-            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.conv_transpose.bias is not None and (
-            self.conv_transpose.bias.device.type != "xpu" or self.conv_transpose.bias.dtype != torch.float16
+        if (
+            self.conv_transpose.weight.device.type != "xpu"
+            or self.conv_transpose.weight.dtype != torch.float16
         ):
-            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to("xpu", dtype=torch.float16).contiguous()
+            self.conv_transpose.weight.data = self.conv_transpose.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if self.conv_transpose.bias is not None and (
+            self.conv_transpose.bias.device.type != "xpu"
+            or self.conv_transpose.bias.dtype != torch.float16
+        ):
+            self.conv_transpose.bias.data = self.conv_transpose.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
         if self.bias.device.type != "xpu" or self.bias.dtype != torch.float16:
             self.bias.data = self.bias.data.to("xpu", dtype=torch.float16).contiguous()
 

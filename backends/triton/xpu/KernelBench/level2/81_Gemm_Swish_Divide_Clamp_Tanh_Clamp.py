@@ -9,26 +9,50 @@ import triton.language as tl
 # Discovery-stage execution path prefers vendor GEMM.
 # ---------------------------------------------------------------------
 _linear_configs = [
-    triton.Config({'BLOCK_M': 64, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_stages=2, num_warps=4),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_stages=2, num_warps=8),
-    triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_stages=2, num_warps=8),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_stages=3, num_warps=8),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 256, 'BLOCK_K': 64}, num_stages=3, num_warps=16),
-    triton.Config({'BLOCK_M': 256, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_stages=3, num_warps=16),
-    triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 128}, num_stages=3, num_warps=8),
+    triton.Config(
+        {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_stages=2, num_warps=4
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_stages=2, num_warps=8
+    ),
+    triton.Config(
+        {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 64}, num_stages=2, num_warps=8
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_stages=3, num_warps=8
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 256, "BLOCK_K": 64}, num_stages=3, num_warps=16
+    ),
+    triton.Config(
+        {"BLOCK_M": 256, "BLOCK_N": 128, "BLOCK_K": 64}, num_stages=3, num_warps=16
+    ),
+    triton.Config(
+        {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 128}, num_stages=3, num_warps=8
+    ),
 ]
 
 
-@triton.autotune(configs=_linear_configs, key=['M', 'N', 'K'])
+@triton.autotune(configs=_linear_configs, key=["M", "N", "K"])
 @triton.jit
 def _linear_fwd_kernel(
-    x_ptr, w_ptr, bias_ptr, y_ptr,
-    M, N, K,
-    stride_xm, stride_xk,
-    stride_wn, stride_wk,
-    stride_ym, stride_yn,
+    x_ptr,
+    w_ptr,
+    bias_ptr,
+    y_ptr,
+    M,
+    N,
+    K,
+    stride_xm,
+    stride_xk,
+    stride_wn,
+    stride_wk,
+    stride_ym,
+    stride_yn,
     ADD_BIAS: tl.constexpr,
-    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
 ):
     pid_m = tl.program_id(axis=0)
     pid_n = tl.program_id(axis=1)
@@ -56,7 +80,9 @@ def _linear_fwd_kernel(
         acc = tl.dot(a, b, acc)
 
     if ADD_BIAS:
-        bias_vals = tl.load(bias_ptr + offs_n, mask=offs_n < N, other=0.0).to(tl.float32)
+        bias_vals = tl.load(bias_ptr + offs_n, mask=offs_n < N, other=0.0).to(
+            tl.float32
+        )
         acc = acc + bias_vals[None, :]
 
     y_ptrs = y_ptr + offs_m[:, None] * stride_ym + offs_n[None, :] * stride_yn
@@ -65,11 +91,15 @@ def _linear_fwd_kernel(
 
 
 def _linear_forward(x: torch.Tensor, w: torch.Tensor, bias: torch.Tensor):
-    if not (isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(bias, torch.Tensor)):
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("x, w, bias must be Tensors")
     if x.device != w.device or x.device != bias.device:
         raise ValueError("x, w, bias must be on same device")
-    if x.device.type != 'xpu':
+    if x.device.type != "xpu":
         raise RuntimeError(f"Linear kernel requires 'xpu' device, got {x.device}")
     if x.ndim != 2 or w.ndim != 2 or bias.ndim != 1:
         raise ValueError("Shapes: x[M, K], w[N, K], bias[N]")
@@ -89,15 +119,23 @@ def _linear_forward(x: torch.Tensor, w: torch.Tensor, bias: torch.Tensor):
     stride_ym, stride_yn = y.stride()
 
     def grid(meta):
-        return (triton.cdiv(M, meta['BLOCK_M']), triton.cdiv(N, meta['BLOCK_N']))
+        return (triton.cdiv(M, meta["BLOCK_M"]), triton.cdiv(N, meta["BLOCK_N"]))
 
     _linear_fwd_kernel[grid](
-        x, w, bias, y,
-        M, N, K,
-        stride_xm, stride_xk,
-        stride_wn, stride_wk,
-        stride_ym, stride_yn,
-        True
+        x,
+        w,
+        bias,
+        y,
+        M,
+        N,
+        K,
+        stride_xm,
+        stride_xk,
+        stride_wn,
+        stride_wk,
+        stride_ym,
+        stride_yn,
+        True,
     )
     return y
 
@@ -112,19 +150,16 @@ def _sigmoid_stable(x):
 
 
 _swish_configs = [
-    triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=2),
-    triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=2),
-    triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=3),
-    triton.Config({'BLOCK_SIZE': 2048}, num_warps=16, num_stages=3),
+    triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=2),
+    triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=2),
+    triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=3),
+    triton.Config({"BLOCK_SIZE": 2048}, num_warps=16, num_stages=3),
 ]
 
 
-@triton.autotune(configs=_swish_configs, key=['N'])
+@triton.autotune(configs=_swish_configs, key=["N"])
 @triton.jit
-def _fused_swish_div_clamp_tanh_clamp_kernel(
-    x_ptr, y_ptr, N,
-    BLOCK_SIZE: tl.constexpr
-):
+def _fused_swish_div_clamp_tanh_clamp_kernel(x_ptr, y_ptr, N, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(0)
     start = pid * BLOCK_SIZE
     offs = start + tl.arange(0, BLOCK_SIZE)
@@ -158,7 +193,7 @@ def _swish_forward(x: torch.Tensor):
     n = x.numel()
 
     def grid(meta):
-        return (triton.cdiv(n, meta['BLOCK_SIZE']),)
+        return (triton.cdiv(n, meta["BLOCK_SIZE"]),)
 
     _fused_swish_div_clamp_tanh_clamp_kernel[grid](x, y, n)
     return y
@@ -173,7 +208,11 @@ def _ensure_xpu_fp16_contiguous(t: torch.Tensor) -> torch.Tensor:
 
 
 def kernel_function(x: torch.Tensor, w: torch.Tensor, bias: torch.Tensor):
-    if not (isinstance(x, torch.Tensor) and isinstance(w, torch.Tensor) and isinstance(bias, torch.Tensor)):
+    if not (
+        isinstance(x, torch.Tensor)
+        and isinstance(w, torch.Tensor)
+        and isinstance(bias, torch.Tensor)
+    ):
         raise TypeError("Expected Tensors x, w, bias")
 
     x_xpu = _ensure_xpu_fp16_contiguous(x)

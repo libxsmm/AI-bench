@@ -6,24 +6,55 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=8, num_stages=3),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=4, num_stages=4),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 128, 'BLOCK_K': 32}, num_warps=8, num_stages=4),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=4, num_stages=2),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 128, 'BLOCK_K': 64}, num_warps=4, num_stages=4),
-        triton.Config({'BLOCK_OW': 128, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=8, num_stages=2),
-        triton.Config({'BLOCK_OW': 64, 'BLOCK_N': 64, 'BLOCK_K': 64}, num_warps=4, num_stages=2),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=8, num_stages=3
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=4, num_stages=4
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 128, "BLOCK_K": 32}, num_warps=8, num_stages=4
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=4, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=4, num_stages=4
+        ),
+        triton.Config(
+            {"BLOCK_OW": 128, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2
+        ),
+        triton.Config(
+            {"BLOCK_OW": 64, "BLOCK_N": 64, "BLOCK_K": 64}, num_warps=4, num_stages=2
+        ),
     ],
-    key=['H', 'W', 'C_IN', 'C_out', 'OH', 'OW'],
+    key=["H", "W", "C_IN", "C_out", "OH", "OW"],
 )
 @triton.jit
 def _conv2d_relu_bias_spatial(
-    x_ptr, w_ptr, conv_bias_ptr, bias_ptr, y_ptr,
-    N_batch, H, W, C_out, OH, OW,
-    stride_wkh, stride_wkw, stride_wci, stride_wco,
-    BLOCK_OW: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-    KH: tl.constexpr, KW: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    conv_bias_ptr,
+    bias_ptr,
+    y_ptr,
+    N_batch,
+    H,
+    W,
+    C_out,
+    OH,
+    OW,
+    stride_wkh,
+    stride_wkw,
+    stride_wci,
+    stride_wco,
+    BLOCK_OW: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+    KH: tl.constexpr,
+    KW: tl.constexpr,
     C_IN: tl.constexpr,
 ):
     n = tl.program_id(0)
@@ -99,20 +130,42 @@ def kernel_function(x, w_hwio, conv_bias, post_bias):
     N, C_in, H, W = x_xpu.shape
     KH, KW, _, C_out = w_hwio.shape
     OH, OW = H - KH + 1, W - KW + 1
-    y = torch.empty((N, C_out, OH, OW), device=x_xpu.device,
-                     dtype=torch.float16, memory_format=torch.channels_last)
+    y = torch.empty(
+        (N, C_out, OH, OW),
+        device=x_xpu.device,
+        dtype=torch.float16,
+        memory_format=torch.channels_last,
+    )
     y_nhwc = y.permute(0, 2, 3, 1)
     cb = conv_bias.view(-1)
     pb = post_bias.view(-1)
 
     def grid(meta):
-        return (N, OH, triton.cdiv(OW, meta['BLOCK_OW']) * triton.cdiv(C_out, meta['BLOCK_N']))
+        return (
+            N,
+            OH,
+            triton.cdiv(OW, meta["BLOCK_OW"]) * triton.cdiv(C_out, meta["BLOCK_N"]),
+        )
 
     _conv2d_relu_bias_spatial[grid](
-        x_nhwc, w_hwio, cb, pb, y_nhwc,
-        N, H, W, C_out, OH, OW,
-        w_hwio.stride(0), w_hwio.stride(1), w_hwio.stride(2), w_hwio.stride(3),
-        KH=KH, KW=KW, C_IN=C_in,
+        x_nhwc,
+        w_hwio,
+        cb,
+        pb,
+        y_nhwc,
+        N,
+        H,
+        W,
+        C_out,
+        OH,
+        OW,
+        w_hwio.stride(0),
+        w_hwio.stride(1),
+        w_hwio.stride(2),
+        w_hwio.stride(3),
+        KH=KH,
+        KW=KW,
+        C_IN=C_in,
     )
     return y
 
@@ -144,7 +197,9 @@ class Model(nn.Module):
     def forward(self, x):
         sig = (self.conv.weight.data_ptr(), self.conv.weight._version)
         if self._w_hwio is None or self._w_sig != sig:
-            self._w_hwio = _ensure_xpu_fp16(self.conv.weight).permute(2, 3, 1, 0).contiguous()
+            self._w_hwio = (
+                _ensure_xpu_fp16(self.conv.weight).permute(2, 3, 1, 0).contiguous()
+            )
             self._w_sig = sig
         cb = _ensure_xpu_fp16(self.conv.bias).contiguous()
         pb = _ensure_xpu_fp16(self.bias).contiguous()

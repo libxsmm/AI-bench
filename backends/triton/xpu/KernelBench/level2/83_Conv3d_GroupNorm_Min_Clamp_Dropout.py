@@ -13,13 +13,40 @@ import triton.language as tl
 
 @triton.jit
 def _fused_conv3d_groupnorm_kernel(
-    x_ptr, w_ptr, b_ptr, gamma_ptr, beta_ptr, y_ptr,
-    N, C_in, C_out, D_in, H_in, W_in, D_out, H_out, W_out,
-    stride_xn, stride_xc, stride_xd, stride_xh, stride_xw,
-    stride_wc0, stride_wc1, stride_wkd, stride_wkh, stride_wkw,
-    stride_yn, stride_yc, stride_yd, stride_yh, stride_yw,
-    NUM_GROUPS: tl.constexpr, CH_PER_GROUP: tl.constexpr,
-    BLOCK_W: tl.constexpr, EPS: tl.constexpr,
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    gamma_ptr,
+    beta_ptr,
+    y_ptr,
+    N,
+    C_in,
+    C_out,
+    D_in,
+    H_in,
+    W_in,
+    D_out,
+    H_out,
+    W_out,
+    stride_xn,
+    stride_xc,
+    stride_xd,
+    stride_xh,
+    stride_xw,
+    stride_wc0,
+    stride_wc1,
+    stride_wkd,
+    stride_wkh,
+    stride_wkw,
+    stride_yn,
+    stride_yc,
+    stride_yd,
+    stride_yh,
+    stride_yw,
+    NUM_GROUPS: tl.constexpr,
+    CH_PER_GROUP: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    EPS: tl.constexpr,
 ):
     pid = tl.program_id(0)
     n = pid // NUM_GROUPS
@@ -45,7 +72,10 @@ def _fused_conv3d_groupnorm_kernel(
                 w_out = w0 + offs_w
                 mask_w = w_out < W_out
 
-                acc = tl.zeros((CH_PER_GROUP, BLOCK_W), dtype=tl.float32) + bias_g[:, None]
+                acc = (
+                    tl.zeros((CH_PER_GROUP, BLOCK_W), dtype=tl.float32)
+                    + bias_g[:, None]
+                )
                 for ci in range(C_in):
                     for kd in range(3):
                         d_in = d + kd
@@ -129,9 +159,7 @@ def _fused_conv3d_groupnorm_kernel(
 
 @triton.jit
 def _min_then_clamp_kernel(
-    x_ptr, y_ptr, n_elements,
-    rhs_value, clamp_min, clamp_max,
-    BLOCK_SIZE: tl.constexpr
+    x_ptr, y_ptr, n_elements, rhs_value, clamp_min, clamp_max, BLOCK_SIZE: tl.constexpr
 ):
     pid = tl.program_id(0)
     start = pid * BLOCK_SIZE
@@ -146,53 +174,57 @@ def _min_then_clamp_kernel(
 
 def _configs_dropout():
     return [
-        triton.Config({'BLOCK_SIZE': 128}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 2048}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=32, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=32, num_stages=1),
     ]
 
 
 def _configs_min_clamp_only():
     return [
-        triton.Config({'BLOCK_SIZE': 128}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 2048}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=32, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=32, num_stages=1),
     ]
 
 
 def _configs_min_clamp_dropout():
     return [
-        triton.Config({'BLOCK_SIZE': 128}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 2048}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=16, num_stages=1),
-        triton.Config({'BLOCK_SIZE': 4096}, num_warps=32, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 512}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=8, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=16, num_stages=1),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=32, num_stages=1),
     ]
 
 
 @triton.autotune(
     configs=_configs_dropout(),
-    key=['n_elements'],
+    key=["n_elements"],
 )
 @triton.jit
 def _dropout_inverted_kernel(
-    x_ptr, y_ptr, n_elements, p, seed,
+    x_ptr,
+    y_ptr,
+    n_elements,
+    p,
+    seed,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -203,8 +235,8 @@ def _dropout_inverted_kernel(
     x = tl.load(x_ptr + offs, mask=mask, other=0.0)
     offs_u32 = offs.to(tl.uint32)
     seed_v = tl.full([BLOCK_SIZE], seed, dtype=tl.uint32)
-    c1 = tl.full([BLOCK_SIZE], 0x85ebca6b, dtype=tl.uint32)
-    c2 = tl.full([BLOCK_SIZE], 0xc2b2ae35, dtype=tl.uint32)
+    c1 = tl.full([BLOCK_SIZE], 0x85EBCA6B, dtype=tl.uint32)
+    c2 = tl.full([BLOCK_SIZE], 0xC2B2AE35, dtype=tl.uint32)
     h = offs_u32 ^ seed_v
     h = h ^ (h >> 16)
     h = h * c1
@@ -226,14 +258,18 @@ def _dropout_inverted_kernel(
 # XPU-specific change: expose grf_mode as constexpr launch parameter.
 # -------------------------------------------------------------------
 
+
 @triton.autotune(
     configs=_configs_min_clamp_only(),
-    key=['n_elements'],
+    key=["n_elements"],
 )
 @triton.jit
 def _min_clamp_only_kernel(
-    x_ptr, y_ptr, n_elements,
-    clamp_min, clamp_max,
+    x_ptr,
+    y_ptr,
+    n_elements,
+    clamp_min,
+    clamp_max,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -251,13 +287,18 @@ def _min_clamp_only_kernel(
 
 @triton.autotune(
     configs=_configs_min_clamp_dropout(),
-    key=['n_elements'],
+    key=["n_elements"],
 )
 @triton.jit
 def _min_clamp_dropout_kernel(
-    x_ptr, y_ptr, n_elements,
-    clamp_min, clamp_max,
-    p, inv_keep, seed,
+    x_ptr,
+    y_ptr,
+    n_elements,
+    clamp_min,
+    clamp_max,
+    p,
+    inv_keep,
+    seed,
     BLOCK_SIZE: tl.constexpr,
     grf_mode: tl.constexpr = "auto",
 ):
@@ -274,8 +315,8 @@ def _min_clamp_dropout_kernel(
 
     offs_u32 = offs.to(tl.uint32)
     seed_u32 = tl.full([BLOCK_SIZE], seed, dtype=tl.uint32)
-    c1 = tl.full([BLOCK_SIZE], 0x85ebca6b, dtype=tl.uint32)
-    c2 = tl.full([BLOCK_SIZE], 0xc2b2ae35, dtype=tl.uint32)
+    c1 = tl.full([BLOCK_SIZE], 0x85EBCA6B, dtype=tl.uint32)
+    c2 = tl.full([BLOCK_SIZE], 0xC2B2AE35, dtype=tl.uint32)
     h = offs_u32 ^ seed_u32
     h = h ^ (h >> 16)
     h = h * c1
@@ -327,15 +368,18 @@ def fused_min_clamp(x, min_value, max_value):
         return (triton.cdiv(n, meta["BLOCK_SIZE"]),)
 
     _min_clamp_only_kernel[_grid](
-        x_contig, y, n,
-        float(min_value), float(max_value),
+        x_contig,
+        y,
+        n,
+        float(min_value),
+        float(max_value),
         grf_mode="auto",
     )
     return y
 
 
 def fused_dropout(x, p=0.2, seed=0, training=True):
-    if x.device.type != 'xpu':
+    if x.device.type != "xpu":
         raise RuntimeError("Expected 'xpu' device")
     if x.dtype not in (torch.float16, torch.bfloat16):
         raise TypeError("Unsupported dtype")
@@ -349,10 +393,14 @@ def fused_dropout(x, p=0.2, seed=0, training=True):
     x_contig = x.contiguous()
 
     def _grid_meta(meta):
-        return (triton.cdiv(n, meta['BLOCK_SIZE']),)
+        return (triton.cdiv(n, meta["BLOCK_SIZE"]),)
 
     _dropout_inverted_kernel[_grid_meta](
-        x_contig, y, n, p, int(seed),
+        x_contig,
+        y,
+        n,
+        p,
+        int(seed),
         grf_mode="auto",
     )
     return y
@@ -371,15 +419,23 @@ def fused_min_clamp_dropout(x, min_value, max_value, p=0.2, seed=0, training=Tru
     if training:
         inv_keep = 1.0 / (1.0 - float(p))
         _min_clamp_dropout_kernel[_grid](
-            x_xpu, y, n,
-            float(min_value), float(max_value),
-            float(p), float(inv_keep), int(seed),
+            x_xpu,
+            y,
+            n,
+            float(min_value),
+            float(max_value),
+            float(p),
+            float(inv_keep),
+            int(seed),
             grf_mode="auto",
         )
     else:
         _min_clamp_only_kernel[_grid](
-            x_xpu, y, n,
-            float(min_value), float(max_value),
+            x_xpu,
+            y,
+            n,
+            float(min_value),
+            float(max_value),
             grf_mode="auto",
         )
     return y
@@ -389,10 +445,18 @@ def fused_min_clamp_dropout(x, min_value, max_value, p=0.2, seed=0, training=Tru
 # Composite kernel_function
 # -------------------------------------------------------------------
 
+
 def kernel_function(
-    x, conv_weight, conv_bias, gn_weight, gn_bias,
-    min_value=0.0, max_value=1.0,
-    dropout_p=0.2, seed=0, training=True
+    x,
+    conv_weight,
+    conv_bias,
+    gn_weight,
+    gn_bias,
+    min_value=0.0,
+    max_value=1.0,
+    dropout_p=0.2,
+    seed=0,
+    training=True,
 ):
     x_xpu = _ensure_xpu_fp16_contiguous(x)
     w_xpu = _ensure_xpu_fp16_contiguous(conv_weight)
@@ -433,11 +497,28 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, groups, min_value, max_value, dropout_p]
+    return [
+        in_channels,
+        out_channels,
+        kernel_size,
+        groups,
+        min_value,
+        max_value,
+        dropout_p,
+    ]
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, groups, min_value, max_value, dropout_p):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        groups,
+        min_value,
+        max_value,
+        dropout_p,
+    ):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
         self.norm = nn.GroupNorm(groups, out_channels)
@@ -448,18 +529,48 @@ class Model(nn.Module):
     def forward(self, x):
         x = _ensure_xpu_fp16_contiguous(x)
 
-        if self.conv.weight.device.type != "xpu" or self.conv.weight.dtype != torch.float16 or not self.conv.weight.is_contiguous():
-            self.conv.weight.data = self.conv.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.conv.bias.device.type != "xpu" or self.conv.bias.dtype != torch.float16 or not self.conv.bias.is_contiguous():
-            self.conv.bias.data = self.conv.bias.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.norm.weight.device.type != "xpu" or self.norm.weight.dtype != torch.float16 or not self.norm.weight.is_contiguous():
-            self.norm.weight.data = self.norm.weight.data.to("xpu", dtype=torch.float16).contiguous()
-        if self.norm.bias.device.type != "xpu" or self.norm.bias.dtype != torch.float16 or not self.norm.bias.is_contiguous():
-            self.norm.bias.data = self.norm.bias.data.to("xpu", dtype=torch.float16).contiguous()
+        if (
+            self.conv.weight.device.type != "xpu"
+            or self.conv.weight.dtype != torch.float16
+            or not self.conv.weight.is_contiguous()
+        ):
+            self.conv.weight.data = self.conv.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.conv.bias.device.type != "xpu"
+            or self.conv.bias.dtype != torch.float16
+            or not self.conv.bias.is_contiguous()
+        ):
+            self.conv.bias.data = self.conv.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.norm.weight.device.type != "xpu"
+            or self.norm.weight.dtype != torch.float16
+            or not self.norm.weight.is_contiguous()
+        ):
+            self.norm.weight.data = self.norm.weight.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
+        if (
+            self.norm.bias.device.type != "xpu"
+            or self.norm.bias.dtype != torch.float16
+            or not self.norm.bias.is_contiguous()
+        ):
+            self.norm.bias.data = self.norm.bias.data.to(
+                "xpu", dtype=torch.float16
+            ).contiguous()
 
         return kernel_function(
-            x, self.conv.weight, self.conv.bias,
-            self.norm.weight, self.norm.bias,
-            min_value=self.min_value, max_value=self.max_value,
-            dropout_p=self.dropout_p, seed=0, training=False
+            x,
+            self.conv.weight,
+            self.conv.bias,
+            self.norm.weight,
+            self.norm.bias,
+            min_value=self.min_value,
+            max_value=self.max_value,
+            dropout_p=self.dropout_p,
+            seed=0,
+            training=False,
         )
