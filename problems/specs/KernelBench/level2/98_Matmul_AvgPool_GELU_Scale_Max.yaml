@@ -1,34 +1,31 @@
+# KernelBench YAML config for 98_Matmul_AvgPool_GELU_Scale_Max
 inputs:
   X:
     shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
   - dim: POOL_KERNEL_SIZE
-  - dim: SCALE
-
+  - dim: SCALE_FACTOR
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH: 2
-      IN_FEAT: 64
-      OUT_FEAT: 64
-      POOL_KERNEL_SIZE: 8
-      SCALE: 2.0
-    flop: "BATCH*IN_FEAT*(POOL_KERNEL_SIZE-1) + 2*BATCH*OUT_FEAT*IN_FEAT + BATCH*OUT_FEAT"
-
+      BATCH: 16
+      IN_FEAT: 128
+      OUT_FEAT: 128
+      POOL_KERNEL_SIZE: 16
+      SCALE_FACTOR: 2.0
+      BATCH_SIZE: 16
 bench-gpu:
   - params: [X]
     dtype: float16
     dims:
       BATCH: 1024
-      IN_FEAT: 4096
-      OUT_FEAT: 4096
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
       POOL_KERNEL_SIZE: 16
-      SCALE: 2.0
-    flop: "BATCH*IN_FEAT*(POOL_KERNEL_SIZE-1) + 2*BATCH*OUT_FEAT*IN_FEAT + BATCH*OUT_FEAT"
-    rtol: 1.1e-03
-    atol: 1.0e-05
+      SCALE_FACTOR: 2.0
+      BATCH_SIZE: 1024
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"

@@ -1,8 +1,8 @@
+# KernelBench YAML config for 13_ConvTranspose3d_Mean_Add_Softmax_Tanh_Scaling
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -10,18 +10,34 @@ inits:
   - dim: STRIDE
   - dim: PADDING
   - dim: SCALING_FACTOR
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 16
-      DEPTH: 8
-      HEIGHT: 16
-      WIDTH: 16
+      BATCH: 16
+      IN_CHANNELS: 16
+      OUT_CHANNELS: 64
+      DEPTH: 32
       KERNEL_SIZE: 3
+      HEIGHT: 2
+      WIDTH: 2
       STRIDE: 1
       PADDING: 1
       SCALING_FACTOR: 2.0
+      BATCH_SIZE: 16
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 16
+      IN_CHANNELS: 16
+      OUT_CHANNELS: 64
+      DEPTH: 32
+      KERNEL_SIZE: 3
+      HEIGHT: 128
+      WIDTH: 128
+      STRIDE: 1
+      PADDING: 1
+      SCALING_FACTOR: 2.0
+      BATCH_SIZE: 16
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE**3*DEPTH*HEIGHT*WIDTH"

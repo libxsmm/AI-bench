@@ -1,20 +1,33 @@
+# KernelBench YAML config for 25_Conv2d_Min_Tanh_Tanh
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
   - dim: KERNEL_SIZE
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 2
-      OUT_CHANNELS: 8
-      HEIGHT: 32
-      WIDTH: 32
+      BATCH: 2
+      IN_CHANNELS: 16
+      OUT_CHANNELS: 64
+      HEIGHT: 4
+      WIDTH: 4
       KERNEL_SIZE: 3
+      BATCH_SIZE: 2
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 16
+      OUT_CHANNELS: 64
+      HEIGHT: 256
+      WIDTH: 256
+      KERNEL_SIZE: 3
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

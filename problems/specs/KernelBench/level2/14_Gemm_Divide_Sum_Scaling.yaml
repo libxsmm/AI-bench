@@ -1,31 +1,32 @@
+# KernelBench YAML config for 14_Gemm_Divide_Sum_Scaling
 inputs:
   X:
-    shape: [BATCH, IN_SIZE]
+    shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
-  - dim: IN_SIZE
+  - dim: INPUT_SIZE
   - dim: HIDDEN_SIZE
-  - dim: SCALE
-
+  - dim: SCALING_FACTOR
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH: 2
-      IN_SIZE: 64
-      HIDDEN_SIZE: 64
-      SCALE: 1.5
-    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
-
+      BATCH: 16
+      IN_FEAT: 128
+      OUT_FEAT: 64
+      SCALING_FACTOR: 1.5
+      BATCH_SIZE: 16
+      INPUT_SIZE: 128
+      HIDDEN_SIZE: 128
 bench-gpu:
   - params: [X]
     dtype: float16
     dims:
       BATCH: 1024
-      IN_SIZE: 4096
-      HIDDEN_SIZE: 4096
-      SCALE: 1.5
-    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
-    rtol: 0.9783239365
-    atol: 1.0e-05
+      IN_FEAT: 8192
+      OUT_FEAT: 4096
+      SCALING_FACTOR: 1.5
+      BATCH_SIZE: 1024
+      INPUT_SIZE: 8192
+      HIDDEN_SIZE: 8192
+    flop: "2*BATCH*INPUT_SIZE*HIDDEN_SIZE"

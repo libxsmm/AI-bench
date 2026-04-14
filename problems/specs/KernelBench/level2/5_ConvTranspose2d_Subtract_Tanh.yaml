@@ -1,22 +1,41 @@
+# KernelBench YAML config for 5_ConvTranspose2d_Subtract_Tanh
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
   - dim: KERNEL_SIZE
   - dim: BIAS_SHAPE
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 8
-      OUT_CHANNELS: 8
-      HEIGHT: 32
-      WIDTH: 32
+      BATCH: 32
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 64
       KERNEL_SIZE: 4
-      BIAS_SHAPE: [8, 1, 1] # TODO: bind these to other dims
+      HEIGHT: 4
+      WIDTH: 4
+      BIAS_SHAPE: [64, 1, 1]
+      STRIDE: 2
+      PADDING: 1
+      OUTPUT_PADDING: 1
+      BATCH_SIZE: 32
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 32
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 64
+      KERNEL_SIZE: 4
+      HEIGHT: 256
+      WIDTH: 256
+      BIAS_SHAPE: [64, 1, 1]
+      STRIDE: 2
+      PADDING: 1
+      OUTPUT_PADDING: 1
+      BATCH_SIZE: 32
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*HEIGHT*WIDTH"

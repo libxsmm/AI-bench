@@ -1,8 +1,8 @@
+# KernelBench YAML config for 82_Conv2d_Tanh_Scaling_BiasAdd_Max
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -10,17 +10,32 @@ inits:
   - dim: SCALING_FACTOR
   - dim: BIAS_SHAPE
   - dim: POOL_KERNEL_SIZE
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
+      BATCH: 2
+      IN_CHANNELS: 8
       OUT_CHANNELS: 16
-      HEIGHT: 32
-      WIDTH: 32
+      HEIGHT: 16
+      WIDTH: 16
       KERNEL_SIZE: 3
       SCALING_FACTOR: 2.0
-      BIAS_SHAPE: [16, 1, 1] # TODO: bind these to other dims
+      BIAS_SHAPE: [16, 1, 1]
+      POOL_KERNEL_SIZE: 2
+      BATCH_SIZE: 2
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 64
+      HEIGHT: 256
+      WIDTH: 256
+      KERNEL_SIZE: 3
+      SCALING_FACTOR: 2.0
+      BIAS_SHAPE: [64, 1, 1]
       POOL_KERNEL_SIZE: 4
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

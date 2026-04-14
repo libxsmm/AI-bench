@@ -1,8 +1,8 @@
+# KernelBench YAML config for 72_ConvTranspose3d_BatchNorm_AvgPool_AvgPool
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -10,18 +10,34 @@ inits:
   - dim: STRIDE
   - dim: PADDING
   - dim: BIAS_SHAPE
-
 ci:
   - params: [X]
-    dtype: float32 # "avg_pool3d_out_frame" not implemented for 'Half'
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
+      BATCH: 64
       IN_CHANNELS: 3
-      OUT_CHANNELS: 8
-      DEPTH: 16
-      HEIGHT: 16
-      WIDTH: 16
+      OUT_CHANNELS: 16
+      DEPTH: 32
+      HEIGHT: 32
+      WIDTH: 32
       KERNEL_SIZE: 3
       STRIDE: 2
       PADDING: 1
-      BIAS_SHAPE: [8, 1, 1, 1] # TODO: bind these to other dims
+      BIAS_SHAPE: [16, 1, 1, 1]
+      BATCH_SIZE: 64
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 64
+      IN_CHANNELS: 3
+      OUT_CHANNELS: 16
+      DEPTH: 32
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 3
+      STRIDE: 2
+      PADDING: 1
+      BIAS_SHAPE: [16, 1, 1, 1]
+      BATCH_SIZE: 64
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE**3*DEPTH*HEIGHT*WIDTH"

@@ -1,8 +1,8 @@
+# KernelBench YAML config for 38_ConvTranspose3d_AvgPool_Clamp_Softmax_Multiply
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -13,17 +13,16 @@ inits:
   - dim: POOL_KERNEL_SIZE
   - dim: CLAMP_MIN
   - dim: CLAMP_MAX
-
 ci:
   - params: [X]
-    dtype: float32 # "avg_pool3d_out_frame" not implemented for 'Half'
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 8
-      DEPTH: 8
-      HEIGHT: 16
-      WIDTH: 16
+      BATCH: 32
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
+      DEPTH: 32
+      HEIGHT: 64
+      WIDTH: 64
       KERNEL_SIZE: 3
       STRIDE: 2
       PADDING: 1
@@ -31,3 +30,23 @@ ci:
       POOL_KERNEL_SIZE: 2
       CLAMP_MIN: 0.0
       CLAMP_MAX: 1.0
+      BATCH_SIZE: 32
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 16
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 3
+      STRIDE: 2
+      PADDING: 1
+      OUTPUT_PADDING: 1
+      POOL_KERNEL_SIZE: 2
+      CLAMP_MIN: 0.0
+      CLAMP_MAX: 1.0
+      BATCH_SIZE: 16
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE**3*DEPTH*HEIGHT*WIDTH"

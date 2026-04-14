@@ -1,18 +1,28 @@
+# KernelBench YAML config for 40_Matmul_Scaling_ResidualAdd
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_FEATURES]
+    shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
-  - dim: IN_FEATURES
-  - dim: OUT_FEATURES
+  - dim: IN_FEAT
+  - dim: OUT_FEAT
   - dim: SCALING_FACTOR
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_FEATURES: 32
-      OUT_FEATURES: 32
+      BATCH: 256
+      IN_FEAT: 64
+      OUT_FEAT: 64
       SCALING_FACTOR: 0.5
+      BATCH_SIZE: 256
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 16384
+      IN_FEAT: 4096
+      OUT_FEAT: 4096
+      SCALING_FACTOR: 0.5
+      BATCH_SIZE: 16384
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"

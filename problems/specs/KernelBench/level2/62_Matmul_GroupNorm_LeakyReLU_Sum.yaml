@@ -1,18 +1,36 @@
+# KernelBench YAML config for 62_Matmul_GroupNorm_LeakyReLU_Sum
 inputs:
   X:
-    shape: [BATCH_SIZE, INPUT_SIZE]
+    shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
   - dim: INPUT_SIZE
   - dim: HIDDEN_SIZE
   - dim: NUM_GROUPS
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      INPUT_SIZE: 32
-      HIDDEN_SIZE: 32
-      NUM_GROUPS: 4
+      BATCH: 16
+      IN_FEAT: 128
+      NUM_GROUPS: 8
+      OUT_FEAT: 64
+      EPS: 1.0e-05
+      NEGATIVE_SLOPE: 0.01
+      BATCH_SIZE: 16
+      INPUT_SIZE: 128
+      HIDDEN_SIZE: 128
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 8192
+      NUM_GROUPS: 512
+      OUT_FEAT: 4096
+      EPS: 1.0e-05
+      NEGATIVE_SLOPE: 0.01
+      BATCH_SIZE: 1024
+      INPUT_SIZE: 8192
+      HIDDEN_SIZE: 8192
+    flop: "2*BATCH*INPUT_SIZE*HIDDEN_SIZE"

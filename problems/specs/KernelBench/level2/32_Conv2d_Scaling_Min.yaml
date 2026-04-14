@@ -1,22 +1,35 @@
+# KernelBench YAML config for 32_Conv2d_Scaling_Min
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
   - dim: KERNEL_SIZE
   - dim: SCALE_FACTOR
-
 ci:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 8
-      HEIGHT: 32
-      WIDTH: 32
+      BATCH: 64
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 2
       KERNEL_SIZE: 3
+      HEIGHT: 4
+      WIDTH: 4
       SCALE_FACTOR: 2.0
+      BATCH_SIZE: 64
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 64
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 128
+      KERNEL_SIZE: 3
+      HEIGHT: 256
+      WIDTH: 256
+      SCALE_FACTOR: 2.0
+      BATCH_SIZE: 64
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

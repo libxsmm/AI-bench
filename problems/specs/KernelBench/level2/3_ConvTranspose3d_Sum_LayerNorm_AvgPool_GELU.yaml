@@ -1,8 +1,8 @@
+# KernelBench YAML config for 3_ConvTranspose3d_Sum_LayerNorm_AvgPool_GELU
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -13,21 +13,40 @@ inits:
   - dim: SUM_WEIGHT
   - dim: NORM_SHAPE
   - dim: POOL_KERNEL_SIZE
-
 ci:
   - params: [X]
-    dtype: float32 # "avg_pool3d_out_frame" not implemented for 'Half'
+    dtype: float16
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 16
-      DEPTH: 4
-      HEIGHT: 8
-      WIDTH: 8
+      BATCH: 32
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
       KERNEL_SIZE: [3, 3, 3]
       STRIDE: [2, 2, 2]
       PADDING: [1, 1, 1]
       OUTPUT_PADDING: [1, 1, 1]
       SUM_WEIGHT: 1.0
-      NORM_SHAPE: [16] # TODO: bind these to other dims
+      NORM_SHAPE: [64]
       POOL_KERNEL_SIZE: [2, 2, 2]
+      BATCH_SIZE: 32
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 32
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: [3, 3, 3]
+      STRIDE: [2, 2, 2]
+      PADDING: [1, 1, 1]
+      OUTPUT_PADDING: [1, 1, 1]
+      SUM_WEIGHT: 1.0
+      NORM_SHAPE: [64]
+      POOL_KERNEL_SIZE: [2, 2, 2]
+      BATCH_SIZE: 32
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*27*DEPTH*HEIGHT*WIDTH"
