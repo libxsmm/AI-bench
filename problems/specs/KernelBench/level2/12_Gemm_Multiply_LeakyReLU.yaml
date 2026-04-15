@@ -2,7 +2,7 @@
 inputs:
   X:
     shape: [BATCH, IN_FEAT]
-    dtype: float16
+    dtype: inherit
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT

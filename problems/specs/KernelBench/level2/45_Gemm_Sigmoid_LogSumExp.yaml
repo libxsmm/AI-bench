@@ -2,7 +2,7 @@
 inputs:
   X:
     shape: [BATCH, INPUT_SIZE]
-    dtype: float16
+    dtype: inherit
 inits:
   - dim: INPUT_SIZE
   - dim: HIDDEN_SIZE
