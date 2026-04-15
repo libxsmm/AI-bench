@@ -12,7 +12,7 @@ inits:
   - dim: SCALING_FACTOR
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH: 16
       IN_CHANNELS: 16

@@ -10,7 +10,7 @@ inits:
   - dim: MULTIPLY_VALUE
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH: 16
       IN_FEAT: 128

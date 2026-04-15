@@ -9,7 +9,7 @@ inits:
   - dim: OUTPUT_SIZE
 ci:
   - params: [X]
-    dtype: float16
+    dtype: float32
     dims:
       BATCH: 256
       INPUT_SIZE: 32
