@@ -11,13 +11,13 @@ Environment variables:
     AIBENCH_SYCL_TARGET     Target device for AOT compilation (default: bmg-g31)
 """
 
+from dataclasses import dataclass
 import logging
 import os
+from pathlib import Path
 import re
 import subprocess
 import tempfile
-from dataclasses import dataclass
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
