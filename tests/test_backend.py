@@ -22,16 +22,20 @@ class TestBackendEnum:
         assert ai_hc.Backend.TRITON == "triton"
         assert ai_hc.Backend.HELION == "helion"
         assert ai_hc.Backend.MLIR == "mlir"
+        assert ai_hc.Backend.GLUON == "gluon"
+        assert ai_hc.Backend.SYCL == "sycl"
 
     def test_backend_iteration(self):
         """Test that all backends can be iterated."""
         backends = list(ai_hc.Backend)
-        assert len(backends) == 5
+        assert len(backends) == 7
         assert ai_hc.Backend.PYTORCH in backends
         assert ai_hc.Backend.PYTORCH_COMPILE in backends
         assert ai_hc.Backend.TRITON in backends
         assert ai_hc.Backend.HELION in backends
         assert ai_hc.Backend.MLIR in backends
+        assert ai_hc.Backend.GLUON in backends
+        assert ai_hc.Backend.SYCL in backends
 
     def test_backend_from_string(self):
         """Test creating backend from string."""
@@ -40,6 +44,8 @@ class TestBackendEnum:
         assert ai_hc.Backend("triton") == ai_hc.Backend.TRITON
         assert ai_hc.Backend("helion") == ai_hc.Backend.HELION
         assert ai_hc.Backend("mlir") == ai_hc.Backend.MLIR
+        assert ai_hc.Backend("gluon") == ai_hc.Backend.GLUON
+        assert ai_hc.Backend("sycl") == ai_hc.Backend.SYCL
 
     def test_backend_invalid_string(self):
         """Test that invalid string raises error."""
@@ -236,6 +242,34 @@ class TestKernelBenchRunnerInit:
 
         assert kb_runner.backend == ai_hc.Backend.MLIR
         assert "mlir" in str(kb_runner.kernels)
+
+    @mock.patch("os.path.isdir")
+    def test_init_gluon_backend(self, mock_isdir):
+        """Test runner initialization with Gluon backend."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            spec_type=ai_hc.SpecKey.V_CI,
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.GLUON,
+        )
+
+        assert kb_runner.backend == ai_hc.Backend.GLUON
+        assert "gluon" in str(kb_runner.kernels)
+
+    @mock.patch("os.path.isdir")
+    def test_init_sycl_backend(self, mock_isdir):
+        """Test runner initialization with SYCL backend."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            spec_type=ai_hc.SpecKey.V_CI,
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.SYCL,
+        )
+
+        assert kb_runner.backend == ai_hc.Backend.SYCL
+        assert "sycl" in str(kb_runner.kernels)
 
     @mock.patch("os.path.isdir")
     def test_init_missing_kernels_dir(self, mock_isdir):

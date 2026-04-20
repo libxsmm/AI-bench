@@ -16,6 +16,8 @@ _kernels_dir: Path | None = None
 _triton_kernels_dir: Path | None = None
 _helion_kernels_dir: Path | None = None
 _mlir_kernels_dir: Path | None = None
+_gluon_kernels_dir: Path | None = None
+_sycl_kernels_dir: Path | None = None
 _env_loaded: bool = False
 
 
@@ -86,6 +88,8 @@ def configure(
     triton_kernels_dir: Path | str | None = None,
     helion_kernels_dir: Path | str | None = None,
     mlir_kernels_dir: Path | str | None = None,
+    gluon_kernels_dir: Path | str | None = None,
+    sycl_kernels_dir: Path | str | None = None,
 ) -> None:
     """Configure library paths.
 
@@ -97,6 +101,8 @@ def configure(
         triton_kernels_dir: Path to Triton kernel implementations
         helion_kernels_dir: Path to Helion kernel implementations
         mlir_kernels_dir: Path to MLIR kernel implementations
+        gluon_kernels_dir: Path to Gluon kernel implementations
+        sycl_kernels_dir: Path to SYCL kernel implementations
 
     Example:
         >>> import ai_bench
@@ -110,7 +116,9 @@ def configure(
         _kernels_dir, \
         _triton_kernels_dir, \
         _helion_kernels_dir, \
-        _mlir_kernels_dir
+        _mlir_kernels_dir, \
+        _gluon_kernels_dir, \
+        _sycl_kernels_dir
 
     if specs_dir is not None:
         _specs_dir = Path(specs_dir)
@@ -122,6 +130,10 @@ def configure(
         _helion_kernels_dir = Path(helion_kernels_dir)
     if mlir_kernels_dir is not None:
         _mlir_kernels_dir = Path(mlir_kernels_dir)
+    if gluon_kernels_dir is not None:
+        _gluon_kernels_dir = Path(gluon_kernels_dir)
+    if sycl_kernels_dir is not None:
+        _sycl_kernels_dir = Path(sycl_kernels_dir)
 
 
 def reset_configuration() -> None:
@@ -135,12 +147,16 @@ def reset_configuration() -> None:
         _triton_kernels_dir, \
         _helion_kernels_dir, \
         _mlir_kernels_dir, \
+        _gluon_kernels_dir, \
+        _sycl_kernels_dir, \
         _env_loaded
     _specs_dir = None
     _kernels_dir = None
     _triton_kernels_dir = None
     _helion_kernels_dir = None
     _mlir_kernels_dir = None
+    _gluon_kernels_dir = None
+    _sycl_kernels_dir = None
     _env_loaded = False
 
 
@@ -336,4 +352,62 @@ def mlir_kernels_dir() -> Path:
         "AIBENCH_MLIR_KERNELS_DIR",
         default,
         "MLIR kernels directory",
+    )
+
+
+def gluon_kernels_dir() -> Path:
+    """Path to the Gluon kernels directory.
+
+    Can be configured via:
+    - ai_bench.configure(gluon_kernels_dir=...)
+    - AIBENCH_GLUON_KERNELS_DIR environment variable
+    - Auto-detected from project structure
+
+    Returns:
+        Path to Gluon kernels directory
+
+    Raises:
+        ConfigurationError: If path cannot be determined
+    """
+
+    def default() -> Path:
+        path = project_root() / "backends" / "gluon"
+        if not path.exists():
+            raise FileNotFoundError(f"Default Gluon kernels path not found: {path}")
+        return path
+
+    return _get_path(
+        _gluon_kernels_dir,
+        "AIBENCH_GLUON_KERNELS_DIR",
+        default,
+        "Gluon kernels directory",
+    )
+
+
+def sycl_kernels_dir() -> Path:
+    """Path to the SYCL kernels directory.
+
+    Can be configured via:
+    - ai_bench.configure(sycl_kernels_dir=...)
+    - AIBENCH_SYCL_KERNELS_DIR environment variable
+    - Auto-detected from project structure
+
+    Returns:
+        Path to SYCL kernels directory
+
+    Raises:
+        ConfigurationError: If path cannot be determined
+    """
+
+    def default() -> Path:
+        path = project_root() / "backends" / "sycl"
+        if not path.exists():
+            raise FileNotFoundError(f"Default SYCL kernels path not found: {path}")
+        return path
+
+    return _get_path(
+        _sycl_kernels_dir,
+        "AIBENCH_SYCL_KERNELS_DIR",
+        default,
+        "SYCL kernels directory",
     )

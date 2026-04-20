@@ -133,6 +133,18 @@ Environment file (.env) example:
         default=None,
         help="Path to MLIR kernels directory (default: auto-detect or AIBENCH_MLIR_KERNELS_DIR)",
     )
+    path_group.add_argument(
+        "--gluon-kernels-dir",
+        type=Path,
+        default=None,
+        help="Path to Gluon kernels directory (default: auto-detect or AIBENCH_GLUON_KERNELS_DIR)",
+    )
+    path_group.add_argument(
+        "--sycl-kernels-dir",
+        type=Path,
+        default=None,
+        help="Path to SYCL kernels directory (default: auto-detect or AIBENCH_SYCL_KERNELS_DIR)",
+    )
 
     # Device options
     device_group = parser.add_argument_group("device options")
@@ -176,6 +188,18 @@ Environment file (.env) example:
         action="store_true",
         default=False,
         help="Use MLIR backend",
+    )
+    backend_exclusive.add_argument(
+        "--gluon",
+        action="store_true",
+        default=False,
+        help="Use Gluon backend",
+    )
+    backend_exclusive.add_argument(
+        "--sycl",
+        action="store_true",
+        default=False,
+        help="Use SYCL/XeTLA backend",
     )
 
     # Run mode
@@ -248,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
         or args.triton_kernels_dir
         or args.helion_kernels_dir
         or args.mlir_kernels_dir
+        or args.gluon_kernels_dir
+        or args.sycl_kernels_dir
     ):
         finder.configure(
             specs_dir=args.specs_dir,
@@ -255,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
             triton_kernels_dir=args.triton_kernels_dir,
             helion_kernels_dir=args.helion_kernels_dir,
             mlir_kernels_dir=args.mlir_kernels_dir,
+            gluon_kernels_dir=args.gluon_kernels_dir,
+            sycl_kernels_dir=args.sycl_kernels_dir,
         )
 
     # Determine device
@@ -274,6 +302,10 @@ def main(argv: list[str] | None = None) -> int:
         backend = core.Backend.PYTORCH_COMPILE
     elif args.mlir:
         backend = core.Backend.MLIR
+    elif args.gluon:
+        backend = core.Backend.GLUON
+    elif args.sycl:
+        backend = core.Backend.SYCL
     else:
         backend = core.Backend.PYTORCH
 

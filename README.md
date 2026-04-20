@@ -5,13 +5,13 @@
 [![KernelBench Perf](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml/badge.svg)](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
-A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR) and devices (CPU, XPU, CUDA).
+A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR, Gluon, SYCL/XeTLA) and devices (CPU, XPU, CUDA).
 
-| | PyTorch | Triton | Helion | MLIR |
-|:---:|:---:|:---:|:---:|:---:|
-| **CPU** | ✅ | ❌ | ❌ | ✅ |
-| **XPU** | ✅ | ✅ | ✅ | ❌ |
-| **CUDA** | ✅ | ✅ | ✅ | ❌ |
+| | PyTorch | Triton | Helion | MLIR | Gluon | SYCL/XeTLA |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **CPU** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **XPU** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **CUDA** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 
@@ -71,6 +71,12 @@ ai-bench --xpu --triton
 
 # Helion on XPU
 ai-bench --xpu --helion
+
+# Gluon on XPU
+ai-bench --xpu --gluon
+
+# SYCL/XeTLA on XPU (requires env setup, see below)
+ai-bench --xpu --sycl
 
 # Benchmark mode (with timing)
 ai-bench --xpu --bench
@@ -190,6 +196,8 @@ Notes legend:
 | `--torch-compile` | Use PyTorch compile mode (default: PyTorch eager) |
 | `--helion` | Use Helion backend (default: PyTorch eager) |
 | `--mlir` | Use MLIR backend (default: PyTorch eager) |
+| `--gluon` | Use Gluon backend (default: PyTorch eager) |
+| `--sycl` | Use SYCL/XeTLA backend (default: PyTorch eager) |
 | `--bench` | Run benchmarks with timing (default: CI validation) |
 | `--gflops` | Report GFLOPS (default: TFLOPS) |
 | `--mbs` | Report MB/s (default: GB/s) |
@@ -200,6 +208,8 @@ Notes legend:
 | `--triton-kernels-dir PATH` | Path to Triton kernels directory (CLI only) |
 | `--helion-kernels-dir PATH` | Path to Helion kernels directory (CLI only) |
 | `--mlir-kernels-dir PATH` | Path to MLIR kernels directory (CLI only) |
+| `--gluon-kernels-dir PATH` | Path to Gluon kernels directory (CLI only) |
+| `--sycl-kernels-dir PATH` | Path to SYCL kernels directory (CLI only) |
 | `--env-file PATH` | Path to .env file (default: auto-detect) |
 | `--no-env` | Disable loading .env config |
 
@@ -221,6 +231,30 @@ All checks can be run using:
 pre-commit run -a
 ```
 
+## SYCL/XeTLA Backend Setup
+
+The SYCL backend compiles and runs C++ CUTLASS kernels via `icpx`. It requires:
+
+1. **Intel oneAPI DPC++ compiler** (`icpx`) — install via [Intel oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit.html)
+2. **Intel GPU drivers** (Level Zero runtime)
+3. **sycl-tla headers** — `git clone https://github.com/intel/sycl-tla`
+
+Set the following environment variables before running:
+
+```bash
+export AIBENCH_SYCL_COMPILER=icpx
+export AIBENCH_SYCL_INCLUDE=/path/to/sycl-tla/include:/path/to/sycl-tla/tools/util/include:/path/to/sycl-tla/examples/common
+ai-bench --xpu --sycl --bench
+```
+
+A helper script `env/sycl.sh` is provided for convenience:
+
+```bash
+export SYCL_TLA_DIR=/path/to/sycl-tla
+source env/sycl.sh
+ai-bench --xpu --sycl --bench
+```
+
 ## Config variables
 
 Environment variables used for project configuration:
@@ -236,6 +270,11 @@ Environment variables used for project configuration:
 | `AIBENCH_MLIR_LIB_PATH` | Paths to MLIR shared libraries (colon separated) |
 | `AIBENCH_MLIR_DUMP` | Dump imported MLIR IR |
 | `AIBENCH_MLIR_DUMP_OBJ` | Dump jitted MLIR to an object file |
+| `AIBENCH_GLUON_KERNELS_DIR` | Path to Gluon kernels directory |
+| `AIBENCH_SYCL_KERNELS_DIR` | Path to SYCL kernels directory |
+| `AIBENCH_SYCL_COMPILER` | Path to SYCL compiler (default: `icpx`) |
+| `AIBENCH_SYCL_INCLUDE` | Colon-separated include paths for CUTLASS headers |
+| `AIBENCH_SYCL_FLAGS` | Extra compiler flags (space-separated) |
 
 ## License
 

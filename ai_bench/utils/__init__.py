@@ -2,12 +2,14 @@ from .equations import eval_ast
 from .equations import eval_eq
 from .finder import ConfigurationError
 from .finder import configure
+from .finder import gluon_kernels_dir
 from .finder import helion_kernels_dir
 from .finder import kernel_bench_dir
 from .finder import mlir_kernels_dir
 from .finder import project_root
 from .finder import reset_configuration
 from .finder import specs
+from .finder import sycl_kernels_dir
 from .finder import triton_kernels_dir
 from .flop_counter import count_torch_flop
 from .importer import import_from_path
@@ -22,6 +24,7 @@ __all__ = [
     "count_torch_memory_bytes",
     "eval_ast",
     "eval_eq",
+    "gluon_kernels_dir",
     "helion_kernels_dir",
     "import_from_path",
     "kernel_bench_dir",
@@ -29,5 +32,6 @@ __all__ = [
     "project_root",
     "reset_configuration",
     "specs",
+    "sycl_kernels_dir",
     "triton_kernels_dir",
 ]

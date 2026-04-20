@@ -11,6 +11,9 @@ from ai_bench import utils as ai_utils
 from ai_bench.harness import core as ai_hc
 from ai_bench.utils.csv_logger import CSVLogger
 
+_NATIVE_BACKENDS = frozenset({ai_hc.Backend.SYCL})
+_NATIVE_EXTENSIONS = {ai_hc.Backend.SYCL: ".cpp"}
+
 
 class KernelBenchRunner(KernelRunner):
     """
@@ -86,6 +89,14 @@ class KernelBenchRunner(KernelRunner):
             self.kernels = (
                 ai_utils.mlir_kernels_dir() / self.device.type / "KernelBench"
             )
+        elif self.backend == ai_hc.Backend.GLUON:
+            self.kernels = (
+                ai_utils.gluon_kernels_dir() / self.device.type / "KernelBench"
+            )
+        elif self.backend == ai_hc.Backend.SYCL:
+            self.kernels = (
+                ai_utils.sycl_kernels_dir() / self.device.type / "KernelBench"
+            )
         else:
             raise ValueError(f"Unsupported backend: {self.backend}")
 
@@ -103,10 +114,16 @@ class KernelBenchRunner(KernelRunner):
             [Path(entry) for entry in os.scandir(self.specs) if entry.is_dir()]
         )
 
+    def _kernel_extension(self) -> str:
+        """Return the kernel file extension for the current backend."""
+        return _NATIVE_EXTENSIONS.get(self.backend, ".py")
+
     def run_kernels(self):
         """Run all KernelBench kernels."""
         self.logger.info(f"Kernels: {self.kernels}")
         self.print_info(self.logger.info)
+
+        ext = self._kernel_extension()
 
         # Iterate over specs of kernel levels.
         for spec_dir in self.get_spec_dirs():
@@ -114,7 +131,7 @@ class KernelBenchRunner(KernelRunner):
             for file in sorted(os.listdir(spec_dir)):
                 # Spec and kernel file names are expected to be identical.
                 kernel_dir = self.kernels / spec_dir.name
-                kernel_file = Path(kernel_dir / file.replace(".yaml", ".py"))
+                kernel_file = Path(kernel_dir / file.replace(".yaml", ext))
 
                 # Run the kernel in all compatible variants.
                 run_stats: list[KernelStats] | None = self.run_kernel_spec(
@@ -152,3 +169,111 @@ class KernelBenchRunner(KernelRunner):
                         }
                         row.update(aibench_env)
                         self.csv_logger.log(row)
+
+    def run_kernel_spec(
+        self, kernel_path: Path | str, spec_path: Path | str
+    ) -> list[KernelStats] | None:
+        """Run a kernel with a spec.
+
+        Dispatches to native (subprocess) execution for SYCL backends,
+        otherwise falls through to the base Python-based runner.
+        """
+        if isinstance(kernel_path, str):
+            kernel_path = Path(kernel_path)
+        if isinstance(spec_path, str):
+            spec_path = Path(spec_path)
+
+        if self.backend in _NATIVE_BACKENDS:
+            return self._run_native_kernel_spec(kernel_path, spec_path)
+
+        return super().run_kernel_spec(kernel_path, spec_path)
+
+    def _run_native_kernel_spec(
+        self, kernel_path: Path, spec_path: Path
+    ) -> list[KernelStats] | None:
+        """Compile and run a native (C++) kernel via subprocess."""
+        from ai_bench.sycl.compiler import SYCLCompiler
+
+        import yaml
+
+        if not kernel_path.is_file():
+            self.logger.debug(f"Missing native kernel: {kernel_path}")
+            return None
+
+        with open(spec_path) as f:
+            spec = yaml.safe_load(f)
+
+        if self.spec_type not in spec:
+            return None
+
+        compiler = SYCLCompiler()
+        binary = compiler.compile(kernel_path)
+        if binary is None:
+            self.logger.error(f"Failed to compile: {kernel_path}")
+            return None
+
+        self.logger.info(
+            f"Kernel: {spec_path.parent.name} / {spec_path.name} [{self.backend}]"
+        )
+
+        variants = spec[self.spec_type]
+        stats = []
+        for variant in variants:
+            dims = variant.get("dims", {})
+            m = dims.get("M", dims.get("N", 128))
+            n = dims.get("N", m)
+            k = dims.get("K", m)
+
+            is_ci = self.spec_type == ai_hc.SpecKey.V_CI
+            iterations = 0 if is_ci else 20
+
+            self.logger.info(f"{'Validating' if is_ci else 'Benchmarking'}: {variant}")
+
+            result = compiler.run(
+                binary,
+                m=m,
+                n=n,
+                k=k,
+                iterations=iterations,
+                verify=1,
+            )
+
+            if not result.success:
+                self.logger.error(f"Execution failed: {result.error}")
+                if result.raw_output:
+                    self.logger.error(f"Output:\n{result.raw_output}")
+                continue
+
+            if result.passed is False:
+                self.logger.error("Correctness check FAILED")
+                continue
+
+            if is_ci:
+                self.logger.info("  Disposition: Passed")
+                continue
+
+            time_us = (result.time_ms * 1000) if result.time_ms else 0.0
+            flop = ai_hc.get_flop(variant)
+            flops_val = result.tflops
+            flops_unit = str(config.FlopsUnit.TFLOPS) if flops_val else None
+
+            self.logger.info(
+                f"  time [us]: {time_us:.6f} {flops_unit or ''}: {flops_val or ''}"
+            )
+
+            stats.append(
+                KernelStats(
+                    variant=variant,
+                    meas_us=time_us,
+                    flop=flop,
+                    flops=flops_val,
+                    flops_unit=flops_unit,
+                    flops_note=None,
+                    mem_bytes=ai_hc.get_mem_bytes(variant),
+                    mem_bw=None,
+                    mem_bw_unit=None,
+                    mem_note=None,
+                )
+            )
+
+        return stats if stats else None
