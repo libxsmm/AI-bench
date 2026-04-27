@@ -9,7 +9,7 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 
 | | PyTorch | Triton | Helion | MLIR | Gluon | SYCL |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **CPU** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **CPU** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | **XPU** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | **CUDA** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 
@@ -37,6 +37,9 @@ uv sync --extra xpu
 # CPU + CUDA
 uv sync --extra cuda
 
+# CPU + Triton-CPU backend (builds Triton from source)
+uv sync --extra cpu --extra triton-cpu
+
 # CPU + MLIR backend
 uv sync --extra cpu --extra mlir
 ```
@@ -53,6 +56,9 @@ ai-bench --help
 
 # PyTorch on CPU (default)
 ai-bench
+
+# Triton on CPU
+ai-bench --triton
 
 # MLIR on CPU
 ai-bench --mlir

@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import types
 
@@ -83,6 +84,20 @@ class KernelRunner:
         else:
             self.warmup = 25
             self.rep = 100
+
+        # Configure Triton backend.
+        #
+        # Torch inductor initializes Triton defaulting to CUDA whenever it is available.
+        # This can throw exception due to lacking CUDA support when Triton CPU is used.
+        # Thus, it is easiest to always configure Triton backend even if it is not actively used.
+        if self.is_cpu():
+            # It might be better to use Triton driver directly instead of env var.
+            # However, current coupling with tests prevents import of the triton module.
+            # TODO: Switch to direct call triton.runtime.driver.set_active_to_cpu()
+            os.environ["TRITON_CPU_BACKEND"] = "1"
+        else:
+            # Disable CPU backend - use default accelerator.
+            os.environ["TRITON_CPU_BACKEND"] = "0"
 
     def is_torch_backend(self) -> bool:
         """Check if the backend is a torch variant.

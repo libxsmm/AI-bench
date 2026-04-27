@@ -64,6 +64,19 @@ mlir = [
   "lighthouse[ingress_torch_mlir]",
   "ml-dtypes",
 ]
+# If triton-cpu build fails with a stale LLVM path, clear caches:
+#   rm -r ~/.triton/llvm
+#   rm -r ~/.cache/uv/git-v0/checkouts/*/[triton rev hash]/build
+triton-cpu = [
+  "triton",
+  # Extra build dependencies from triton-cpu requirements.txt.
+  "setuptools>=40.8.0",
+  "wheel",
+  "cmake>=3.20,<4.0",
+  "ninja>=1.11.1",
+  "pybind11>=2.13.1",
+  "lit",
+]
 
 [dependency-groups]
 dev = [
@@ -81,10 +94,17 @@ python_functions = ["test_*"]
 
 [tool.uv]
 conflicts = [
+  # Restrict to one device to avoid incompatible dependencies.
   [
     { extra = "cpu" },
     { extra = "xpu" },
     { extra = "cuda" },
+  ],
+  # Set as conflict to ensure correct Triton dependency is chosen between devices.
+  [
+    { extra = "xpu" },
+    { extra = "cuda" },
+    { extra = "triton-cpu" },
   ],
 ]
 override-dependencies = [
@@ -95,6 +115,7 @@ override-dependencies = [
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch" }
 pytorch-triton = { index = "pytorch" }
+triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "270e696" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "456475d" }
 mlir-python-bindings = { index = "eudsl" }
 
