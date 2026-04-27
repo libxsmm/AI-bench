@@ -106,11 +106,6 @@ Examples:
 
     parser.add_argument("--brief", action="store_true", help="Brief output")
     parser.add_argument(
-        "--channels-last",
-        action="store_true",
-        help="Use channels_last memory format for 4D tensors (NCHW → NHWC)",
-    )
-    parser.add_argument(
         "--variant",
         type=str,
         default=None,
@@ -153,7 +148,6 @@ Examples:
             rtol=args.rtol,
             atol=args.atol,
             backends=backends,
-            channels_last=args.channels_last,
         )
         (print_comparison_brief if args.brief else print_comparison)(results)
         return 0

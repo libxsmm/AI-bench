@@ -9,6 +9,7 @@ inits:
 ci:
   - params: [X]
     dtype: float32
+    memory_format: channels_last
     dims:
       BATCH_SIZE: 1
       INPUT_CHANNELS: 3

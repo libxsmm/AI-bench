@@ -193,24 +193,21 @@ class KernelRunner:
         model_obj: types.ModuleType,
         variant: dict,
         inits: list[dict],
-        channels_last: bool = False,
     ) -> torch.nn.Module:
         """Initialize model for given variant.
         Args:
             model_obj: Loaded base model
             variant: Specs' variant entry
-            spec_inits: Specs' inits entry
-            channels_last: If True, convert model to channels_last memory format
+            inits: Specs' inits entry
         Returns:
             PyTorch model
         """
         model_inits = ai_hc.get_inits(variant, inits)
         model_dtype = ai_hc.get_variant_torch_dtype(variant)
         model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
-        if channels_last:
-            has_3d = any(p.ndim == 5 for p in model.parameters())
-            fmt = torch.channels_last_3d if has_3d else torch.channels_last
-            model = model.to(memory_format=fmt)
+        memory_format = ai_hc.get_variant_memory_format(variant)
+        if memory_format is not None:
+            model = model.to(memory_format=memory_format)
         return model
 
     def benchmark_model(self, variant, model, args) -> KernelStats:

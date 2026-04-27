@@ -194,7 +194,6 @@ def benchmark_problem(
     rtol: float | None = None,
     atol: float | None = None,
     backends: Optional[List[ai_hc.Backend]] = None,
-    channels_last: bool = False,
 ) -> dict:
     """Benchmark a specific problem across multiple backends.
 
@@ -279,9 +278,7 @@ def benchmark_problem(
                 )
                 logger.info(f"Variant: {variants[variant_idx]}")
 
-                model = runner.init_model(
-                    model_obj, variants[variant_idx], inits, channels_last=channels_last
-                )
+                model = runner.init_model(model_obj, variants[variant_idx], inits)
                 if backend == str(ai_hc.Backend.PYTORCH_COMPILE):
                     model.compile(dynamic=False)
                 # save pytorch model for correctness check
@@ -290,10 +287,7 @@ def benchmark_problem(
 
                 # prepare inputs
                 inputs = ai_hc.get_inputs(
-                    variants[variant_idx],
-                    spec_inputs,
-                    device=runner.device,
-                    channels_last=channels_last,
+                    variants[variant_idx], spec_inputs, device=runner.device
                 )
 
                 # correctness check, only if we have a reference PyTorch model and we're not currently benchmarking the PyTorch backend
