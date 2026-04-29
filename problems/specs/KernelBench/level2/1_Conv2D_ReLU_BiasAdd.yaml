@@ -25,6 +25,7 @@ ci:
 bench-gpu:
   - params: [X]
     dtype: float16
+    memory_format: channels_last
     dims:
       BATCH: 128
       IN_CHANNELS: 64

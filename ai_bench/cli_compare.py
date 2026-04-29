@@ -105,6 +105,12 @@ Examples:
     # bench_group.add_argument("--no-clear-l2", action="store_true")
 
     parser.add_argument("--brief", action="store_true", help="Brief output")
+    parser.add_argument(
+        "--variant",
+        type=str,
+        default=None,
+        help="Variant name from spec (e.g. bench-gpu-1). Overrides default spec_type selection.",
+    )
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
@@ -123,7 +129,9 @@ Examples:
         device = torch.device("cpu")
 
     # Determine spec type
-    if args.ci:
+    if args.variant:
+        spec_type = args.variant
+    elif args.ci:
         spec_type = ai_hc.SpecKey.V_CI
     else:
         spec_type = (

@@ -62,6 +62,7 @@ class VKey(StrEnum):
 
     PARAMS = "params"
     TYPE = "dtype"
+    MEMORY_FORMAT = "memory_format"
     DIMS = "dims"
     FLOP = "flop"
     MEM_BYTES = "mem_bytes"
@@ -241,7 +242,9 @@ def _get_logger():
 
 
 def get_inputs(
-    variant: dict, inputs: dict, device: torch.device | None = None
+    variant: dict,
+    inputs: dict,
+    device: torch.device | None = None,
 ) -> list[torch.Tensor]:
     """Get torch tensors for given specs' config.
     Args:
@@ -282,6 +285,12 @@ def get_inputs(
         if InKey.INITS in input_entry:
             tensor = apply_input_inits(tensor, input_entry[InKey.INITS])
 
+        memory_format = get_variant_memory_format(variant)
+        if memory_format is not None:
+            expected_ndim = 5 if memory_format == torch.channels_last_3d else 4
+            if tensor.ndim == expected_ndim:
+                tensor = tensor.to(memory_format=memory_format)
+
         vals.append(tensor)
     return vals
 
@@ -314,6 +323,25 @@ def get_variant_torch_dtype(variant: dict) -> torch.dtype | None:
     if VKey.TYPE not in variant:
         return None
     return get_torch_dtype(variant[VKey.TYPE])
+
+
+def get_variant_memory_format(variant: dict) -> torch.memory_format | None:
+    """Get torch memory format for given specs' variant.
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        torch memory format if available
+    """
+    if VKey.MEMORY_FORMAT not in variant:
+        return None
+    fmt_str = variant[VKey.MEMORY_FORMAT]
+    fmt = getattr(torch, fmt_str, None)
+    if not isinstance(fmt, torch.memory_format):
+        raise ValueError(
+            f"Invalid memory_format '{fmt_str}'. "
+            f"Expected 'channels_last' or 'channels_last_3d'."
+        )
+    return fmt
 
 
 def _eval_variant_formula(variant: dict, key: VKey) -> float | None:

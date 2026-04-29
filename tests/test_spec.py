@@ -309,5 +309,83 @@ class TestInputInitializations:
         assert inputs[10].dtype == torch.float16
 
 
+class TestMemoryFormat:
+    """Tests for variant memory_format field."""
+
+    def test_channels_last_applied_to_4d(self):
+        """Test channels_last memory format is applied to 4D tensors."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["X"],
+            ai_hc.VKey.DIMS: {"N": 2, "C": 3, "H": 8, "W": 8},
+            ai_hc.VKey.TYPE: "float32",
+            ai_hc.VKey.MEMORY_FORMAT: "channels_last",
+        }
+        inputs = {
+            "X": {
+                ai_hc.InKey.SHAPE: ["N", "C", "H", "W"],
+                ai_hc.InKey.TYPE: "float32",
+            },
+        }
+
+        tensors = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert tensors[0].is_contiguous(memory_format=torch.channels_last)
+
+    def test_channels_last_not_applied_to_2d(self):
+        """Test channels_last memory format is not applied to non-4D tensors."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["X"],
+            ai_hc.VKey.DIMS: {"M": 4, "N": 8},
+            ai_hc.VKey.TYPE: "float32",
+            ai_hc.VKey.MEMORY_FORMAT: "channels_last",
+        }
+        inputs = {
+            "X": {
+                ai_hc.InKey.SHAPE: ["M", "N"],
+                ai_hc.InKey.TYPE: "float32",
+            },
+        }
+
+        tensors = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert tensors[0].is_contiguous(memory_format=torch.contiguous_format)
+
+    def test_no_memory_format(self):
+        """Test that tensors are contiguous when no memory_format is specified."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["X"],
+            ai_hc.VKey.DIMS: {"N": 2, "C": 3, "H": 8, "W": 8},
+            ai_hc.VKey.TYPE: "float32",
+        }
+        inputs = {
+            "X": {
+                ai_hc.InKey.SHAPE: ["N", "C", "H", "W"],
+                ai_hc.InKey.TYPE: "float32",
+            },
+        }
+
+        tensors = ai_hc.get_inputs(variant, inputs, device=torch.device("cpu"))
+        assert tensors[0].is_contiguous(memory_format=torch.contiguous_format)
+
+    def test_get_variant_memory_format(self):
+        """Test get_variant_memory_format returns correct format."""
+        assert ai_hc.get_variant_memory_format({}) is None
+        assert (
+            ai_hc.get_variant_memory_format({ai_hc.VKey.MEMORY_FORMAT: "channels_last"})
+            == torch.channels_last
+        )
+        assert (
+            ai_hc.get_variant_memory_format(
+                {ai_hc.VKey.MEMORY_FORMAT: "channels_last_3d"}
+            )
+            == torch.channels_last_3d
+        )
+
+    def test_invalid_memory_format(self):
+        """Test that invalid memory_format raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid memory_format"):
+            ai_hc.get_variant_memory_format(
+                {ai_hc.VKey.MEMORY_FORMAT: "invalid_format"}
+            )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

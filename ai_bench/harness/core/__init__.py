@@ -13,6 +13,7 @@ from .specs import get_inputs
 from .specs import get_mem_bytes
 from .specs import get_rtol
 from .specs import get_torch_dtype
+from .specs import get_variant_memory_format
 from .specs import get_variant_torch_dtype
 from .specs import input_is_bool
 from .specs import input_is_float
@@ -37,6 +38,7 @@ __all__ = [
     "get_mem_bytes",
     "get_rtol",
     "get_torch_dtype",
+    "get_variant_memory_format",
     "get_variant_torch_dtype",
     "input_is_bool",
     "input_is_float",

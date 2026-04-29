@@ -190,7 +190,7 @@ class VariantResult:
 def benchmark_problem(
     problem: str,
     device: torch.device,
-    spec_type: ai_hc.SpecKey = ai_hc.SpecKey.V_BENCH_GPU,
+    spec_type: str = ai_hc.SpecKey.V_BENCH_GPU,
     rtol: float | None = None,
     atol: float | None = None,
     backends: Optional[List[ai_hc.Backend]] = None,

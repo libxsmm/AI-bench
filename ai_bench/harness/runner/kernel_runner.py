@@ -189,19 +189,26 @@ class KernelRunner:
         return []
 
     def init_model(
-        self, model_obj: types.ModuleType, variant: dict, inits: list[dict]
+        self,
+        model_obj: types.ModuleType,
+        variant: dict,
+        inits: list[dict],
     ) -> torch.nn.Module:
         """Initialize model for given variant.
         Args:
             model_obj: Loaded base model
             variant: Specs' variant entry
-            spec_inits: Specs' inits entry
+            inits: Specs' inits entry
         Returns:
             PyTorch model
         """
         model_inits = ai_hc.get_inits(variant, inits)
         model_dtype = ai_hc.get_variant_torch_dtype(variant)
-        return model_obj(*model_inits).to(self.device, dtype=model_dtype)
+        model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
+        memory_format = ai_hc.get_variant_memory_format(variant)
+        if memory_format is not None:
+            model = model.to(memory_format=memory_format)
+        return model
 
     def benchmark_model(self, variant, model, args) -> KernelStats:
         """Gather model's performance.
