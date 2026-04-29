@@ -199,7 +199,7 @@ Environment file (.env) example:
         "--sycl",
         action="store_true",
         default=False,
-        help="Use SYCL/XeTLA backend",
+        help="Use SYCL backend",
     )
 
     # Run mode

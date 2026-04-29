@@ -5,9 +5,9 @@
 [![KernelBench Perf](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml/badge.svg)](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
-A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR, Gluon, SYCL/XeTLA) and devices (CPU, XPU, CUDA).
+A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR, Gluon, SYCL) and devices (CPU, XPU, CUDA).
 
-| | PyTorch | Triton | Helion | MLIR | Gluon | SYCL/XeTLA |
+| | PyTorch | Triton | Helion | MLIR | Gluon | SYCL |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **CPU** | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **XPU** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
@@ -75,7 +75,7 @@ ai-bench --xpu --helion
 # Gluon on XPU
 ai-bench --xpu --gluon
 
-# SYCL/XeTLA on XPU (requires env setup, see below)
+# SYCL on XPU (requires env setup, see below)
 ai-bench --xpu --sycl
 
 # Benchmark mode (with timing)
@@ -197,7 +197,7 @@ Notes legend:
 | `--helion` | Use Helion backend (default: PyTorch eager) |
 | `--mlir` | Use MLIR backend (default: PyTorch eager) |
 | `--gluon` | Use Gluon backend (default: PyTorch eager) |
-| `--sycl` | Use SYCL/XeTLA backend (default: PyTorch eager) |
+| `--sycl` | Use SYCL backend (default: PyTorch eager) |
 | `--bench` | Run benchmarks with timing (default: CI validation) |
 | `--gflops` | Report GFLOPS (default: TFLOPS) |
 | `--mbs` | Report MB/s (default: GB/s) |
@@ -231,7 +231,7 @@ All checks can be run using:
 pre-commit run -a
 ```
 
-## SYCL/XeTLA Backend Setup
+## SYCL Backend Setup
 
 The SYCL backend compiles and runs C++ CUTLASS kernels via `icpx`. It requires:
 
@@ -273,7 +273,7 @@ Environment variables used for project configuration:
 | `AIBENCH_GLUON_KERNELS_DIR` | Path to Gluon kernels directory |
 | `AIBENCH_SYCL_KERNELS_DIR` | Path to SYCL kernels directory |
 | `AIBENCH_SYCL_COMPILER` | Path to SYCL compiler (default: `icpx`) |
-| `AIBENCH_SYCL_INCLUDE` | Colon-separated include paths for CUTLASS headers |
+| `AIBENCH_SYCL_INCLUDE` | Colon-separated include paths for CUTLASS/SYCL headers |
 | `AIBENCH_SYCL_FLAGS` | Extra compiler flags (space-separated) |
 
 ## License

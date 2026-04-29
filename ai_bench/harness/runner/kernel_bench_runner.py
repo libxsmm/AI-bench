@@ -223,6 +223,7 @@ class KernelBenchRunner(KernelRunner):
             m = dims.get("M", dims.get("N", 128))
             n = dims.get("N", m)
             k = dims.get("K", m)
+            dtype = variant.get(ai_hc.VKey.TYPE)
 
             is_ci = self.spec_type == ai_hc.SpecKey.V_CI
             iterations = 0 if is_ci else 20
@@ -236,6 +237,7 @@ class KernelBenchRunner(KernelRunner):
                 k=k,
                 iterations=iterations,
                 verify=1,
+                dtype=dtype,
             )
 
             if not result.success:

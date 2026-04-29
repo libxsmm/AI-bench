@@ -1,4 +1,4 @@
-"""SYCL/XeTLA kernel compiler and runner.
+"""SYCL kernel compiler and runner.
 
 Compiles standalone SYCL C++ kernels (e.g. CUTLASS SYCL GEMM examples) into
 executables and runs them as subprocesses. The compiled binary is expected to
@@ -129,6 +129,7 @@ class SYCLCompiler:
         k: int,
         iterations: int = 20,
         verify: int = 1,
+        dtype: str | None = None,
     ) -> SYCLRunResult:
         """Execute a compiled SYCL kernel binary.
 
@@ -137,6 +138,7 @@ class SYCLCompiler:
             m, n, k: Matrix dimensions
             iterations: Benchmark iterations
             verify: Whether to verify correctness (1=yes, 0=no)
+            dtype: Data type hint (e.g. "bfloat16", "float16"). Forwarded to binary if set.
         Returns:
             Parsed execution results
         """
@@ -148,6 +150,8 @@ class SYCLCompiler:
             f"--iterations={iterations}",
             f"--verify={verify}",
         ]
+        if dtype:
+            cmd.append(f"--dtype={dtype}")
 
         logger.info("Running SYCL kernel: %s", " ".join(cmd))
 
@@ -180,12 +184,15 @@ class SYCLCompiler:
         k: int,
         iterations: int = 20,
         verify: int = 1,
+        dtype: str | None = None,
     ) -> SYCLRunResult:
         """Compile a source file and run it in one step."""
         binary = self.compile(source_path)
         if binary is None:
             return SYCLRunResult(success=False, error="Compilation failed")
-        return self.run(binary, m=m, n=n, k=k, iterations=iterations, verify=verify)
+        return self.run(
+            binary, m=m, n=n, k=k, iterations=iterations, verify=verify, dtype=dtype
+        )
 
     @staticmethod
     def _parse_output(output: str) -> SYCLRunResult:
