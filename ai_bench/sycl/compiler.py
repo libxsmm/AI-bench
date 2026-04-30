@@ -61,6 +61,7 @@ class SYCLCompiler:
             self.flags = env_flags.split() if env_flags else list(self._DEFAULT_FLAGS)
 
         self._build_dir = Path(tempfile.mkdtemp(prefix="aibench_sycl_"))
+        self.last_compile_error: str = ""
 
     def compile(self, source_path: Path) -> Path | None:
         """Compile a SYCL C++ source file into an executable.
@@ -96,6 +97,7 @@ class SYCLCompiler:
         cmd.extend(["-o", str(binary_path), str(source_path)])
 
         logger.info("Compiling SYCL kernel: %s", " ".join(cmd))
+        self.last_compile_error = ""
 
         try:
             result = subprocess.run(
@@ -105,16 +107,18 @@ class SYCLCompiler:
                 timeout=300,
             )
         except FileNotFoundError:
-            logger.error(
-                "SYCL compiler not found: %s. Set AIBENCH_SYCL_COMPILER.",
-                self.compiler,
+            self.last_compile_error = (
+                f"SYCL compiler not found: {self.compiler}. Set AIBENCH_SYCL_COMPILER."
             )
+            logger.error(self.last_compile_error)
             return None
         except subprocess.TimeoutExpired:
-            logger.error("SYCL compilation timed out for %s", source_path)
+            self.last_compile_error = f"SYCL compilation timed out for {source_path}"
+            logger.error(self.last_compile_error)
             return None
 
         if result.returncode != 0:
+            self.last_compile_error = result.stderr
             logger.error("SYCL compilation failed:\n%s", result.stderr)
             return None
 
@@ -171,7 +175,9 @@ class SYCLCompiler:
 
         if result.returncode != 0:
             return SYCLRunResult(
-                success=False, raw_output=output, error=f"Exit code {result.returncode}"
+                success=False,
+                raw_output=output,
+                error=f"Exit code {result.returncode}\n{output}",
             )
 
         return self._parse_output(output)
@@ -189,7 +195,9 @@ class SYCLCompiler:
         """Compile a source file and run it in one step."""
         binary = self.compile(source_path)
         if binary is None:
-            return SYCLRunResult(success=False, error="Compilation failed")
+            return SYCLRunResult(
+                success=False, error=self.last_compile_error or "Compilation failed"
+            )
         return self.run(
             binary, m=m, n=n, k=k, iterations=iterations, verify=verify, dtype=dtype
         )
