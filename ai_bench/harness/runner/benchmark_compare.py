@@ -304,10 +304,8 @@ def benchmark_problem(
 
                     # Run both kernels
                     with torch.no_grad():
-                        pytorch_fn = pytorch_model.forward
-                        pytorch_output = pytorch_fn(*inputs_orig)
-                        cur_fn = model.forward
-                        cur_output = cur_fn(*inputs_cur)
+                        pytorch_output = pytorch_model(*inputs_orig)
+                        cur_output = model(*inputs_cur)
 
                     # Resolve tolerances: CLI override > spec value > default
                     effective_rtol = (
