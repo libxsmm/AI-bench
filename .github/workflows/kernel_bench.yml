@@ -92,8 +92,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc B580
-        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+      - name: Intel Arc Pro B50
+        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   XPU-PyTorch-Compile:
@@ -104,8 +104,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc B580
-        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+      - name: Intel Arc Pro B50
+        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
 
   XPU-Triton:
@@ -116,8 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc B580
-        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+      - name: Intel Arc Pro B50
+        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   XPU-Helion:
@@ -128,8 +128,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc B580
-        run: "${{ env.SRUN }} --partition=b580 --time=0:15:00 -- \
+      - name: Intel Arc Pro B50
+        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
 
   CUDA-PyTorch:
