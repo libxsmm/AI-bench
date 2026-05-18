@@ -108,7 +108,7 @@ conflicts = [
   ],
 ]
 override-dependencies = [
-  "mlir-python-bindings==20260407+164505d34",
+  "mlir-python-bindings==20260518+e9122d11f",
 ]
 
 [tool.uv.sources]
