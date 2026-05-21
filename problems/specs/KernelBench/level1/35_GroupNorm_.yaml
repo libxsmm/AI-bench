@@ -16,3 +16,14 @@ ci:
       NUM_GROUPS: 4
       DIM1: 32
       DIM2: 32
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 16
+      FEATURES: 64
+      NUM_GROUPS: 8
+      DIM1: 256
+      DIM2: 256
+    flop: "5*BATCH_SIZE*FEATURES*DIM1*DIM2"

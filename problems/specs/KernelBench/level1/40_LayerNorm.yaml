@@ -15,3 +15,14 @@ ci:
       DIM1: 64
       DIM2: 64
       NORMALIZED_SHAPE: [4, 64, 64] # TODO: bind these to other dims
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 16
+      FEATURES: 64
+      DIM1: 256
+      DIM2: 256
+      NORMALIZED_SHAPE: [64, 256, 256]
+    flop: "5*BATCH_SIZE*FEATURES*DIM1*DIM2"

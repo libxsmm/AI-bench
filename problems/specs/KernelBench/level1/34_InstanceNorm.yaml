@@ -14,3 +14,13 @@ ci:
       FEATURES: 4
       DIM1: 64
       DIM2: 64
+
+bench-cpu:
+  - params: ['x']
+    dtype: float32 # TODO: unable to pass result check with bfloat16, investigate
+    dims:
+      BATCH_SIZE: 16
+      FEATURES: 64
+      DIM1: 256
+      DIM2: 256
+    flop: "5*BATCH_SIZE*FEATURES*DIM1*DIM2"

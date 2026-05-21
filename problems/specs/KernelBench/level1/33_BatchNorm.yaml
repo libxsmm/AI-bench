@@ -14,3 +14,13 @@ ci:
       FEATURES: 4
       DIM1: 64
       DIM2: 64
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 64
+      FEATURES: 64
+      DIM1: 512
+      DIM2: 512
+    flop: "5*BATCH_SIZE*FEATURES*DIM1*DIM2"

@@ -15,3 +15,14 @@ ci:
       HEIGHT: 128
       WIDTH: 128
       KERNEL_SIZE: 3
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 16
+      CHANNELS: 64
+      HEIGHT: 512
+      WIDTH: 512
+      KERNEL_SIZE: 11
+    flop: "BATCH_SIZE*CHANNELS*HEIGHT*WIDTH"

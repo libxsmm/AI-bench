@@ -1,6 +1,6 @@
 inputs:
   x:
-    shape: [BATCH_SIZE, FEATURES, DIM1, DIM2]
+    shape: [BATCH_SIZE, FEATURES, DIM1, DIM2, DIM3]
     dtype: inherit
 
 inits:
@@ -12,5 +12,17 @@ ci:
     dims:
       BATCH_SIZE: 2
       FEATURES: 4
+      DIM1: 16
+      DIM2: 16
+      DIM3: 16
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 4
+      FEATURES: 16
       DIM1: 64
       DIM2: 64
+      DIM3: 64
+    flop: "BATCH_SIZE*FEATURES*DIM1*DIM2*DIM3"

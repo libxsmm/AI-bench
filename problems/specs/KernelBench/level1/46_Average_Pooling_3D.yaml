@@ -20,3 +20,17 @@ ci:
       KERNEL_SIZE: 3
       STRIDE: 2
       PADDING: 1
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16 # also not for bfloat16
+    dims:
+      BATCH_SIZE: 4
+      CHANNELS: 16
+      DEPTH: 128
+      HEIGHT: 128
+      WIDTH: 256
+      KERNEL_SIZE: 3
+      STRIDE: 2
+      PADDING: 1
+    flop: "BATCH_SIZE*CHANNELS*DEPTH*HEIGHT*WIDTH"

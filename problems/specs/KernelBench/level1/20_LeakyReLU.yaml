@@ -11,6 +11,14 @@ ci:
       DIM: 512
     flop: "2*BATCH*DIM"
 
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      DIM: 16384
+    flop: "2*BATCH*DIM"
+
 bench-gpu:
   - params: [X]
     dtype: float16

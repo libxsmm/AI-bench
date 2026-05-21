@@ -13,3 +13,12 @@ ci:
       BATCH_SIZE: 128
       DIM: 512
       ALPHA: 1.0
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 2048
+      DIM: 12288
+      ALPHA: 1.0
+    flop: "2*BATCH_SIZE*DIM"

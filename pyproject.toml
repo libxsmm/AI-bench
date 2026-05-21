@@ -115,7 +115,7 @@ override-dependencies = [
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch" }
 pytorch-triton = { index = "pytorch" }
-triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "270e696" }
+triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "028479f" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "456475d" }
 mlir-python-bindings = { index = "eudsl" }
 

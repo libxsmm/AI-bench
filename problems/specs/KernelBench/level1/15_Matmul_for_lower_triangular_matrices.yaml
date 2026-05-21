@@ -15,3 +15,10 @@ ci:
     dtype: float32
     dims:
       M: 64
+
+bench-cpu:
+  - params: ['A', 'B']
+    dtype: bfloat16
+    dims:
+      M: 1024
+    flop: "M*M*M"

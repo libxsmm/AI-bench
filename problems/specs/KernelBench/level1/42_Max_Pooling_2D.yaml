@@ -21,3 +21,17 @@ ci:
       STRIDE: 1
       PADDING: 1
       DILATION: 1
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 4
+      CHANNELS: 32
+      HEIGHT: 256
+      WIDTH: 256
+      KERNEL_SIZE: 4
+      STRIDE: 1
+      PADDING: 1
+      DILATION: 1
+    flop: "BATCH_SIZE*CHANNELS*HEIGHT*WIDTH"

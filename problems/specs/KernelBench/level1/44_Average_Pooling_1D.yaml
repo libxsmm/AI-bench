@@ -18,3 +18,15 @@ ci:
       KERNEL_SIZE: 2
       STRIDE: 1
       PADDING: 1
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 64
+      IN_CHANNELS: 128
+      INPUT_LENGTH: 4096
+      KERNEL_SIZE: 8
+      STRIDE: 1
+      PADDING: 4
+    flop: "BATCH_SIZE*IN_CHANNELS*INPUT_LENGTH"

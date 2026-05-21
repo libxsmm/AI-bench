@@ -16,13 +16,15 @@ bench-cpu:
   - params: [A, B]
     dtype: float32
     dims:
-      N: 1024
+      N: 512
     flop: "2*N*N*N"
+    mem_bytes: "3 * N * N * 4" # f32
   - params: [A, B]
     dtype: bfloat16
     dims:
       N: 1024
     flop: "2*N*N*N"
+    mem_bytes: "3 * N * N * 2" # bf16
 
 bench-gpu:
   - params: [A, B]

@@ -14,3 +14,13 @@ ci:
       DIM1: 64
       DIM2: 63
       REDUCE_DIM: 1
+
+bench-cpu:
+  - params: ['x']
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 128
+      DIM1: 1024
+      DIM2: 1023
+      REDUCE_DIM: 1
+    flop: "BATCH_SIZE*DIM1*DIM2"
