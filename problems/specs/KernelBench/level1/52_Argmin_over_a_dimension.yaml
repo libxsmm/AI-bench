@@ -14,3 +14,12 @@ ci:
       DIM1: 64
       DIM2: 63
       ARGMIN_DIM: 1
+
+bench-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 32
+      DIM1: 512
+      DIM2: 511
+      ARGMIN_DIM: 1

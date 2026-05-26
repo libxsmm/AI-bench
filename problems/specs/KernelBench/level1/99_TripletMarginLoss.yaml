@@ -20,3 +20,11 @@ ci:
       BATCH_SIZE: 64
       INPUT_DIM: 8
       MARGIN: 1.0
+
+bench-cpu:
+  - params: [anchor, positive, negative]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 1024
+      INPUT_DIM: 128
+      MARGIN: 1.0

@@ -17,6 +17,14 @@ ci:
       INPUT_DIM: 64
       SCAN_DIM: 1
 
+bench-cpu:
+  - params: [x, mask]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 1024
+      INPUT_DIM: 1024
+      SCAN_DIM: 1
+
 bench-gpu:
   - params: [x, mask]
     dtype: float16
