@@ -1,5 +1,4 @@
 import functools
-import os
 
 from gilbert_d2xy import gilbert_d2xy
 import torch
@@ -176,8 +175,6 @@ def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
     ), (
         "Masking currently not supported, matrix dimensions must be multiples of block size"
     )
-    # TODO: Find less invasive way.
-    os.environ["TRITON_CPU_ASSUME_IN_BOUNDS"] = "1"
 
     BLOCKS_M = M // BLOCK_SIZE_M
     BLOCKS_N = N // BLOCK_SIZE_N
@@ -192,7 +189,14 @@ def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
 
     _block_transpose_pack_kernel[(BLOCKS_K * BLOCKS_N,)](
-        b, bp, sfc_map_kn, N, K, BLOCK_SIZE_N=BLOCK_SIZE_N, BLOCK_SIZE_K=BLOCK_SIZE_K
+        b,
+        bp,
+        sfc_map_kn,
+        N,
+        K,
+        BLOCK_SIZE_N=BLOCK_SIZE_N,
+        BLOCK_SIZE_K=BLOCK_SIZE_K,
+        assume_in_bounds=True,
     )
 
     for ik in range(blocking_factor_k):
@@ -209,6 +213,7 @@ def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
             BLOCK_SIZE_N=BLOCK_SIZE_N,
             BLOCK_SIZE_K=BLOCK_SIZE_K,  #
             BLOCKING_FACTOR_K=blocking_factor_k,
+            assume_in_bounds=True,
         )
 
     return c
