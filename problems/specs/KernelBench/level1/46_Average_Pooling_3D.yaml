@@ -23,7 +23,7 @@ ci:
 
 bench-cpu:
   - params: ['x']
-    dtype: bfloat16 # also not for bfloat16
+    dtype: float32 # also not for bfloat16
     dims:
       BATCH_SIZE: 4
       CHANNELS: 16
