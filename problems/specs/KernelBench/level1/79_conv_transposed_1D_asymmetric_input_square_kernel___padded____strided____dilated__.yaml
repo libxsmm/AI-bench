@@ -23,3 +23,16 @@ ci:
       PADDING: 1
       DILATION: 2
       LENGTH: 128
+
+simple-cpu:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 8
+      KERNEL_SIZE: 3
+      STRIDE: 2
+      PADDING: 1
+      DILATION: 2
+      LENGTH: 128

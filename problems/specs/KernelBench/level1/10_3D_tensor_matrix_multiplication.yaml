@@ -16,6 +16,16 @@ ci:
       L: 24
     flop: "2*N*M*L*K"
 
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 4
+      M: 32
+      K: 64
+      L: 24
+    flop: "2*N*M*L*K"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

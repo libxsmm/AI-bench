@@ -15,3 +15,10 @@ ci:
     dims:
       BATCH_SIZE: 64
       INPUT_DIM: 64
+
+simple-cpu:
+  - params: [predictions, targets]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 64
+      INPUT_DIM: 64

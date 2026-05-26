@@ -13,3 +13,11 @@ ci:
       BATCH_SIZE: 128
       DIM: 512
       ALPHA: 1.0
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 128
+      DIM: 512
+      ALPHA: 1.0

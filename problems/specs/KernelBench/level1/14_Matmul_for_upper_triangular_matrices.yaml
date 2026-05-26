@@ -15,3 +15,9 @@ ci:
     dtype: float32
     dims:
       N: 64
+
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 64

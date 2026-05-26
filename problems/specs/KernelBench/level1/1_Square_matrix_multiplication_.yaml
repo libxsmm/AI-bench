@@ -12,6 +12,12 @@ ci:
     dims:
       N: 128
 
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 128
+
 bench-cpu:
   - params: [A, B]
     dtype: float32

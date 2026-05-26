@@ -14,6 +14,14 @@ ci:
       N: 128
       K: 256
 
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 64
+      N: 128
+      K: 256
+
 bench-cpu:
   - params: [A, B]
     dtype: bfloat16

@@ -15,6 +15,15 @@ ci:
       UNIT: 1
     flop: "M*N"
 
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 64
+      N: 32
+      UNIT: 1
+    flop: "M*N"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

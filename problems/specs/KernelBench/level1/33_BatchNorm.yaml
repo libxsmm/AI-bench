@@ -14,3 +14,12 @@ ci:
       FEATURES: 4
       DIM1: 64
       DIM2: 64
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      FEATURES: 4
+      DIM1: 64
+      DIM2: 64
