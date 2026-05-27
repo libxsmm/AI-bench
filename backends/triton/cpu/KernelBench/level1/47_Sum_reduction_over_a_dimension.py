@@ -12,7 +12,9 @@ import triton.language as tl
 
 def get_reduction_configs():
     return [
-        triton.Config({"BLOCK_R": 64, "BLOCK_N": 128}, num_warps=4, num_stages=2),
+        triton.Config(
+            {"BLOCK_R": 32, "BLOCK_N": 64},
+        ),
     ]
 
 

@@ -16,7 +16,9 @@ def _to_pair(x):
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_W": 16, "BLOCK_OC": 32}, num_warps=4, num_stages=3),
+        triton.Config(
+            {"BLOCK_W": 16, "BLOCK_OC": 32},
+        ),
     ],
     key=["W_IN", "C_out"],
 )
@@ -179,7 +181,7 @@ class Model(nn.Module):
 
         output = self._output
         N_elem = output.numel()
-        _zero_kernel[(triton.cdiv(N_elem, 1024),)](output, N_elem, BLOCK=1024)
+        _zero_kernel[(triton.cdiv(N_elem, 32),)](output, N_elem, BLOCK=32)
 
         sx = x_cl.stride()
         so = output.stride()

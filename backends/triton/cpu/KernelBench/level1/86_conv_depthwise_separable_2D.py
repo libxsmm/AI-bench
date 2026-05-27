@@ -14,9 +14,7 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_M": 64, "BLOCK_N": 128, "BLOCK_K": 16, "grf_mode": "128"},
-            num_warps=4,
-            num_stages=2,
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 16, "grf_mode": "128"},
         ),
     ],
     key=["M_total", "C_out", "C_IN"],

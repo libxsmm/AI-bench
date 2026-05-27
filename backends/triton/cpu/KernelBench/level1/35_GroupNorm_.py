@@ -12,7 +12,9 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_HW": 4096, "warp_size": 32}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_HW": 32, "warp_size": 32},
+        ),
     ],
     key=["HW", "channels_per_group"],
 )
@@ -62,7 +64,9 @@ def group_norm_stats_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_HW": 4096, "warp_size": 32}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_HW": 32, "warp_size": 32},
+        ),
     ],
     key=["HW"],
 )

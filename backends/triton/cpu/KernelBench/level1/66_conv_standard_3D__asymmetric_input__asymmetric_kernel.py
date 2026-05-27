@@ -19,9 +19,7 @@ def _to_triple(x):
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_M": 64, "BLOCK_N": 64, "BLOCK_K": 16, "grf_mode": "256"},
-            num_warps=4,
-            num_stages=2,
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 16, "grf_mode": "256"},
         ),
     ],
     key=["C_out", "K_FUSED"],

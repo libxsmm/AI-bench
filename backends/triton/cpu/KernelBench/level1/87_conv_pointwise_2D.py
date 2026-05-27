@@ -94,9 +94,9 @@ class Model(nn.Module):
         weight = self.conv1d.weight.squeeze(-1).squeeze(-1).contiguous()
         N_spatial = H * W
 
-        BLOCK_M = 128
-        BLOCK_N = 128
-        BLOCK_K = 64
+        BLOCK_M = 32
+        BLOCK_N = 32
+        BLOCK_K = 16
         GROUP_M = 8
 
         out = torch.empty((B, C_out, H, W), device=x.device, dtype=x.dtype)
@@ -122,8 +122,6 @@ class Model(nn.Module):
             BLOCK_N=BLOCK_N,
             BLOCK_K=BLOCK_K,
             GROUP_M=GROUP_M,
-            num_warps=8,
-            num_stages=1,
         )
 
         if self.conv1d.bias is not None:

@@ -22,10 +22,10 @@ simple-cpu:
     dtype: bfloat16
     dims:
       B: 2
-      I: 32
+      I: 128
       J: 64
-      L: 32
-      K: 24
+      L: 128
+      K: 96
     flop: "2*B*I*J*K*L"
 
 bench-gpu:

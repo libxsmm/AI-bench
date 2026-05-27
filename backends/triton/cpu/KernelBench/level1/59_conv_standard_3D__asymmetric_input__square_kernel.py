@@ -14,14 +14,12 @@ import triton.language as tl
     configs=[
         triton.Config(
             {
-                "BLOCK_M": 64,
-                "BLOCK_N": 64,
+                "BLOCK_M": 32,
+                "BLOCK_N": 32,
                 "BLOCK_K": 16,
                 "GROUP_M": 8,
                 "grf_mode": "256",
             },
-            num_warps=4,
-            num_stages=2,
         ),
     ],
     key=["C_out", "K_FUSED"],

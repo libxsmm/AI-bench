@@ -167,7 +167,7 @@ def kernel_function(
     )
 
     # choose a block size for the flattened spatial dimension
-    BLOCK = 256
+    BLOCK = 32
     grid = (B, C_out, triton.cdiv(Do * Ho * Wo, BLOCK))
 
     # launch

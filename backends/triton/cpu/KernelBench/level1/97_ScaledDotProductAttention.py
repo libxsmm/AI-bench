@@ -15,7 +15,7 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64}, num_warps=16, num_stages=2
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32},
         ),
     ],
     key=["SEQ_LEN", "HEAD_DIM"],
@@ -93,7 +93,7 @@ def _qk_gemm_kernel(
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_M": 64, "BLOCK_K": 64, "BLOCK_N": 128}, num_warps=8, num_stages=3
+            {"BLOCK_M": 32, "BLOCK_K": 32, "BLOCK_N": 128},
         ),
     ],
     key=["SEQ_LEN", "HEAD_DIM"],

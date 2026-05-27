@@ -17,7 +17,9 @@ def scan_add_op(a, b):
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_SIZE": 256}, num_warps=4, num_stages=1),
+        triton.Config(
+            {"BLOCK_SIZE": 32},
+        ),
     ],
     key=["N"],
 )

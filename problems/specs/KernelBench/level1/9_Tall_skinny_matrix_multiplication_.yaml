@@ -18,8 +18,8 @@ simple-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      M: 256
-      N: 16
+      M: 1024
+      N: 32
     flop: "2*M*M*N"
 
 bench-gpu:

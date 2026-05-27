@@ -13,7 +13,7 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_D2": 128, "BLOCK_K": 32, "warp_size": 16}, num_warps=4, num_stages=2
+            {"BLOCK_D2": 128, "BLOCK_K": 32, "warp_size": 16},
         ),
     ],
     key=["D1", "D2"],

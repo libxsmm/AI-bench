@@ -12,7 +12,9 @@ import triton.language as tl
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_N": 64, "BLOCK_K": 64}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_N": 32, "BLOCK_K": 64},
+        ),
     ],
     key=["DIM1", "DIM2"],
 )

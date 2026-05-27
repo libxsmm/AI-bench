@@ -18,14 +18,12 @@ def _to_pair(x):
     configs=[
         triton.Config(
             {
-                "BLOCK_M": 64,
-                "BLOCK_N": 64,
+                "BLOCK_M": 32,
+                "BLOCK_N": 32,
                 "BLOCK_K": 32,
                 "GROUP_M": 8,
                 "grf_mode": "128",
             },
-            num_warps=4,
-            num_stages=3,
         ),
     ],
     key=["C_IN", "C_out", "OH", "OW"],

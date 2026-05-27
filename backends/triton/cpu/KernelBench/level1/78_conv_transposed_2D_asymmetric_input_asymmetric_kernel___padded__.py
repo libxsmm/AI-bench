@@ -21,8 +21,6 @@ import triton.language as tl
                 "GROUP_SIZE_M": 8,
                 "grf_mode": "128",
             },
-            num_warps=4,
-            num_stages=3,
         ),
     ],
     key=["H", "W", "C_IN", "C_out", "OH", "OW"],

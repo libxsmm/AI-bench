@@ -20,6 +20,6 @@ simple-cpu:
     dtype: float32
     dims:
       BATCH_SIZE: 2
-      DIM1: 64
-      DIM2: 63
+      DIM1: 256
+      DIM2: 255
       ARGMAX_DIM: 1

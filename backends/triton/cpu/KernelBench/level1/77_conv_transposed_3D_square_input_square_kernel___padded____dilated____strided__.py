@@ -16,7 +16,9 @@ def _compute_output_size(input_size, kernel_size, stride, padding, dilation):
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_W": 16, "BLOCK_OC": 32}, num_warps=4, num_stages=4),
+        triton.Config(
+            {"BLOCK_W": 16, "BLOCK_OC": 32},
+        ),
     ],
     key=["W_act", "C_out"],
 )
@@ -197,7 +199,7 @@ class Model(nn.Module):
 
         output = self._output_buf
         N = output.numel()
-        BLOCK = 1024
+        BLOCK = 32
         _zero_kernel[(triton.cdiv(N, BLOCK),)](output, N, BLOCK=BLOCK)
 
         sx = x_cl3d.stride()

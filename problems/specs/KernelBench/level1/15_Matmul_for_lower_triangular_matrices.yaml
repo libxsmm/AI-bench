@@ -20,4 +20,4 @@ simple-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      M: 64
+      M: 128

@@ -16,13 +16,11 @@ import triton.language as tl
         triton.Config(
             {
                 "BLOCK_OW": 64,
-                "BLOCK_N": 64,
-                "BLOCK_K": 64,
+                "BLOCK_N": 32,
+                "BLOCK_K": 32,
                 "GROUP_SIZE_M": 8,
                 "grf_mode": "256",
             },
-            num_warps=4,
-            num_stages=2,
         ),
     ],
     key=["H", "W", "C_IN", "C_out", "OH", "OW"],

@@ -16,7 +16,7 @@ simple-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      N: 128
+      N: 256
 
 bench-cpu:
   - params: [A, B]

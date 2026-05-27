@@ -32,9 +32,7 @@ def swizzle_tile(
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_M": 128, "BLOCK_N": 128, "BLOCK_K": 64, "GROUP_SIZE_M": 4},
-            num_warps=32,
-            num_stages=2,
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
         ),
     ],
     key=["M", "N", "K"],

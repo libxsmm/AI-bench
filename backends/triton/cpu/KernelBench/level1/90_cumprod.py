@@ -17,7 +17,7 @@ def _mul_combine(a, b):
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_SIZE": 512}, num_warps=4),
+        triton.Config({"BLOCK_SIZE": 32}, num_warps=4),
     ],
     key=["N"],
 )

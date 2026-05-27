@@ -17,9 +17,7 @@ dim = 1
 def get_kl_div_configs():
     configs = [
         triton.Config(
-            {"BLOCK_SIZE": 4096},
-            num_warps=4,
-            num_stages=1,
+            {"BLOCK_SIZE": 32},
         )
     ]
     return configs

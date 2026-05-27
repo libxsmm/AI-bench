@@ -71,7 +71,7 @@ def _bn_stats_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_SIZE": 4096, "warp_size": 32}, num_warps=8),
+        triton.Config({"BLOCK_SIZE": 32, "warp_size": 32}, num_warps=8),
     ],
     key=["total_elements"],
 )
@@ -153,7 +153,6 @@ class Model(nn.Module):
                 stride_c,
                 B=B,
                 BLOCK_HW=8192,
-                num_warps=8,
             )
             _bn_stats_kernel[(C,)](
                 self._partial_sum,
@@ -166,7 +165,6 @@ class Model(nn.Module):
                 self.eps,
                 B=B,
                 BLOCK_B=triton.next_power_of_2(B),
-                num_warps=4,
             )
         else:
             inv_std = 1.0 / torch.sqrt(self.running_var + self.eps)

@@ -26,7 +26,7 @@ simple-cpu:
     dims:
       BATCH_SIZE: 2
       IN_CHANNELS: 3
-      OUT_CHANNELS: 16
+      OUT_CHANNELS: 64
       KERNEL_SIZE: 3
       HEIGHT: 32
       WIDTH: 32

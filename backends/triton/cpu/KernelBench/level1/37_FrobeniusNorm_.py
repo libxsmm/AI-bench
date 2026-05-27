@@ -9,7 +9,7 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-REDUCE_BLOCK: tl.constexpr = 8192
+REDUCE_BLOCK: tl.constexpr = 128
 
 
 @triton.jit
@@ -48,7 +48,9 @@ def _reduce_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({"BLOCK_SIZE": 2048}, num_warps=8, num_stages=2),
+        triton.Config(
+            {"BLOCK_SIZE": 32},
+        ),
     ],
     key=["N"],
 )

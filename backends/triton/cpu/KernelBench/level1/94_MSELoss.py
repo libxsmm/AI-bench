@@ -13,9 +13,7 @@ import triton.language as tl
 def get_autotune_configs():
     configs = [
         triton.Config(
-            {"BLOCK_SIZE": 1024},
-            num_warps=4,
-            num_stages=1,
+            {"BLOCK_SIZE": 32},
         )
     ]
     return configs

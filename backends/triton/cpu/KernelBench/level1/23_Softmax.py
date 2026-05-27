@@ -12,7 +12,9 @@ import triton.language as tl
 
 def _softmax_configs():
     return [
-        triton.Config({"BLOCK_N": 2048}, num_warps=8, num_stages=3),
+        triton.Config(
+            {"BLOCK_N": 32},
+        ),
     ]
 
 

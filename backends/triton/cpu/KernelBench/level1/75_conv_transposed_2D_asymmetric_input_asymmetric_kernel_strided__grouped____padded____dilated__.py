@@ -185,7 +185,7 @@ def kernel_function(
     out_stride_b, out_stride_c, out_stride_h, out_stride_w = out.stride()
 
     # 6) Launch parameters
-    BLOCK = 256
+    BLOCK = 32
     grid = (triton.cdiv(total_elems, BLOCK),)
 
     # 7) Launch kernel

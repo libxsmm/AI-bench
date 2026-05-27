@@ -11,13 +11,7 @@ import triton.language as tl
 
 
 def _ce_configs():
-    configs = []
-    for BN in [1024, 2048, 4096]:
-        for nw in [4, 8, 16]:
-            for ws in [16, 32]:
-                configs.append(
-                    triton.Config({"BLOCK_N": BN, "warp_size": ws}, num_warps=nw)
-                )
+    configs = [triton.Config({"BLOCK_N": 32})]
     return configs
 
 
@@ -31,7 +25,6 @@ def _cross_entropy_online_kernel(
     stride_lm,
     stride_ln,
     BLOCK_N: tl.constexpr,
-    warp_size: tl.constexpr,
 ):
     row = tl.program_id(0)
     row_off = row.to(tl.int64) * stride_lm
