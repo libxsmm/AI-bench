@@ -8,12 +8,12 @@ import triton.language as tl
 
 # Transforms the B matrix into a tensor of shape:
 #
-#  (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
+#  (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N)
 #
-# Data is blocked and VNNI-packed into contiguous chunks of memory. Neighboring
-# blocks in the K dimension will also be neighboring in memory.
+# Data is blocked into contiguous chunks of memory. Neighboring blocks in the K
+# dimension will also be neighboring in memory.
 @triton.jit
-def _block_transpose_pack_kernel(
+def _block_transpose_kernel(
     in_ptr,
     out_ptr,
     sfc_map_ptr,
@@ -26,43 +26,23 @@ def _block_transpose_pack_kernel(
     block_k = tl.load(sfc_map_ptr + 2 * pid)
     block_n = tl.load(sfc_map_ptr + 2 * pid + 1)
 
-    VNNI: tl.constexpr = 32 // in_ptr.type.element_ty.primitive_bitwidth
-
     in_desc = tl.make_tensor_descriptor(
-        base=in_ptr, shape=(K, N), strides=(N, 1), block_shape=(1, BLOCK_SIZE_N)
+        base=in_ptr,
+        shape=(K, N),
+        strides=(N, 1),
+        block_shape=(BLOCK_SIZE_K, BLOCK_SIZE_N),
     )
     out_desc = tl.make_tensor_descriptor(
         base=out_ptr,
-        shape=(
-            N // BLOCK_SIZE_N,
-            K // BLOCK_SIZE_K,
-            BLOCK_SIZE_K // VNNI,
-            BLOCK_SIZE_N * VNNI,
-        ),
-        strides=(BLOCK_SIZE_N * K, BLOCK_SIZE_K * BLOCK_SIZE_N, BLOCK_SIZE_N * VNNI, 1),
-        block_shape=(1, 1, 1, BLOCK_SIZE_N * VNNI),
+        shape=(N // BLOCK_SIZE_N, K // BLOCK_SIZE_K, BLOCK_SIZE_K, BLOCK_SIZE_N),
+        strides=(BLOCK_SIZE_N * K, BLOCK_SIZE_K * BLOCK_SIZE_N, BLOCK_SIZE_N, 1),
+        block_shape=(1, 1, BLOCK_SIZE_K, BLOCK_SIZE_N),
     )
-    for i in tl.range(0, BLOCK_SIZE_K // VNNI):
-        row1 = in_desc.load(
-            (block_k * BLOCK_SIZE_K + i * VNNI, block_n * BLOCK_SIZE_N)
-        ).reshape((BLOCK_SIZE_N,))
-        if VNNI > 1:
-            row2 = in_desc.load(
-                (block_k * BLOCK_SIZE_K + i * VNNI + 1, block_n * BLOCK_SIZE_N)
-            ).reshape((BLOCK_SIZE_N,))
-            if VNNI > 2:
-                row3 = in_desc.load(
-                    (block_k * BLOCK_SIZE_K + i * VNNI + 2, block_n * BLOCK_SIZE_N)
-                ).reshape((BLOCK_SIZE_N,))
-                row4 = in_desc.load(
-                    (block_k * BLOCK_SIZE_K + i * VNNI + 3, block_n * BLOCK_SIZE_N)
-                ).reshape((BLOCK_SIZE_N,))
-                row1 = tl.ravel(tl.join(row1, row3))
-                row2 = tl.ravel(tl.join(row2, row4))
-            row1 = tl.ravel(tl.join(row1, row2))
-        out_desc.store(
-            (block_n, block_k, i, 0), row1.reshape((1, 1, 1, BLOCK_SIZE_N * VNNI))
-        )
+
+    block = in_desc.load((block_k * BLOCK_SIZE_K, block_n * BLOCK_SIZE_N)).reshape(
+        (1, 1, BLOCK_SIZE_K, BLOCK_SIZE_N)
+    )
+    out_desc.store((block_n, block_k, 0, 0), block)
 
 
 # Matmul kernel using the space curve filling approach in
@@ -97,7 +77,6 @@ def _sfc_matmul_kernel(
 
     dtype: tl.constexpr = a_ptr.type.element_ty
     accum_dtype: tl.constexpr = tl.float32 if dtype.is_floating() else tl.int32
-    VNNI: tl.constexpr = 32 // dtype.primitive_bitwidth
 
     pid = tl.program_id(axis=0)
     block_m = tl.load(sfc_map_ptr + 2 * pid)
@@ -113,9 +92,9 @@ def _sfc_matmul_kernel(
 
     b_desc = tl.make_tensor_descriptor(
         base=b_ptr,
-        shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
-        strides=(BLOCK_SIZE_N * K, BLOCK_SIZE_K * BLOCK_SIZE_N, BLOCK_SIZE_N * VNNI, 1),
-        block_shape=(1, 1, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
+        shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N),
+        strides=(BLOCK_SIZE_N * K, BLOCK_SIZE_K * BLOCK_SIZE_N, BLOCK_SIZE_N, 1),
+        block_shape=(1, 1, BLOCK_SIZE_K, BLOCK_SIZE_N),
     )
 
     c_desc = tl.make_tensor_descriptor(
@@ -137,12 +116,7 @@ def _sfc_matmul_kernel(
 
     for block_ki in range(block_k, block_k + BLOCKS_K_PER_PROG):
         a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
-        b = b_desc.load([block_n, block_ki, 0, 0]).reshape(
-            (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
-        )
-
-        if VNNI > 1:
-            b = tl.extra.cpu.vnni_decode(b)
+        b = b_desc.load([block_n, block_ki, 0, 0]).reshape((BLOCK_SIZE_K, BLOCK_SIZE_N))
 
         c = tl.dot(a, b, c)
 
@@ -188,7 +162,7 @@ def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
     )
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
 
-    _block_transpose_pack_kernel[(BLOCKS_K * BLOCKS_N,)](
+    _block_transpose_kernel[(BLOCKS_K * BLOCKS_N,)](
         b,
         bp,
         sfc_map_kn,
