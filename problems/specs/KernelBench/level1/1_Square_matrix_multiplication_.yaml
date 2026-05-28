@@ -28,9 +28,11 @@ bench-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      N: 4096
+      N: 8192
     flop: "2*N*N*N"
     mem_bytes: "3*N*N * 2" # bf16
+    atol: 2  # long accumulation chain requires higher tolerances
+    rtol: 10
 
 bench-gpu:
   - params: [A, B]
