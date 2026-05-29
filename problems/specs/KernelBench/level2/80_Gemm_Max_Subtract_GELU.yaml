@@ -16,3 +16,12 @@ ci:
       IN_FEATURES: 32
       OUT_FEATURES: 32
       MAX_DIM: 1
+
+simple-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 2
+      IN_FEATURES: 256
+      OUT_FEATURES: 256
+      MAX_DIM: 1

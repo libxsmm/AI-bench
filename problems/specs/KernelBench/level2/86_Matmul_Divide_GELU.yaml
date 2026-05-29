@@ -16,3 +16,12 @@ ci:
       INPUT_SIZE: 32
       OUTPUT_SIZE: 32
       DIVISOR: 10.0
+
+simple-cpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      INPUT_SIZE: 1024
+      OUTPUT_SIZE: 1024
+      DIVISOR: 10.0

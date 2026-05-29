@@ -16,3 +16,20 @@ ci:
       IN_FEATURES: 32
       OUT_FEATURES: 32
       SCALING_FACTOR: 0.5
+
+simple-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 32
+      IN_FEATURES: 1024
+      OUT_FEATURES: 1024
+      SCALING_FACTOR: 0.5
+  # larger shapes to trigger persistent kernel
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 16384
+      IN_FEATURES: 4096
+      OUT_FEATURES: 4096
+      SCALING_FACTOR: 0.5

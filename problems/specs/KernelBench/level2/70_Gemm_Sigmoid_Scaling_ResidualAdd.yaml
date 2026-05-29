@@ -16,3 +16,13 @@ ci:
       INPUT_SIZE: 32
       HIDDEN_SIZE: 32
       SCALING_FACTOR: 2.0
+
+simple-cpu:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      INPUT_SIZE: 256
+      HIDDEN_SIZE: 256
+      SCALING_FACTOR: 2.0
+  
