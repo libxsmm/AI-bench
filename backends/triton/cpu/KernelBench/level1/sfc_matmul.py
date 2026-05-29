@@ -100,7 +100,7 @@ def _sfc_matmul_kernel(
     c_desc = tl.make_tensor_descriptor(
         base=c_ptr,
         shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
-        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_M, N, 1),
+        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_N, N, 1),
         block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
     )
 
