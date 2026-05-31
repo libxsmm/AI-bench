@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "AI-bench"
 dynamic = ["version"]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 description = "AI kernel benchmarking harness"
 readme = "README.md"
 license = {text = "MIT"}
@@ -61,7 +61,11 @@ cuda = [
   "helion==1.0.0",
 ]
 mlir = [
-  "lighthouse[ingress_torch_mlir]",
+  # torch-mlir publishes Linux-only wheels for cp310-cp312, so restrict the
+  # extra to where it can actually resolve/install. This keeps universal `uv
+  # lock` resolution from failing on the python>=3.13 / non-Linux splits.
+  "lighthouse; sys_platform == 'linux' and python_version < '3.13'",
+  "torch-mlir @ https://github.com/llvm/torch-mlir-release/releases/download/dev-wheels/torch_mlir-20260331.768-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl ; sys_platform == 'linux' and platform_machine == 'x86_64' and python_version == '3.12'",
   "ml-dtypes",
 ]
 # If triton-cpu build fails with a stale LLVM path, clear caches:
