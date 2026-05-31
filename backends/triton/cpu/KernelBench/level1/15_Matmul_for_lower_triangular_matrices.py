@@ -32,10 +32,11 @@ def swizzle_tile(
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-        ),
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": gs},
+        )
+        for gs in [1, 2, 4, 8]
     ],
-    key=["M"],
+    key=["M", "N", "K"],
 )
 @triton.jit
 def tril_matmul_kernel(
@@ -111,9 +112,14 @@ class Model(nn.Module):
         M = A.shape[0]
         C = torch.zeros(M, M, device=A.device, dtype=A.dtype)
 
-        grid = lambda META: (
-            triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(M, META["BLOCK_N"]),
-        )
+        def grid(META):
+            assert (
+                M % META["BLOCK_M"] == 0
+                and M % META["BLOCK_N"] == 0
+                and M % META["BLOCK_K"] == 0
+            ), "M must be divisible by BLOCK_M, BLOCK_N, and BLOCK_K respectively"
+            return (triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(M, META["BLOCK_N"]),)
+
         tril_matmul_kernel[grid](
             A,
             B,
@@ -125,6 +131,7 @@ class Model(nn.Module):
             B.stride(1),
             C.stride(0),
             C.stride(1),
+            assume_in_bounds=True,
         )
         return C
 

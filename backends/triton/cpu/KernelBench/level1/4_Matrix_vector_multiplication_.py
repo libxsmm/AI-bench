@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_K": 32},
-        ),
+            {"BLOCK_K": k},
+        )
+        for k in [16, 32, 64, 128, 256]
     ],
     key=["K"],
 )

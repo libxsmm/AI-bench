@@ -15,6 +15,9 @@ import triton.language as tl
         triton.Config(
             {"BLOCK_M": 32, "BLOCK_N": 32},
         ),
+        triton.Config(
+            {"BLOCK_M": 64, "BLOCK_N": 64},
+        ),
     ],
     key=["N", "M"],
 )
