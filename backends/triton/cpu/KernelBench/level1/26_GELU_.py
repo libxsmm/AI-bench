@@ -13,8 +13,10 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32, "NUM_PROGS": 16},
-        ),
+            {"BLOCK_SIZE": bs, "NUM_PROGS": np},
+        )
+        for bs in [32, 64, 128, 256]
+        for np in [16, 32, 64]
     ],
     key=["n_elements"],
 )
@@ -33,9 +35,9 @@ def gelu_persistent_kernel(
         offsets = tile_id * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
         mask = offsets < n_elements
 
-        x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
+        x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
         out = 0.5 * x * (1.0 + tl.math.erf(x * 0.70710678118654752440))
-        tl.store(out_ptr + offsets, out.to(tl.bfloat16), mask=mask)
+        tl.store(out_ptr + offsets, out, mask=mask)
 
 
 class Model(nn.Module):

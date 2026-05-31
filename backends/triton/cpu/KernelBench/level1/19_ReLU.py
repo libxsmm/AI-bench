@@ -13,8 +13,10 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32, "NUM_PROGRAMS": 64},
-        ),
+            {"BLOCK_SIZE": bs, "NUM_PROGRAMS": np},
+        )
+        for bs in [32, 64, 128, 256]
+        for np in [16, 32, 64]
     ],
     key=["n_elements"],
 )

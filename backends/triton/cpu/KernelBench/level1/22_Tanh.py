@@ -16,8 +16,9 @@ dim = 393216
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256]
     ],
     key=["n_elements"],
 )
@@ -32,7 +33,7 @@ def _tanh_kernel(
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offsets < n_elements
 
-    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
 
     # tanh(x) = 2*sigmoid(2x) - 1
     # sigmoid(z) = 1/(1 + exp2(-z * log2(e)))
@@ -42,7 +43,7 @@ def _tanh_kernel(
     sig = 1.0 / (1.0 + e)
     result = 2.0 * sig - 1.0
 
-    tl.store(out_ptr + offsets, result.to(tl.bfloat16), mask=mask)
+    tl.store(out_ptr + offsets, result, mask=mask)
 
 
 class Model(nn.Module):

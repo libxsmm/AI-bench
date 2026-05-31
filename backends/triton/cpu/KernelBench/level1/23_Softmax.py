@@ -10,15 +10,15 @@ import triton
 import triton.language as tl
 
 
-def _softmax_configs():
-    return [
+@triton.autotune(
+    configs=[
         triton.Config(
-            {"BLOCK_N": 32},
-        ),
-    ]
-
-
-@triton.autotune(configs=_softmax_configs(), key=["N"])
+            {"BLOCK_N": n},
+        )
+        for n in [32, 64, 128, 256]
+    ],
+    key=["N"],
+)
 @triton.jit
 def _softmax_kernel(
     inp_ptr,
@@ -43,9 +43,7 @@ def _softmax_kernel(
     for start in range(0, N, BLOCK_N):
         offs = start + tl.arange(0, BLOCK_N)
         mask = offs < N
-        x = tl.load(row_inp + offs * stride_in, mask=mask, other=-float("inf")).to(
-            tl.float32
-        )
+        x = tl.load(row_inp + offs * stride_in, mask=mask, other=-float("inf"))
         block_max = tl.max(x, axis=0)
         new_max = tl.maximum(row_max, block_max)
         row_sum = row_sum * tl.math.exp2((row_max - new_max) * LOG2E) + tl.sum(
@@ -59,9 +57,7 @@ def _softmax_kernel(
     for start in range(0, N, BLOCK_N):
         offs = start + tl.arange(0, BLOCK_N)
         mask = offs < N
-        x = tl.load(row_inp + offs * stride_in, mask=mask, other=-float("inf")).to(
-            tl.float32
-        )
+        x = tl.load(row_inp + offs * stride_in, mask=mask, other=-float("inf"))
         e = tl.math.exp2((x - row_max) * LOG2E)
         y = (e * inv_sum).to(tl.bfloat16)
         tl.store(row_out + offs * stride_on, y, mask=mask)

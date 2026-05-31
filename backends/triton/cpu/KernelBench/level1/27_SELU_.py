@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256]
     ],
     key=["n_elements"],
 )
@@ -32,11 +33,11 @@ def selu_kernel(
     mask = offsets < n_elements
 
     x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
-    x_f32 = x.to(tl.float32)
+    x_f32 = x
 
     result = tl.where(x_f32 > 0.0, scale * x_f32, scale * alpha * (tl.exp(x_f32) - 1.0))
 
-    tl.store(out_ptr + offsets, result.to(tl.bfloat16), mask=mask)
+    tl.store(out_ptr + offsets, result, mask=mask)
 
 
 class Model(nn.Module):

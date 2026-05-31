@@ -20,8 +20,9 @@ def _sigmoid_exp2(x):
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256]
     ],
     key=["n_elements"],
 )
@@ -36,10 +37,10 @@ def swish_kernel(
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offsets < n_elements
     x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
-    x_f32 = x.to(tl.float32)
+    x_f32 = x
     sig = _sigmoid_exp2(x_f32)
     result = x_f32 * sig
-    tl.store(output_ptr + offsets, result.to(tl.bfloat16), mask=mask)
+    tl.store(output_ptr + offsets, result, mask=mask)
 
 
 class Model(nn.Module):

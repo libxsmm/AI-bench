@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256]
     ],
     key=["N"],
 )
@@ -29,13 +30,13 @@ def _sigmoid_kernel(
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offsets < N
 
-    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
 
     inv_ln2 = 1.4426950408889634
     e = tl.math.exp2((-x) * inv_ln2)
     y = 1.0 / (1.0 + e)
 
-    tl.store(out_ptr + offsets, y.to(tl.bfloat16), mask=mask)
+    tl.store(out_ptr + offsets, y, mask=mask)
 
 
 class Model(nn.Module):

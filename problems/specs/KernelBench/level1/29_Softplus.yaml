@@ -18,3 +18,11 @@ simple-cpu:
     dims:
       BATCH_SIZE: 128
       DIM: 512
+
+bench-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 4096
+      DIM: 393216
+      

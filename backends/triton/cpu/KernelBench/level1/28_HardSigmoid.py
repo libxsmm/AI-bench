@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256]
     ],
     key=["N"],
 )
@@ -30,13 +31,13 @@ def hardsigmoid_kernel(
     mask = offsets < N
 
     x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
-    x_f32 = x.to(tl.float32)
+    x_f32 = x
 
     result = x_f32 * (1.0 / 6.0) + 0.5
     result = tl.maximum(result, 0.0)
     result = tl.minimum(result, 1.0)
 
-    tl.store(out_ptr + offsets, result.to(x.dtype), mask=mask)
+    tl.store(out_ptr + offsets, result, mask=mask)
 
 
 class Model(nn.Module):

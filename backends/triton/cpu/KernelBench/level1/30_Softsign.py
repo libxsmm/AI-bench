@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256]
     ],
     key=["n_elements"],
 )
@@ -29,10 +30,10 @@ def softsign_kernel(
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offsets < n_elements
     x = tl.load(x_ptr + offsets, mask=mask)
-    x_f32 = x.to(tl.float32)
+    x_f32 = x
     abs_x = tl.abs(x_f32)
     result = x_f32 / (1.0 + abs_x)
-    tl.store(output_ptr + offsets, result.to(x.dtype), mask=mask)
+    tl.store(output_ptr + offsets, result, mask=mask)
 
 
 class Model(nn.Module):
