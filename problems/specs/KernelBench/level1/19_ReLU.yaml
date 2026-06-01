@@ -23,7 +23,6 @@ bench-cpu:
     dims:
       BATCH: 4096
       DIM: 393216
-    flop: "BATCH*DIM"
     mem_bytes: "(2*BATCH*DIM) * 4" # f32
 
 bench-gpu:

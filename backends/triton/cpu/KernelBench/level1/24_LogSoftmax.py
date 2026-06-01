@@ -15,7 +15,7 @@ import triton.language as tl
         triton.Config(
             {"BLOCK_N": n},
         )
-        for n in [32, 64, 128, 256]
+        for n in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["N"],
 )

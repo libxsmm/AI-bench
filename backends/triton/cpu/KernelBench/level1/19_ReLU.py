@@ -13,31 +13,26 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": bs, "NUM_PROGRAMS": np},
+            {"BLOCK_SIZE": bs},
         )
-        for bs in [32, 64, 128, 256]
-        for np in [16, 32, 64]
+        for bs in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["n_elements"],
 )
 @triton.jit
-def relu_kernel_persistent(
+def relu_kernel(
     x_ptr,
     output_ptr,
     n_elements,
     BLOCK_SIZE: tl.constexpr,
-    NUM_PROGRAMS: tl.constexpr,
 ):
     pid = tl.program_id(0)
-    num_blocks = tl.cdiv(n_elements, BLOCK_SIZE)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
 
-    for block_id in tl.range(pid, num_blocks, NUM_PROGRAMS):
-        block_start = block_id * BLOCK_SIZE
-        offsets = block_start + tl.arange(0, BLOCK_SIZE)
-        mask = offsets < n_elements
-        x = tl.load(x_ptr + offsets, mask=mask)
-        output = tl.maximum(x, 0.0)
-        tl.store(output_ptr + offsets, output, mask=mask)
+    x = tl.load(x_ptr + offsets, mask=mask)
+    out = tl.maximum(x, 0.0)
+    tl.store(output_ptr + offsets, out, mask=mask)
 
 
 class Model(nn.Module):
@@ -47,8 +42,8 @@ class Model(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         output = torch.empty_like(x)
         n_elements = x.numel()
-        grid = lambda META: (META["NUM_PROGRAMS"],)
-        relu_kernel_persistent[grid](x, output, n_elements)
+        grid = lambda META: (triton.cdiv(n_elements, META["BLOCK_SIZE"]),)
+        relu_kernel[grid](x, output, n_elements)
         return output
 
 

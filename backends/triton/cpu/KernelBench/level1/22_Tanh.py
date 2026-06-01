@@ -18,7 +18,7 @@ dim = 393216
         triton.Config(
             {"BLOCK_SIZE": bs},
         )
-        for bs in [32, 64, 128, 256]
+        for bs in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["n_elements"],
 )

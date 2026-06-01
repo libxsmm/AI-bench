@@ -25,3 +25,4 @@ bench-cpu:
     dims:
       BATCH_SIZE: 4096
       DIM: 393216
+    mem_bytes: "(2*BATCH_SIZE*DIM) * 4" # f32
