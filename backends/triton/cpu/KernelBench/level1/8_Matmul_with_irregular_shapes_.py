@@ -10,16 +10,13 @@ import triton
 import triton.language as tl
 
 
-def get_autotune_configs():
-    return [
-        triton.Config(
-            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-        ),
-    ]
-
-
 @triton.autotune(
-    configs=get_autotune_configs(),
+    configs=[
+        triton.Config(
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": gs},
+        )
+        for gs in [1, 2, 4, 8]
+    ],
     key=["M", "N", "K"],
 )
 @triton.jit

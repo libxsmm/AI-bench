@@ -13,29 +13,27 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32, "NUM_PROGS": 16},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["n_elements"],
 )
 @triton.jit
-def gelu_persistent_kernel(
+def gelu_kernel(
     x_ptr,
-    out_ptr,
+    output_ptr,
     n_elements,
     BLOCK_SIZE: tl.constexpr,
-    NUM_PROGS: tl.constexpr,
 ):
     pid = tl.program_id(0)
-    num_tiles = tl.cdiv(n_elements, BLOCK_SIZE)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
 
-    for tile_id in range(pid, num_tiles, NUM_PROGS):
-        offsets = tile_id * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
-        mask = offsets < n_elements
-
-        x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
-        out = 0.5 * x * (1.0 + tl.math.erf(x * 0.70710678118654752440))
-        tl.store(out_ptr + offsets, out.to(tl.bfloat16), mask=mask)
+    x = tl.load(x_ptr + offsets, mask=mask)
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
+    out = 0.5 * x * (1.0 + tl.math.erf(x * 0.70710678118654752440))
+    tl.store(output_ptr + offsets, out, mask=mask)
 
 
 class Model(nn.Module):
@@ -46,8 +44,8 @@ class Model(nn.Module):
         x_flat = x.view(-1)
         out_flat = torch.empty_like(x_flat)
         n_elements = x_flat.numel()
-        grid = lambda META: (META["NUM_PROGS"],)
-        gelu_persistent_kernel[grid](x_flat, out_flat, n_elements)
+        grid = lambda META: (triton.cdiv(n_elements, META["BLOCK_SIZE"]),)
+        gelu_kernel[grid](x_flat, out_flat, n_elements)
         return out_flat.view_as(x)
 
 

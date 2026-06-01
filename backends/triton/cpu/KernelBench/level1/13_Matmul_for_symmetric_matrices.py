@@ -29,15 +29,15 @@ def swizzle_tile(
     return pid_m, pid_n
 
 
-def _configs():
-    return [
+@triton.autotune(
+    configs=[
         triton.Config(
-            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-        ),
-    ]
-
-
-@triton.autotune(configs=_configs(), key=["M", "N", "K"])
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": gs},
+        )
+        for gs in [1, 2, 4, 8]
+    ],
+    key=["M", "N", "K"],
+)
 @triton.jit
 def _matmul_kernel(
     a_ptr,
@@ -111,9 +111,16 @@ class Model(nn.Module):
         N = B.shape[1]
         C = torch.empty((M, N), device=A.device, dtype=torch.bfloat16)
 
-        grid = lambda META: (
-            triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(N, META["BLOCK_N"]),
-        )
+        def grid(META):
+            assert (
+                M % META["BLOCK_M"] == 0
+                and N % META["BLOCK_N"] == 0
+                and K % META["BLOCK_K"] == 0
+            ), (
+                "M, N, and K must be divisible by BLOCK_M, BLOCK_N, and BLOCK_K respectively"
+            )
+            return (triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(N, META["BLOCK_N"]),)
+
         _matmul_kernel[grid](
             A,
             B,
@@ -130,6 +137,7 @@ class Model(nn.Module):
             DIVISIBLE_M=(M % 256 == 0),
             DIVISIBLE_N=(N % 128 == 0),
             DIVISIBLE_K=(K % 32 == 0),
+            assume_in_bounds=True,
         )
         return C
 

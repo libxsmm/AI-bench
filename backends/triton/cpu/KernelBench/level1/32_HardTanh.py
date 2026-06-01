@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["n_elements"],
 )

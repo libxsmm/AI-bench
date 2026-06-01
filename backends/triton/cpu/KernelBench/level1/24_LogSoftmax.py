@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_N": 32, "warp_size": 32},
-        ),
+            {"BLOCK_N": n},
+        )
+        for n in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["N"],
 )
@@ -27,7 +28,6 @@ def _logsoftmax_kernel(
     stride_im,
     stride_om,
     BLOCK_N: tl.constexpr,
-    warp_size: tl.constexpr,
 ):
     pid_m = tl.program_id(0)
     row_inp = inp_ptr + pid_m.to(tl.int64) * stride_im
@@ -42,7 +42,7 @@ def _logsoftmax_kernel(
     for start in range(0, N, BLOCK_N):
         offs = start + tl.arange(0, BLOCK_N)
         mask = offs < N
-        x = tl.load(row_inp + offs, mask=mask, other=-float("inf")).to(tl.float32)
+        x = tl.load(row_inp + offs, mask=mask, other=-float("inf"))
         block_max = tl.max(x, axis=0)
         m_new = tl.maximum(m, block_max)
         s = s * tl.math.exp2((m - m_new) * LOG2E) + tl.sum(
@@ -55,9 +55,9 @@ def _logsoftmax_kernel(
     for start in range(0, N, BLOCK_N):
         offs = start + tl.arange(0, BLOCK_N)
         mask = offs < N
-        x = tl.load(row_inp + offs, mask=mask, other=-float("inf")).to(tl.float32)
+        x = tl.load(row_inp + offs, mask=mask, other=-float("inf"))
         y = x - m - log_s
-        tl.store(row_out + offs, y.to(tl.bfloat16), mask=mask)
+        tl.store(row_out + offs, y, mask=mask)
 
 
 class Model(nn.Module):

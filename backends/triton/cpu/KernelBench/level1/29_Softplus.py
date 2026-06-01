@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["n_elements"],
 )
@@ -29,7 +30,7 @@ def softplus_kernel(
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offsets < n_elements
 
-    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
 
     # softplus(x) = log(1 + exp(x)), with threshold for numerical stability
     THRESHOLD: tl.constexpr = 20.0

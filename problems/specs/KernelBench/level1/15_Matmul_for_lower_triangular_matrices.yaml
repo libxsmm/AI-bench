@@ -20,4 +20,11 @@ simple-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      M: 128
+      M: 256
+
+bench-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 4096
+    atol: 1

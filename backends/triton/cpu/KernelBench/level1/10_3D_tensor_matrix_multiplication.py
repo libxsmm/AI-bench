@@ -10,15 +10,15 @@ import triton
 import triton.language as tl
 
 
-def _configs():
-    return [
+@triton.autotune(
+    configs=[
         triton.Config(
-            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-        ),
-    ]
-
-
-@triton.autotune(configs=_configs(), key=["M", "N", "K"])
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": gs},
+        )
+        for gs in [1, 2, 4, 8]
+    ],
+    key=["M", "N", "K"],
+)
 @triton.jit
 def _matmul_kernel(
     a_ptr,
@@ -101,6 +101,13 @@ class Model(nn.Module):
         c_flat = torch.empty((total_m, l), device=a.device, dtype=torch.bfloat16)
 
         def grid(META):
+            assert (
+                m % META["BLOCK_M"] == 0
+                and l % META["BLOCK_N"] == 0
+                and k % META["BLOCK_K"] == 0
+            ), (
+                "M, L, and K must be divisible by BLOCK_M, BLOCK_N, and BLOCK_K respectively"
+            )
             return (
                 triton.cdiv(total_m, META["BLOCK_M"]) * triton.cdiv(l, META["BLOCK_N"]),
             )
@@ -118,6 +125,7 @@ class Model(nn.Module):
             b.stride(1),
             c_flat.stride(0),
             c_flat.stride(1),
+            assume_in_bounds=True,
         )
 
         return c_flat.reshape(batch, m, l)

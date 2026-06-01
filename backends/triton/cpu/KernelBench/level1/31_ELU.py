@@ -13,8 +13,9 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         triton.Config(
-            {"BLOCK_SIZE": 32},
-        ),
+            {"BLOCK_SIZE": bs},
+        )
+        for bs in [32, 64, 128, 256, 512, 1024, 2048, 4096]
     ],
     key=["n_elements"],
 )
@@ -31,7 +32,7 @@ def elu_kernel(
     mask = offsets < n_elements
 
     x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
-    x_f32 = x.to(tl.float32)
+    x_f32 = x
 
     inv_ln2: tl.constexpr = 1.4426950408889634
     exp_x = tl.math.exp2(x_f32 * inv_ln2)
@@ -39,7 +40,7 @@ def elu_kernel(
 
     result = tl.where(x_f32 > 0.0, x_f32, neg_branch)
 
-    tl.store(out_ptr + offsets, result.to(x.dtype), mask=mask)
+    tl.store(out_ptr + offsets, result, mask=mask)
 
 
 class Model(nn.Module):

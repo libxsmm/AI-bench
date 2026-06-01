@@ -24,6 +24,15 @@ simple-cpu:
       K: 512
     flop: "2*M*N*K"
 
+bench-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 2048
+      N: 1
+      K: 16384
+    flop: "2*M*N*K"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

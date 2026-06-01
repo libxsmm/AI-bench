@@ -10,15 +10,15 @@ import triton
 import triton.language as tl
 
 
-def _configs():
-    return [
+@triton.autotune(
+    configs=[
         triton.Config(
-            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": 4},
-        ),
-    ]
-
-
-@triton.autotune(configs=_configs(), key=["M", "N", "K"])
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": gs},
+        )
+        for gs in [1, 2, 4, 8]
+    ],
+    key=["M", "N", "K"],
+)
 @triton.jit
 def _matmul_kernel(
     a_ptr,
@@ -87,9 +87,13 @@ def _matmul_triton(A, B):
 
     C = torch.empty((M, N), device=A.device, dtype=A.dtype)
 
-    grid = lambda META: (
-        triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(N, META["BLOCK_N"]),
-    )
+    def grid(META):
+        assert (
+            M % META["BLOCK_M"] == 0
+            and N % META["BLOCK_N"] == 0
+            and K % META["BLOCK_K"] == 0
+        ), "Matrix dimensions must be divisible by block sizes"
+        return (triton.cdiv(M, META["BLOCK_M"]) * triton.cdiv(N, META["BLOCK_N"]),)
 
     _matmul_kernel[grid](
         A,
@@ -104,6 +108,7 @@ def _matmul_triton(A, B):
         B.stride(1),
         C.stride(0),
         C.stride(1),
+        assume_in_bounds=True,
     )
     return C
 
