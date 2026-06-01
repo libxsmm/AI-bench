@@ -15,6 +15,15 @@ ci:
       K: 16
     flop: "2*M*N*K"
 
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 512
+      N: 512
+      K: 32
+    flop: "2*M*N*K"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

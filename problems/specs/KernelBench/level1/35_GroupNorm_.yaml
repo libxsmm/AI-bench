@@ -16,3 +16,13 @@ ci:
       NUM_GROUPS: 4
       DIM1: 32
       DIM2: 32
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      FEATURES: 8
+      NUM_GROUPS: 4
+      DIM1: 32
+      DIM2: 32

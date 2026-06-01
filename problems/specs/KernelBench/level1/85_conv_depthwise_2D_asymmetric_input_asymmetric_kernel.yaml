@@ -34,3 +34,22 @@ ci:
       GROUPS: 16
       HEIGHT: 16
       WIDTH: 32
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 4
+      KERNEL_SIZE_H: 3
+      KERNEL_SIZE_W: 7
+      STRIDE_H: 1
+      STRIDE_W: 1
+      PADDING_H: 0
+      PADDING_W: 0
+      DILATION_H: 1
+      DILATION_W: 1
+      GROUPS: 16
+      HEIGHT: 16
+      WIDTH: 32

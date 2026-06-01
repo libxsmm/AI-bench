@@ -13,3 +13,11 @@ ci:
       BATCH_SIZE: 64
       INPUT_DIM: 64
       SCAN_DIM: 1
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 64
+      INPUT_DIM: 64
+      SCAN_DIM: 1

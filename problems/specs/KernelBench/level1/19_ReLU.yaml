@@ -10,6 +10,13 @@ ci:
       BATCH: 128
       DIM: 512
 
+simple-cpu:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 128
+      DIM: 512
+
 bench-cpu:
   - params: [X]
     dtype: bfloat16

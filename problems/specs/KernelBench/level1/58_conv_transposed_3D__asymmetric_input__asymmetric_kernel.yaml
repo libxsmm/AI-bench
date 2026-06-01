@@ -19,3 +19,15 @@ ci:
       DEPTH_IN: 4
       HEIGHT_IN: 32
       WIDTH_IN: 64
+
+simple-cpu:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 8
+      KERNEL_SIZE: [3, 5, 7]
+      DEPTH_IN: 4
+      HEIGHT_IN: 32
+      WIDTH_IN: 64
