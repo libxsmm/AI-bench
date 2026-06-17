@@ -99,6 +99,8 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]]; then
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TRITON}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --triton"
+  TRITON_PACKAGE_PATH=$(${AI_BENCH_UV} run python -c "import triton; print(triton.__path__[0])")
+  export LD_LIBRARY_PATH=${TRITON_PACKAGE_PATH}/_C:${LD_LIBRARY_PATH}
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --mlir"
