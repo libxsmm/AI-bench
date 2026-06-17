@@ -59,7 +59,7 @@ done
 
 # Setup
 echo "--- Setup environment"
-source /swtools/intel/2025.2.0/setvars.sh --force
+source /swtools/intel/setvars.sh
 source /swtools/intel-gpu/latest/intel_gpu_vars.sh
 echo ""
 
