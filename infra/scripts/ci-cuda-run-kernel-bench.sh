@@ -61,8 +61,13 @@ done
 # Setup
 echo "--- Setup environment"
 source /swtools/cuda/latest/cuda_vars.sh
+
 PTXAS_PATH=$(which ptxas)
 export TRITON_PTXAS_PATH=${PTXAS_PATH}
+echo "TRITON_PTXAS_PATH=${TRITON_PTXAS_PATH}"
+
+export TRITON_ALWAYS_COMPILE=1
+echo "TRITON_ALWAYS_COMPILE=${TRITON_ALWAYS_COMPILE}"
 echo ""
 
 echo "--- Setup project"

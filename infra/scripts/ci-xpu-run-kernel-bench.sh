@@ -60,6 +60,9 @@ done
 # Setup
 echo "--- Setup environment"
 source /swtools/intel-gpu/latest/intel_gpu_vars.sh
+
+export TRITON_ALWAYS_COMPILE=1
+echo "TRITON_ALWAYS_COMPILE=${TRITON_ALWAYS_COMPILE}"
 echo ""
 
 echo "--- Setup project"
