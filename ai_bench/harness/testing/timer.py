@@ -1,4 +1,6 @@
 from collections.abc import Callable
+import os
+import warnings
 
 import torch
 from torch.profiler import ProfilerActivity
@@ -16,10 +18,19 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     Returns:
         Mean runtime in microseconds
     """
+    # Supress profiler's warning, no event accumulation is needed.
+    warnings.filterwarnings(
+        "ignore",
+        message="Warning: Profiler clears events",
+        category=UserWarning,
+    )
+    # Supress Kineto logging.
+    os.environ["KINETO_LOG_LEVEL"] = "99"
+
     for _ in range(warmup):
         fn(*args)
 
-    with profile(activities=[ProfilerActivity.CPU]) as prof:
+    with profile(activities=[ProfilerActivity.CPU], acc_events=False) as prof:
         for _ in range(rep):
             with record_function("profiled_fn"):
                 fn(*args)

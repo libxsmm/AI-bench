@@ -66,6 +66,9 @@ THREADS_PER_CORE=$(lscpu | grep --color=never "Thread.*core" | tee - | grep -o "
 SKIP=$((THREADS_PER_CORE-1)) # 0 for no HT, 1 for 2, 3 for 4, etc.
 export KMP_AFFINITY=granularity=fine,compact,$SKIP,0
 echo "KMP_AFFINITY=${KMP_AFFINITY}"
+
+export TRITON_ALWAYS_COMPILE=1
+echo "TRITON_ALWAYS_COMPILE=${TRITON_ALWAYS_COMPILE}"
 echo ""
 
 echo "--- Setup project"
