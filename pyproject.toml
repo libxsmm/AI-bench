@@ -47,16 +47,16 @@ Repository = "https://github.com/libxsmm/AI-bench"
 
 [project.optional-dependencies]
 cpu = [
-  "torch==2.11.0+cpu",
+  "torch==2.12.0+cpu",
 ]
 xpu = [
-  "torch==2.11.0+xpu",
+  "torch==2.12.0+xpu",
   "pytorch-triton-xpu",
   "helion==1.1.0",
 ]
 cuda = [
-  "torch==2.11.0+cu130",
-  "torchvision==0.26.0",
+  "torch==2.12.0+cu130",
+  "torchvision==0.27.0",
   "pytorch-triton",
   "helion==1.1.0",
 ]
@@ -115,7 +115,7 @@ override-dependencies = [
 [tool.uv.sources]
 torch = { index = "pytorch" }
 pytorch-triton-xpu = { index = "pytorch-xpu" }
-pytorch-triton = { index = "pytorch" }
+pytorch-triton = { index = "pytorch-cuda" }
 triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "eece2e9" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "cccc0f3" }
 mlir-python-bindings = { index = "eudsl" }
@@ -127,6 +127,10 @@ url = "https://download.pytorch.org/whl"
 [[tool.uv.index]]
 name = "pytorch-xpu"
 url = "https://download.pytorch.org/whl/xpu"
+
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl"
 
 [[tool.uv.index]]
 name = "eudsl"
