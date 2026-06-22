@@ -14,17 +14,24 @@ ci:
       N: 128
       K: 256
 
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 512
+      N: 1024
+      K: 256
+
 bench-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      M: 6144
-      N: 6144
-      K: 8192
+      M: 3072
+      N: 3072
+      K: 4096
+    atol: 1
     flop: "2*M*N*K"
-    mem_bytes: "(M*K + K*N + M*N) * 2" # f16
-    atol: 2  # long accumulation chain requires higher tolerance
-    rtol: 4
+    mem_bytes: "(M*K + K*N + M*N) * 2" # bf16
 
 bench-gpu:
   - params: [A, B]
