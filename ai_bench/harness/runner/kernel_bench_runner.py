@@ -106,7 +106,7 @@ class KernelBenchRunner(KernelRunner):
                 f"Missing kernels directory for {self.backend}: {self.kernels}"
             )
 
-        # If a "utils" directory exists, add it to sys.path for kernel imports.
+        # If a "utils" directory exists, add it to sys.path for kernels to import from.
         utils = self.kernels.parent / "utils"
         if utils.is_dir():
             sys.path.insert(0, str(utils))
