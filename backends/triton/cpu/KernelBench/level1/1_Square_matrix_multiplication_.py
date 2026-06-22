@@ -3,12 +3,10 @@
 # Status: Experimental / uncurated
 # Expectation: Correctness-first, performance not representative
 
-from pathlib import Path
-
-import torch
-import torch.nn as nn
 
 from sfc_matmul import sfc_matmul
+import torch
+import torch.nn as nn
 
 
 class Model(nn.Module):

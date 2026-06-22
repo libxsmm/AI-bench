@@ -112,7 +112,7 @@ override-dependencies = [
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "eece2e9" }
+triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "2d72c44" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "cccc0f3" }
 mlir-python-bindings = { index = "eudsl" }
 

@@ -110,7 +110,6 @@ class KernelBenchRunner(KernelRunner):
         utils = self.kernels.parent / "utils"
         if utils.is_dir():
             sys.path.insert(0, str(utils))
-            
 
     def get_spec_dirs(self) -> list[Path]:
         """Get KernelBench level dirs.
