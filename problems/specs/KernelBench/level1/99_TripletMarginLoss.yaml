@@ -20,3 +20,11 @@ ci:
       BATCH_SIZE: 64
       INPUT_DIM: 8
       MARGIN: 1.0
+
+simple-cpu:
+  - params: [anchor, positive, negative]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2048
+      INPUT_DIM: 512
+      MARGIN: 1.0

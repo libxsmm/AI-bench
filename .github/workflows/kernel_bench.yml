@@ -140,8 +140,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Nvidia A100
-        run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
+      - name: Nvidia H100
+        run: "${{ env.SRUN }} --partition=h100 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   CUDA-Triton:
@@ -152,8 +152,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Nvidia A100
-        run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
+      - name: Nvidia H100
+        run: "${{ env.SRUN }} --partition=h100 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   CUDA-Helion:
@@ -164,6 +164,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Nvidia A100
-        run: "${{ env.SRUN }} --partition=a100 --time=0:15:00 -- \
+      - name: Nvidia H100
+        run: "${{ env.SRUN }} --partition=h100 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"

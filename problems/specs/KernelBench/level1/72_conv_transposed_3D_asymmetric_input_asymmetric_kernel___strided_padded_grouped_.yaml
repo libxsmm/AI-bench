@@ -27,3 +27,19 @@ ci:
       DEPTH: 12
       HEIGHT: 24
       WIDTH: 48
+
+simple-cpu:
+  - params: [x]
+    dtype: float16
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 4
+      KERNEL_SIZE: [3, 5, 7]
+      STRIDE: [2, 2, 2]
+      PADDING: [1, 2, 3]
+      OUTPUT_PADDING: [1, 1, 1]
+      GROUPS: 2
+      DEPTH: 12
+      HEIGHT: 24
+      WIDTH: 48

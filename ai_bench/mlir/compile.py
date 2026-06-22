@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from collections.abc import Sequence
 import os
+import warnings
 
 import lighthouse.ingress.torch.compile as lh_compile
 from mlir import ir
@@ -79,6 +80,7 @@ class CPUBackend(lh_compile.MLIRBackend):
         Returns:
             Callable function.
         """
+        warnings.filterwarnings("ignore", category=FutureWarning)
         jit_func = super().__call__(model, example_inputs)
 
         if os.environ.get("AIBENCH_MLIR_DUMP_OBJ"):

@@ -15,3 +15,10 @@ ci:
     dims:
       BATCH_SIZE: 64
       NUM_CLASSES: 8
+
+simple-cpu:
+  - params: [predictions, targets]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 64
+      NUM_CLASSES: 8

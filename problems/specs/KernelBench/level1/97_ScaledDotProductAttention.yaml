@@ -19,3 +19,12 @@ ci:
       NUM_HEADS: 8
       SEQUENCE_LENGTH: 16
       EMBEDDING_DIMENSION: 32
+
+simple-cpu:
+  - params: [Q, K, V]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 32
+      NUM_HEADS: 32
+      SEQUENCE_LENGTH: 64
+      EMBEDDING_DIMENSION: 128

@@ -22,3 +22,16 @@ ci:
       PADDING: 0
       HEIGHT_IN: 16
       WIDTH_IN: 32
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 8
+      KERNEL_SIZE: 3
+      STRIDE: 1
+      PADDING: 0
+      HEIGHT_IN: 16
+      WIDTH_IN: 32

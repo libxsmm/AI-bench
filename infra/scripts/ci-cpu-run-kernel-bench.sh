@@ -66,6 +66,9 @@ THREADS_PER_CORE=$(lscpu | grep --color=never "Thread.*core" | tee - | grep -o "
 SKIP=$((THREADS_PER_CORE-1)) # 0 for no HT, 1 for 2, 3 for 4, etc.
 export KMP_AFFINITY=granularity=fine,compact,$SKIP,0
 echo "KMP_AFFINITY=${KMP_AFFINITY}"
+
+export TRITON_ALWAYS_COMPILE=1
+echo "TRITON_ALWAYS_COMPILE=${TRITON_ALWAYS_COMPILE}"
 echo ""
 
 echo "--- Setup project"
@@ -99,6 +102,8 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]]; then
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TRITON}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --triton"
+  TRITON_PACKAGE_PATH=$(${AI_BENCH_UV} run python -c "import triton; print(triton.__path__[0])")
+  export LD_LIBRARY_PATH=${TRITON_PACKAGE_PATH}/_C:${LD_LIBRARY_PATH}
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --mlir"

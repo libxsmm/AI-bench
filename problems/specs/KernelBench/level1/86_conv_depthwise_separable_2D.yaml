@@ -25,3 +25,18 @@ ci:
       DILATION: 1
       HEIGHT: 32
       WIDTH: 32
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    memory_format: channels_last
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 4
+      OUT_CHANNELS: 8
+      KERNEL_SIZE: 3
+      STRIDE: 1
+      PADDING: 1
+      DILATION: 1
+      HEIGHT: 32
+      WIDTH: 32

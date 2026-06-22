@@ -15,3 +15,13 @@ ci:
       HEIGHT: 128
       WIDTH: 128
       KERNEL_SIZE: 3
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      CHANNELS: 16
+      HEIGHT: 128
+      WIDTH: 128
+      KERNEL_SIZE: 3

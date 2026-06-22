@@ -18,3 +18,15 @@ ci:
       KERNEL_SIZE: [5, 7]
       HEIGHT: 64
       WIDTH: 32
+
+simple-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 16
+      KERNEL_SIZE: [5, 7]
+      HEIGHT: 64
+      WIDTH: 32
+    atol: 9.e-4
