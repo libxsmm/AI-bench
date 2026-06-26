@@ -1,0 +1,46 @@
+inputs:
+  X:
+    shape: [BATCH, DIM]
+    dtype: inherit
+
+ci:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 128
+      DIM: 512
+    flop: "2*BATCH*DIM"
+
+simple-cpu:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 128
+      DIM: 512
+    flop: "2*BATCH*DIM"
+
+bench-cpu:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 4096
+      DIM: 8192
+    flop: "2*BATCH*DIM"
+    mem_bytes: "(2*BATCH*DIM) * 4" # f32
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 4096
+      DIM: 8192
+    flop: "2*BATCH*DIM"
+    mem_bytes: "(2*BATCH*DIM) * 2" # bf16
+
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 1024
+      DIM: 16384
+    flop: "2*BATCH*DIM"
+    rtol: 1.0e-03
+    atol: 1.0e-05

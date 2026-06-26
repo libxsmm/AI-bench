@@ -1,0 +1,56 @@
+inputs:
+  A:
+    shape: [N, N]
+    dtype: inherit
+  B:
+    shape: [N, N]
+    dtype: inherit
+
+ci:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      N: 128
+
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 512
+
+bench-cpu:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      N: 4096
+    atol: 1
+    flop: "2*N*N*N"
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 4096
+    atol: 1
+    flop: "2*N*N*N"
+
+bench-gpu:
+  - params: [A, B]
+    dtype: float16
+    dims:
+      N: 1024
+    flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05
+  - params: [A, B]
+    dtype: float16
+    dims:
+      N: 2048
+    flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05
+  - params: [A, B]
+    dtype: float16
+    dims:
+      N: 4096
+    flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05

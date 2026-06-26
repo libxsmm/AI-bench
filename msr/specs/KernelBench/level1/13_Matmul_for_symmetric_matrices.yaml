@@ -1,0 +1,37 @@
+inputs:
+  A:
+    shape: [N, N]
+    dtype: inherit
+    inits: [symmetric]
+  B:
+    shape: [N, N]
+    dtype: inherit
+    inits: [symmetric]
+
+inits: []
+
+ci:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      N: 64
+
+simple-cpu:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 256
+
+bench-cpu:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      N: 4096
+    atol: 0.5
+    flop: "2*N*N*N"
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 4096
+    atol: 0.5
+    flop: "2*N*N*N"
