@@ -31,6 +31,7 @@ def _block_pack_kernel(
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
+    B_IS_PREPACKED: tl.constexpr = False,
 ):
     VNNI: tl.constexpr = 32 // b_in_ptr.type.element_ty.primitive_bitwidth
 
@@ -64,6 +65,8 @@ def _block_pack_kernel(
         a_out_desc.store((block_m, block_k, 0, 0), block)
 
     # Block-and-VNNI-pack B
+    if B_IS_PREPACKED:
+        return
     if pid < BLOCKS_K * BLOCKS_N:
         block_k = tl.load(b_sfc_map_ptr + 2 * pid)
         block_n = tl.load(b_sfc_map_ptr + 2 * pid + 1)
@@ -120,6 +123,7 @@ def _sfc_matmul_kernel(
     a_ptr,
     b_ptr,
     c_ptr,
+    bias_ptr,
     sfc_map_ptr,
     M,
     N,
@@ -129,6 +133,8 @@ def _sfc_matmul_kernel(
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
     BLOCKING_FACTOR_K: tl.constexpr,
+    HAS_BIAS: tl.constexpr,
+    POST_OP: tl.constexpr,
 ):
     VNNI: tl.constexpr = 32 // b_ptr.type.element_ty.primitive_bitwidth
 
@@ -182,12 +188,30 @@ def _sfc_matmul_kernel(
             (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
         )
 
-        b = tl.extra.cpu.vnni_decode(b)
+        if VNNI > 1:
+            b = tl.extra.cpu.vnni_decode(b)
 
         c = tl.dot(a, b, acc=c, out_dtype=accum_dtype)
 
+    if HAS_BIAS:
+        bias_desc = tl.make_tensor_descriptor(
+            base=bias_ptr,
+            shape=(N,),
+            strides=(1,),
+            block_shape=(BLOCK_SIZE_N,),
+        )
+        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(accum_dtype)
+        c += bias[None, :]
+
+    c = POST_OP(c)
+
     c = c.to(dtype).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
     c_desc.store([block_m, block_n, 0, 0], c)
+
+
+@triton.jit
+def no_post_op(x):
+    return x
 
 
 @functools.lru_cache
@@ -196,7 +220,42 @@ def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
     return torch.tensor([c for xy in gilbert for c in xy], dtype=dtype, device=device)
 
 
-def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
+def pack_weights_for_sfc_matmul(
+    weights: torch.Tensor, BLOCK_SIZE_N, BLOCK_SIZE_K
+) -> torch.Tensor:
+    N, K = weights.shape
+    assert weights.element_size() <= 4, (
+        "Only 32-bit or smaller data types are supported"
+    )
+    VF = 32 // (weights.element_size() * 8)  # VNNI factor based on data type
+    return (
+        weights.reshape(
+            N // BLOCK_SIZE_N,
+            BLOCK_SIZE_N,
+            K // BLOCK_SIZE_K,
+            BLOCK_SIZE_K // VF,
+            VF,
+        )
+        .permute(
+            0,  # N // BLOCK_SIZE_N
+            2,  # K // BLOCK_SIZE_K
+            3,  # BLOCK_SIZE_K // VNNI
+            1,  # BLOCK_SIZE_N
+            4,  # VNNI
+        )
+        .contiguous()
+        .reshape(K, N)
+    )
+
+
+def sfc_matmul(
+    a: torch.Tensor,
+    b: torch.Tensor,
+    bias=None,
+    post_op=None,
+    b_is_prepacked=False,
+    blocking_factor_k=1,
+) -> torch.Tensor:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
     assert a.dtype == b.dtype, f"dtype mismatch: {a.dtype} vs {b.dtype}"
@@ -220,19 +279,25 @@ def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
     BLOCKS_N = N // BLOCK_SIZE_N
     BLOCKS_K = K // BLOCK_SIZE_K
 
-    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
     sfc_map_mk = _make_sfc_tensor(BLOCKS_M, BLOCKS_K)
     sfc_map_kn = _make_sfc_tensor(BLOCKS_K, BLOCKS_N)
 
     ap = torch.empty(
         (BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K), device=a.device, dtype=a.dtype
     )
-    bp = torch.empty(
-        (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N), device=b.device, dtype=b.dtype
-    )
-    c = torch.empty((M, N), device=a.device, dtype=a.dtype)
 
-    num_blocks = max(BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N)
+    if b_is_prepacked:
+        bp = b
+    else:
+        bp = torch.empty(
+            (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N),
+            device=b.device,
+            dtype=b.dtype,
+        )
+
+    num_blocks = max(
+        BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
+    )
     _block_pack_kernel[(num_blocks,)](
         a,
         ap,
@@ -246,23 +311,32 @@ def sfc_matmul(a: torch.Tensor, b: torch.Tensor, blocking_factor_k=1):
         BLOCK_SIZE_M=BLOCK_SIZE_M,
         BLOCK_SIZE_N=BLOCK_SIZE_N,
         BLOCK_SIZE_K=BLOCK_SIZE_K,
+        B_IS_PREPACKED=b_is_prepacked,
         assume_in_bounds=True,
     )
+
+    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
+    c = torch.empty((M, N), device=a.device, dtype=a.dtype)
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
             ap,
             bp,
-            c,  #
-            sfc_map_mn,  #
+            c,
+            bias,
+            sfc_map_mn,
             M,
             N,
-            K,  #
-            ik,  #
+            K,
+            ik,
             BLOCK_SIZE_M=BLOCK_SIZE_M,
             BLOCK_SIZE_N=BLOCK_SIZE_N,
             BLOCK_SIZE_K=BLOCK_SIZE_K,  #
             BLOCKING_FACTOR_K=blocking_factor_k,
+            HAS_BIAS=bias is not None and ik == blocking_factor_k - 1,
+            POST_OP=post_op
+            if post_op is not None and ik == blocking_factor_k - 1
+            else no_post_op,
             assume_in_bounds=True,
         )
 
