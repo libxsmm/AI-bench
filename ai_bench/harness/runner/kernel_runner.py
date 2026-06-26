@@ -76,8 +76,8 @@ class KernelRunner:
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
         if self.is_cpu():
-            self.warmup = 5
-            self.rep = 20
+            self.warmup = 20
+            self.rep = 100
         elif self.is_gpu():
             self.warmup = 200
             self.rep = 100
