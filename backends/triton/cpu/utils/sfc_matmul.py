@@ -123,6 +123,7 @@ def _sfc_matmul_kernel(
     a_ptr,
     b_ptr,
     c_ptr,
+    ctmp_ptr,
     bias_ptr,
     sfc_map_ptr,
     M,
@@ -133,6 +134,8 @@ def _sfc_matmul_kernel(
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
     BLOCKING_FACTOR_K: tl.constexpr,
+    IS_FIRST_K_BLOCK: tl.constexpr,
+    IS_LAST_K_BLOCK: tl.constexpr,
     HAS_BIAS: tl.constexpr,
     POST_OP: tl.constexpr,
 ):
@@ -141,7 +144,7 @@ def _sfc_matmul_kernel(
     BLOCKS_M = M // BLOCK_SIZE_M
     BLOCKS_N = N // BLOCK_SIZE_N
     BLOCKS_K = K // BLOCK_SIZE_K
-    BLOCKS_K_PER_PROG = BLOCKS_K // BLOCKING_FACTOR_K
+    BLOCKS_K_PER_PROG = tl.cdiv(BLOCKS_K, BLOCKING_FACTOR_K)
 
     dtype: tl.constexpr = a_ptr.type.element_ty
     accum_dtype: tl.constexpr = tl.float32 if dtype.is_floating() else tl.int32
@@ -165,24 +168,20 @@ def _sfc_matmul_kernel(
         block_shape=(1, 1, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
     )
 
-    c_desc = tl.make_tensor_descriptor(
-        base=c_ptr,
-        shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
-        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_N, N, 1),
-        block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
-    )
+    if BLOCKING_FACTOR_K > 1:
+        ctmp_desc = tl.make_tensor_descriptor(
+            base=ctmp_ptr,
+            shape=(BLOCKS_M * BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
+            strides=(BLOCK_SIZE_M * BLOCK_SIZE_N, BLOCK_SIZE_N, 1),
+            block_shape=(1, BLOCK_SIZE_M, BLOCK_SIZE_N),
+        )
 
-    if ik == 0:
-        c0 = tl.zeros((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=dtype)
-        c_desc.store([block_m, block_n, 0, 0], c0)
+    if not IS_FIRST_K_BLOCK:
+        c = ctmp_desc.load([pid, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
+    else:
+        c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accum_dtype)
 
-    c = (
-        c_desc.load([block_m, block_n, 0, 0])
-        .reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
-        .to(accum_dtype)
-    )
-
-    for block_ki in range(block_k, block_k + BLOCKS_K_PER_PROG):
+    for block_ki in range(block_k, min(block_k + BLOCKS_K_PER_PROG, BLOCKS_K)):
         a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
         b = b_desc.load([block_n, block_ki, 0, 0]).reshape(
             (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
@@ -192,6 +191,11 @@ def _sfc_matmul_kernel(
             b = tl.extra.cpu.vnni_decode(b)
 
         c = tl.dot(a, b, acc=c, out_dtype=accum_dtype)
+
+    if BLOCKING_FACTOR_K > 1 and not IS_LAST_K_BLOCK:
+        c = c.reshape((1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+        ctmp_desc.store([pid, 0, 0], c)
+        return
 
     if HAS_BIAS:
         bias_desc = tl.make_tensor_descriptor(
@@ -206,6 +210,13 @@ def _sfc_matmul_kernel(
     c = POST_OP(c)
 
     c = c.to(dtype).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+
+    c_desc = tl.make_tensor_descriptor(
+        base=c_ptr,
+        shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
+        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_N, N, 1),
+        block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
+    )
     c_desc.store([block_m, block_n, 0, 0], c)
 
 
@@ -317,12 +328,25 @@ def sfc_matmul(
 
     sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
     c = torch.empty((M, N), device=a.device, dtype=a.dtype)
+    if blocking_factor_k > 1:
+        ctmp = torch.empty(
+            (M, N),
+            device=a.device,
+            dtype=torch.int32 if a.dtype == torch.int8 else torch.float32,
+        )
+    else:
+        ctmp = torch.empty(
+            (1,),
+            device=a.device,
+            dtype=torch.int32 if a.dtype == torch.int8 else torch.float32,
+        )
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
             ap,
             bp,
             c,
+            ctmp,
             bias,
             sfc_map_mn,
             M,
@@ -333,10 +357,10 @@ def sfc_matmul(
             BLOCK_SIZE_N=BLOCK_SIZE_N,
             BLOCK_SIZE_K=BLOCK_SIZE_K,  #
             BLOCKING_FACTOR_K=blocking_factor_k,
-            HAS_BIAS=bias is not None and ik == blocking_factor_k - 1,
-            POST_OP=post_op
-            if post_op is not None and ik == blocking_factor_k - 1
-            else no_post_op,
+            IS_FIRST_K_BLOCK=ik == 0,
+            IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
+            HAS_BIAS=bias is not None,
+            POST_OP=post_op if post_op is not None else no_post_op,
             assume_in_bounds=True,
         )
 

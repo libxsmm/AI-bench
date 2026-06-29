@@ -57,4 +57,5 @@ class Model(nn.Module):
             bias=self._bias,
             post_op=self._epilogue_fun,
             b_is_prepacked=True,
+            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )

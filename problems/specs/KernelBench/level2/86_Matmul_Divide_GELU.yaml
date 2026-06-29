@@ -19,9 +19,19 @@ ci:
 
 simple-cpu:
   - params: [X]
-    dtype: float16
+    dtype: bfloat16
     dims:
-      BATCH_SIZE: 2
+      BATCH_SIZE: 64
       INPUT_SIZE: 1024
       OUTPUT_SIZE: 1024
       DIVISOR: 10.0
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      INPUT_SIZE: 8192
+      OUTPUT_SIZE: 8192
+      DIVISOR: 10.0
+    atol: 1.e-4

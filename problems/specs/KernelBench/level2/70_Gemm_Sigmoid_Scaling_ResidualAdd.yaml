@@ -19,10 +19,20 @@ ci:
 
 simple-cpu:
   - params: [X]
-    dtype: float32
+    dtype: bfloat16
     dims:
-      BATCH_SIZE: 2
+      BATCH_SIZE: 32
       INPUT_SIZE: 256
       HIDDEN_SIZE: 256
       SCALING_FACTOR: 2.0
+    atol: 2.e-2
   
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      INPUT_SIZE: 8192
+      HIDDEN_SIZE: 8192
+      SCALING_FACTOR: 2.0
+    atol: 3.5e-2

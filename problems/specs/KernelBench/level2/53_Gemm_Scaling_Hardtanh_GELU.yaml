@@ -25,9 +25,20 @@ simple-cpu:
   - params: [X]
     dtype: bfloat16
     dims:
-      BATCH_SIZE: 2
+      BATCH_SIZE: 64
       IN_FEATURES: 256
       OUT_FEATURES: 256
+      SCALING_FACTOR: 0.5
+      HARDTANH_MIN: -2
+      HARDTANH_MAX: 2
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 2048
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
       SCALING_FACTOR: 0.5
       HARDTANH_MIN: -2
       HARDTANH_MAX: 2

@@ -21,11 +21,13 @@ simple-cpu:
   - params: [X]
     dtype: bfloat16
     dims:
-      BATCH_SIZE: 32
+      BATCH_SIZE: 128
       IN_FEATURES: 1024
       OUT_FEATURES: 1024
       SCALING_FACTOR: 0.5
-  # larger shapes to trigger persistent kernel
+
+
+bench-cpu:
   - params: [X]
     dtype: bfloat16
     dims:
