@@ -14,7 +14,7 @@ def time_cpu(
     args: tuple,
     warmup: int = 25,
     rep: int = 100,
-    min_cache_nuke_mib: int = 5120,
+    min_cache_nuke_mib: int = 0,
 ) -> float:
     """Measure execution time of the provided function on CPU.
     Args:
@@ -146,6 +146,7 @@ def time(
     args: tuple,
     warmup: int = 25,
     rep: int = 100,
+    min_cache_nuke_mib: int = 0,
     device: torch.device | None = None,
 ) -> float:
     """Measure execution time of the provided function.
@@ -154,12 +155,15 @@ def time(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
+        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed runs on CPU, or 0 to disable
         device: Device type to use
     Returns:
         Mean runtime in microseconds
     """
     if not device or device.type == "cpu":
-        return time_cpu(fn, args, warmup=warmup, rep=rep)
+        return time_cpu(
+            fn, args, warmup=warmup, rep=rep, min_cache_nuke_mib=min_cache_nuke_mib
+        )
     if device.type == "xpu" or device.type == "cuda":
         return time_gpu(device, fn, args, warmup=warmup, rep=rep)
     raise ValueError(f"Unsupported device for timing: {device.type}")
