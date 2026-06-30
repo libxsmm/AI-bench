@@ -22,7 +22,7 @@ def time_cpu(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
-        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed runs, or 0 to disable
+        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations, or 0 to disable
     Returns:
         Mean runtime in microseconds
     """
@@ -155,7 +155,7 @@ def time(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
-        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed runs on CPU, or 0 to disable
+        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU, or 0 to disable
         device: Device type to use
     Returns:
         Mean runtime in microseconds
