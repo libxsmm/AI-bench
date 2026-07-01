@@ -4,9 +4,10 @@
 # Expectation: Correctness-first, performance not representative
 
 
-from sfc_matmul import sfc_matmul
 import torch
 import torch.nn as nn
+
+from triton_cpu_utils import sfc_matmul
 
 
 class Model(nn.Module):

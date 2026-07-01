@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=60"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "triton-cpu-utils"
+version = "0.1.0"
+description = "Helper utilities for AI-bench Triton CPU kernels"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["triton_cpu_utils"]
+
+[tool.setuptools.package-dir]
+triton_cpu_utils = "."
