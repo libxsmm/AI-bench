@@ -90,7 +90,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 filterwarnings = [
-    'error',
+    'error', # Turn all uncaptured warnings into errors.
     'ignore::DeprecationWarning',
     'ignore::FutureWarning',
 ]
