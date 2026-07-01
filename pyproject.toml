@@ -89,6 +89,11 @@ dev = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+filterwarnings = [
+    'error',
+    'ignore::DeprecationWarning',
+    'ignore::FutureWarning',
+]
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
