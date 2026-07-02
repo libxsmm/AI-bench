@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import math
 import os
 import warnings
 
@@ -8,13 +9,20 @@ from torch.profiler import profile
 from torch.profiler import record_function
 
 
-def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> float:
+def time_cpu(
+    fn: Callable,
+    args: tuple,
+    warmup: int = 25,
+    rep: int = 100,
+    min_cache_nuke_mib: int = 0,
+) -> float:
     """Measure execution time of the provided function on CPU.
     Args:
         fn: Function to measure
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
+        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations, or 0 to disable
     Returns:
         Mean runtime in microseconds
     """
@@ -27,11 +35,23 @@ def time_cpu(fn: Callable, args: tuple, warmup: int = 25, rep: int = 100) -> flo
     # Supress Kineto logging.
     os.environ["KINETO_LOG_LEVEL"] = "99"
 
+    nuke_a, nuke_b = None, None
+    if min_cache_nuke_mib > 0:
+        nuke_size = 2048
+        n_layers = math.ceil(
+            min_cache_nuke_mib * 1024 * 1024 / (3 * nuke_size * nuke_size * 2)
+        )  # 3 matrices, 2 bytes per bfloat16
+        nuke_a = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
+        nuke_b = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
+
     for _ in range(warmup):
         fn(*args)
 
     with profile(activities=[ProfilerActivity.CPU], acc_events=False) as prof:
         for _ in range(rep):
+            if min_cache_nuke_mib > 0:
+                torch.bmm(nuke_a, nuke_b)
+
             with record_function("profiled_fn"):
                 fn(*args)
 
@@ -126,6 +146,7 @@ def time(
     args: tuple,
     warmup: int = 25,
     rep: int = 100,
+    min_cache_nuke_mib: int = 0,
     device: torch.device | None = None,
 ) -> float:
     """Measure execution time of the provided function.
@@ -134,12 +155,15 @@ def time(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
+        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU, or 0 to disable
         device: Device type to use
     Returns:
         Mean runtime in microseconds
     """
     if not device or device.type == "cpu":
-        return time_cpu(fn, args, warmup=warmup, rep=rep)
+        return time_cpu(
+            fn, args, warmup=warmup, rep=rep, min_cache_nuke_mib=min_cache_nuke_mib
+        )
     if device.type == "xpu" or device.type == "cuda":
         return time_gpu(device, fn, args, warmup=warmup, rep=rep)
     raise ValueError(f"Unsupported device for timing: {device.type}")

@@ -75,9 +75,13 @@ class KernelRunner:
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
+        self.min_cache_nuke_mib = 0
         if self.is_cpu():
             self.warmup = 5
             self.rep = 20
+            self.min_cache_nuke_mib = int(
+                os.environ.get("AIBENCH_CPU_MIN_CACHE_NUKE_MIB", "0")
+            )
         elif self.is_gpu():
             self.warmup = 200
             self.rep = 100
@@ -240,7 +244,12 @@ class KernelRunner:
 
         # Measure performance.
         meas_us = testing.time(
-            fn, args, warmup=self.warmup, rep=self.rep, device=self.device
+            fn,
+            args,
+            warmup=self.warmup,
+            rep=self.rep,
+            min_cache_nuke_mib=self.min_cache_nuke_mib,
+            device=self.device,
         )
 
         # Statistics - FLOPs.

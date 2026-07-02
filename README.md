@@ -281,6 +281,7 @@ Environment variables used for project configuration:
 | `AIBENCH_SYCL_COMPILER` | Path to SYCL compiler (default: `icpx`) |
 | `AIBENCH_SYCL_INCLUDE` | Colon-separated include paths for CUTLASS/SYCL headers |
 | `AIBENCH_SYCL_FLAGS` | Extra compiler flags (space-separated) |
+| `AIBENCH_CPU_MIN_CACHE_NUKE_MIB` | Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU |
 
 ## License
 
