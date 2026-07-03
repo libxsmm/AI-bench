@@ -3,11 +3,12 @@
 # Expectation: Correctness-first, performance not representative
 
 
-from sfc_matmul import pack_weights_for_sfc_matmul
-from sfc_matmul import sfc_matmul
 import torch
 import torch.nn as nn
 import triton
+
+from triton_cpu_utils import pack_weights_for_sfc_matmul
+from triton_cpu_utils import sfc_matmul
 
 batch_size = 16384
 in_features = 4096
