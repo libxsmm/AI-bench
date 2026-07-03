@@ -302,7 +302,7 @@ def benchmark_problem(
                     inputs_orig = [inp.clone() for inp in inputs]
                     inputs_cur = [inp.clone() for inp in inputs]
 
-                    # Run both kernels.
+                    # Run both kernels
                     with torch.no_grad():
                         pytorch_output = pytorch_model(*inputs_orig)
                         cur_output = model(*inputs_cur)
