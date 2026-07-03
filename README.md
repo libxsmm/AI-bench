@@ -15,6 +15,9 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 
+## Project Docs
+* [**Problem Specification Files**](docs/problem_spec.md)
+
 ## Installation
 
 The project is using [uv](https://docs.astral.sh/uv/) package manager.
