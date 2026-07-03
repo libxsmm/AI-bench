@@ -5,6 +5,7 @@ from pathlib import Path
 import types
 
 import torch
+import torch._inductor.config as inductor_config
 import yaml
 
 from . import config
@@ -243,14 +244,15 @@ class KernelRunner:
         fn = model
 
         # Measure performance.
-        meas_us = testing.time(
-            fn,
-            args,
-            warmup=self.warmup,
-            rep=self.rep,
-            min_cache_nuke_mib=self.min_cache_nuke_mib,
-            device=self.device,
-        )
+        with torch.no_grad(), inductor_config.patch({"freezing": True}):
+            meas_us = testing.time(
+                fn,
+                args,
+                warmup=self.warmup,
+                rep=self.rep,
+                min_cache_nuke_mib=self.min_cache_nuke_mib,
+                device=self.device,
+            )
 
         # Statistics - FLOPs.
         flop = ai_hc.get_flop(variant)
@@ -367,7 +369,8 @@ class KernelRunner:
             # Simple CI run to verify functionality.
             if self.spec_type == ai_hc.SpecKey.V_CI:
                 self.logger.info(f"Validating: {variant}")
-                model(*args)
+                with torch.no_grad(), inductor_config.patch({"freezing": True}):
+                    model(*args)
                 continue
 
             self.logger.info(f"Benchmarking: {variant}")

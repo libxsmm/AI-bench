@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 
 import torch
+import torch._inductor.config as inductor_config
 
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
@@ -302,8 +303,8 @@ def benchmark_problem(
                     inputs_orig = [inp.clone() for inp in inputs]
                     inputs_cur = [inp.clone() for inp in inputs]
 
-                    # Run both kernels
-                    with torch.no_grad():
+                    # Run both kernels. Enable freezing here as inductor will lazily compile the model now.
+                    with torch.no_grad(), inductor_config.patch({"freezing": True}):
                         pytorch_output = pytorch_model(*inputs_orig)
                         cur_output = model(*inputs_cur)
 
