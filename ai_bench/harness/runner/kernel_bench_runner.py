@@ -1,7 +1,6 @@
 import json
 import os
 from pathlib import Path
-import sys
 
 import torch
 
@@ -105,11 +104,6 @@ class KernelBenchRunner(KernelRunner):
             raise ValueError(
                 f"Missing kernels directory for {self.backend}: {self.kernels}"
             )
-
-        # If a "utils" directory exists, add it to sys.path for kernels to import from.
-        utils = self.kernels.parent / "utils"
-        if utils.is_dir():
-            sys.path.insert(0, str(utils))
 
     def get_spec_dirs(self) -> list[Path]:
         """Get KernelBench level dirs.

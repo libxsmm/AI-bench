@@ -1,9 +1,10 @@
 import functools
 
-from gilbert_d2xy import gilbert_d2xy
 import torch
 import triton
 import triton.language as tl
+
+from triton_cpu_utils.gilbert_d2xy import gilbert_d2xy
 
 
 # Transforms the A matrix into a tensor of shape:

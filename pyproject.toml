@@ -67,6 +67,7 @@ mlir = [
 #   rm -r ~/.cache/uv/git-v0/checkouts/*/[triton rev hash]/build
 triton-cpu = [
   "triton",
+  "triton-cpu-utils", # Local kernel helper package (see: backends/utils).
   # Extra build dependencies from triton-cpu requirements.txt.
   "setuptools>=40.8.0",
   "wheel",
@@ -89,6 +90,11 @@ dev = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+filterwarnings = [
+    'error', # Turn all uncaptured warnings into errors.
+    'ignore::DeprecationWarning',
+    'ignore::FutureWarning',
+]
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
@@ -107,14 +113,15 @@ conflicts = [
   ],
 ]
 override-dependencies = [
-  "mlir-python-bindings==20260601+28be1eaf7",
+  "mlir-python-bindings==20260701+6a2cd1fab",
 ]
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
 triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "3c0ed95" }
-lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "cccc0f3" }
+lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "6f14f3a" }
 mlir-python-bindings = { index = "eudsl" }
+triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }
 
 [[tool.uv.index]]
 name = "pytorch"
@@ -191,6 +198,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-local-folder = ["ai_bench"]
+known-first-party = ["triton_cpu_utils"]
 known-third-party = [
   "torch", "triton", "helion",
   "mlir", "lighthouse", "torch_mlir",
