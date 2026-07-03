@@ -1,28 +1,25 @@
+# KernelBench YAML config for 99_Matmul_GELU_Softmax
 inputs:
   X:
     shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH: 2
-      IN_FEAT: 64
-      OUT_FEAT: 64
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
-
+      BATCH: 16
+      IN_FEAT: 128
+      OUT_FEAT: 128
+      BATCH_SIZE: 16
 bench-gpu:
   - params: [X]
     dtype: float16
     dims:
       BATCH: 1024
-      IN_FEAT: 4096
-      OUT_FEAT: 4096
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      BATCH_SIZE: 1024
     flop: "2*BATCH*IN_FEAT*OUT_FEAT"
-    rtol: 1.0e-03
-    atol: 1.0e-05

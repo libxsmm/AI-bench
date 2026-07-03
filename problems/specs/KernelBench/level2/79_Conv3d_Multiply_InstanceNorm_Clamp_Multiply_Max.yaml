@@ -1,8 +1,8 @@
+# KernelBench YAML config for 79_Conv3d_Multiply_InstanceNorm_Clamp_Multiply_Max
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -10,18 +10,34 @@ inits:
   - dim: MULTIPLIER_SHAPE
   - dim: CLAMP_MIN
   - dim: CLAMP_MAX
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
+      BATCH: 2
       IN_CHANNELS: 3
-      OUT_CHANNELS: 8
-      DEPTH: 8
-      HEIGHT: 16
-      WIDTH: 16
+      OUT_CHANNELS: 16
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
       KERNEL_SIZE: 3
-      MULTIPLIER_SHAPE: [8, 1, 1, 1] # TODO: bind these to other dims
+      MULTIPLIER_SHAPE: [16, 1, 1, 1]
       CLAMP_MIN: -1.0
       CLAMP_MAX: 1.0
+      BATCH_SIZE: 2
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 3
+      OUT_CHANNELS: 16
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 3
+      MULTIPLIER_SHAPE: [16, 1, 1, 1]
+      CLAMP_MIN: -1.0
+      CLAMP_MAX: 1.0
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE**3*(DEPTH-KERNEL_SIZE+1)*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

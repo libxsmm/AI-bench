@@ -1,8 +1,8 @@
+# KernelBench YAML config for 31_Conv2d_Min_Add_Multiply
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -10,17 +10,32 @@ inits:
   - dim: CONSTANT_VALUE
   - dim: BIAS_SHAPE
   - dim: SCALING_FACTOR
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 8
-      HEIGHT: 8
-      WIDTH: 8
+      BATCH: 2
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 16
+      HEIGHT: 16
+      WIDTH: 16
       KERNEL_SIZE: 3
       CONSTANT_VALUE: 0.5
-      BIAS_SHAPE: [8, 1, 1] # TODO: bind these to other dims
+      BIAS_SHAPE: [16, 1, 1]
       SCALING_FACTOR: 2.0
+      BATCH_SIZE: 2
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 128
+      HEIGHT: 128
+      WIDTH: 128
+      KERNEL_SIZE: 3
+      CONSTANT_VALUE: 0.5
+      BIAS_SHAPE: [128, 1, 1]
+      SCALING_FACTOR: 2.0
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

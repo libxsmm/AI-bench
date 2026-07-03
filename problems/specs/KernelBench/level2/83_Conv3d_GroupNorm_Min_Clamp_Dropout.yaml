@@ -1,8 +1,8 @@
+# KernelBench YAML config for 83_Conv3d_GroupNorm_Min_Clamp_Dropout
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -11,19 +11,38 @@ inits:
   - dim: MIN_VALUE
   - dim: MAX_VALUE
   - dim: DROPOUT_P
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
+      BATCH: 2
       IN_CHANNELS: 3
-      OUT_CHANNELS: 8
-      DEPTH: 8
-      HEIGHT: 32
-      WIDTH: 32
+      OUT_CHANNELS: 16
+      DEPTH: 16
+      HEIGHT: 64
+      WIDTH: 64
       KERNEL_SIZE: 3
+      NUM_GROUPS: 4
       GROUPS: 8
       MIN_VALUE: 0.0
       MAX_VALUE: 1.0
       DROPOUT_P: 0.2
+      BATCH_SIZE: 2
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 3
+      OUT_CHANNELS: 16
+      DEPTH: 16
+      HEIGHT: 64
+      WIDTH: 64
+      KERNEL_SIZE: 3
+      NUM_GROUPS: 4
+      GROUPS: 8
+      MIN_VALUE: 0.0
+      MAX_VALUE: 1.0
+      DROPOUT_P: 0.2
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE**3*(DEPTH-KERNEL_SIZE+1)*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

@@ -1,34 +1,28 @@
-name: 95_Matmul_Add_Swish_Tanh_GELU_Hardtanh
-description: Matrix multiplication with bias, add value, followed by Swish, Tanh, GELU, and Hardtanh activations
-
+# KernelBench YAML config for 95_Matmul_Add_Swish_Tanh_GELU_Hardtanh
 inputs:
   X:
     shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
   - dim: ADD_VALUE_SHAPE
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH: 2
-      IN_FEAT: 64
-      OUT_FEAT: 64
-      ADD_VALUE_SHAPE: [64]
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
-
+      BATCH: 16
+      IN_FEAT: 128
+      OUT_FEAT: 128
+      ADD_VALUE_SHAPE: [128]
+      BATCH_SIZE: 16
 bench-gpu:
   - params: [X]
     dtype: float16
     dims:
       BATCH: 1024
-      IN_FEAT: 4096
-      OUT_FEAT: 4096
-      ADD_VALUE_SHAPE: [4096]
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      ADD_VALUE_SHAPE: [8192]
+      BATCH_SIZE: 1024
     flop: "2*BATCH*IN_FEAT*OUT_FEAT"
-    rtol: 9.8e-04
-    atol: 7.0e-04

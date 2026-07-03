@@ -1,8 +1,8 @@
+# KernelBench YAML config for 34_ConvTranspose3d_LayerNorm_GELU_Scaling
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, D, H, W]
+    shape: [BATCH, IN_CHANNELS, DEPTH, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -12,20 +12,44 @@ inits:
   - dim: BIAS
   - dim: EPS
   - dim: SCALING_FACTOR
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 8
-      OUT_CHANNELS: 16
-      D: 4
-      H: 8
-      W: 8
+      BATCH: 32
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
       KERNEL_SIZE: 4
       STRIDE: 2
       PADDING: 1
       BIAS: true
-      EPS: 0.00001
+      EPS: 1.0e-05
       SCALING_FACTOR: 1.0
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
+      BATCH_SIZE: 32
+      D: 16
+      H: 32
+      W: 32
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 32
+      IN_CHANNELS: 32
+      OUT_CHANNELS: 64
+      KERNEL_SIZE: 4
+      STRIDE: 2
+      PADDING: 1
+      BIAS: true
+      EPS: 1.0e-05
+      SCALING_FACTOR: 1.0
+      DEPTH: 16
+      HEIGHT: 32
+      WIDTH: 32
+      BATCH_SIZE: 32
+      D: 16
+      H: 32
+      W: 32
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE**3*DEPTH*HEIGHT*WIDTH"

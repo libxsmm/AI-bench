@@ -1,20 +1,31 @@
+# KernelBench YAML config for 37_Matmul_Swish_Sum_GroupNorm
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_FEATURES]
+    shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
-  - dim: IN_FEATURES
-  - dim: OUT_FEATURES
+  - dim: IN_FEAT
+  - dim: OUT_FEAT
   - dim: NUM_GROUPS
   - dim: BIAS_SHAPE
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_FEATURES: 8
-      OUT_FEATURES: 16
-      NUM_GROUPS: 4
-      BIAS_SHAPE: [16]
+      BATCH: 512
+      IN_FEAT: 16
+      OUT_FEAT: 64
+      NUM_GROUPS: 64
+      BIAS_SHAPE: [64]
+      BATCH_SIZE: 512
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 32768
+      IN_FEAT: 1024
+      OUT_FEAT: 4096
+      NUM_GROUPS: 64
+      BIAS_SHAPE: [4096]
+      BATCH_SIZE: 32768
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"

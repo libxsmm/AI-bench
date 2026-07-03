@@ -1,8 +1,8 @@
+# KernelBench YAML config for 11_ConvTranspose2d_BatchNorm_Tanh_MaxPool_GroupNorm
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -11,18 +11,34 @@ inits:
   - dim: PADDING
   - dim: GROUPS
   - dim: NUM_GROUPS
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
+      BATCH: 8
       IN_CHANNELS: 8
       OUT_CHANNELS: 16
-      HEIGHT: 32
-      WIDTH: 32
-      KERNEL_SIZE: 3
+      HEIGHT: 16
+      WIDTH: 16
+      KERNEL_SIZE: 5
       STRIDE: 1
       PADDING: 1
       GROUPS: 4
       NUM_GROUPS: 4
+      BATCH_SIZE: 8
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 512
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 128
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 5
+      STRIDE: 1
+      PADDING: 1
+      GROUPS: 8
+      NUM_GROUPS: 8
+      BATCH_SIZE: 512
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*HEIGHT*WIDTH"

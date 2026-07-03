@@ -1,8 +1,8 @@
+# KernelBench YAML config for 2_ConvTranspose2d_BiasAdd_Clamp_Scaling_Clamp_Divide
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -12,19 +12,36 @@ inits:
   - dim: OUTPUT_PADDING
   - dim: BIAS_SHAPE
   - dim: SCALING_FACTOR
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 8
-      OUT_CHANNELS: 8
-      HEIGHT: 32
-      WIDTH: 32
+      BATCH: 2
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 64
       KERNEL_SIZE: 3
+      HEIGHT: 2
+      WIDTH: 2
       STRIDE: 2
       PADDING: 1
       OUTPUT_PADDING: 1
-      BIAS_SHAPE: [8, 1, 1] # TODO: bind these to other dims
+      BIAS_SHAPE: [64, 1, 1]
       SCALING_FACTOR: 2.0
+      BATCH_SIZE: 2
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 64
+      KERNEL_SIZE: 3
+      HEIGHT: 128
+      WIDTH: 128
+      STRIDE: 2
+      PADDING: 1
+      OUTPUT_PADDING: 1
+      BIAS_SHAPE: [64, 1, 1]
+      SCALING_FACTOR: 2.0
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*HEIGHT*WIDTH"

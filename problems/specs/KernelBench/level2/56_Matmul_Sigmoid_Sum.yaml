@@ -1,16 +1,29 @@
+# KernelBench YAML config for 56_Matmul_Sigmoid_Sum
 inputs:
   X:
-    shape: [BATCH_SIZE, INPUT_SIZE]
+    shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
   - dim: INPUT_SIZE
   - dim: HIDDEN_SIZE
-
 ci:
   - params: [X]
     dtype: float32
     dims:
+      BATCH: 2
+      IN_FEAT: 512
+      OUT_FEAT: 64
       BATCH_SIZE: 2
-      INPUT_SIZE: 32
-      HIDDEN_SIZE: 32
+      INPUT_SIZE: 512
+      HIDDEN_SIZE: 512
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_FEAT: 32768
+      OUT_FEAT: 4096
+      BATCH_SIZE: 128
+      INPUT_SIZE: 32768
+      HIDDEN_SIZE: 32768
+    flop: "2*BATCH*INPUT_SIZE*HIDDEN_SIZE"

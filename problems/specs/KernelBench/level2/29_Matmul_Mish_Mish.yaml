@@ -1,16 +1,25 @@
+# KernelBench YAML config for 29_Matmul_Mish_Mish
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_FEATURES]
+    shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
-  - dim: IN_FEATURES
-  - dim: OUT_FEATURES
-
+  - dim: IN_FEAT
+  - dim: OUT_FEAT
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_FEATURES: 64
-      OUT_FEATURES: 64
+      BATCH: 16
+      IN_FEAT: 128
+      OUT_FEAT: 128
+      BATCH_SIZE: 16
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      BATCH_SIZE: 1024
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"

@@ -1,34 +1,31 @@
+# KernelBench YAML config for 12_Gemm_Multiply_LeakyReLU
 inputs:
   X:
     shape: [BATCH, IN_FEAT]
     dtype: inherit
-
 inits:
   - dim: IN_FEAT
   - dim: OUT_FEAT
-  - dim: MUL
-  - dim: NEG_SLOPE
-
+  - dim: MULTIPLIER
+  - dim: NEGATIVE_SLOPE
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH: 2
-      IN_FEAT: 64
-      OUT_FEAT: 64
-      MUL: 2.0
-      NEG_SLOPE: 0.1
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
-
+      BATCH: 16
+      IN_FEAT: 128
+      OUT_FEAT: 128
+      MULTIPLIER: 2.0
+      NEGATIVE_SLOPE: 0.1
+      BATCH_SIZE: 16
 bench-gpu:
   - params: [X]
     dtype: float16
     dims:
       BATCH: 1024
-      IN_FEAT: 4096
-      OUT_FEAT: 4096
-      MUL: 2.0
-      NEG_SLOPE: 0.1
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
-    rtol: 1.3e-03
-    atol: 9.6e-04
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      MULTIPLIER: 2.0
+      NEGATIVE_SLOPE: 0.1
+      BATCH_SIZE: 1024
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"

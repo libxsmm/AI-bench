@@ -1,48 +1,47 @@
+# KernelBench YAML config for 85_Conv2d_GroupNorm_Scale_MaxPool_Clamp
 inputs:
   X:
-    shape: [BATCH, IN_CH, H, W]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
-  - dim: IN_CH
-  - dim: OUT_CH
+  - dim: IN_CHANNELS
+  - dim: OUT_CHANNELS
   - dim: KERNEL_SIZE
   - dim: NUM_GROUPS
   - dim: SCALE_SHAPE
   - dim: MAXPOOL_KERNEL_SIZE
   - dim: CLAMP_MIN
   - dim: CLAMP_MAX
-
 ci:
   - params: [X]
     dtype: float32
     dims:
       BATCH: 2
-      IN_CH: 8
-      OUT_CH: 32
-      H: 16
-      W: 16
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 16
+      HEIGHT: 16
+      WIDTH: 16
       KERNEL_SIZE: 3
-      NUM_GROUPS: 8
-      SCALE_SHAPE: [32, 1, 1]
-      MAXPOOL_KERNEL_SIZE: 4
+      NUM_GROUPS: 4
+      SCALE_SHAPE: [16, 1, 1]
+      MAXPOOL_KERNEL_SIZE: 2
       CLAMP_MIN: 0.0
       CLAMP_MAX: 1.0
-    flop: "2*BATCH*OUT_CH*H*W*(IN_CH/NUM_GROUPS)*KERNEL_SIZE*KERNEL_SIZE"
-
+      BATCH_SIZE: 2
 bench-gpu:
   - params: [X]
-    dtype: float32
+    dtype: float16
     dims:
       BATCH: 128
-      IN_CH: 8
-      OUT_CH: 64
-      H: 128
-      W: 128
+      IN_CHANNELS: 8
+      OUT_CHANNELS: 64
+      HEIGHT: 128
+      WIDTH: 128
       KERNEL_SIZE: 3
       NUM_GROUPS: 16
       SCALE_SHAPE: [64, 1, 1]
       MAXPOOL_KERNEL_SIZE: 4
       CLAMP_MIN: 0.0
       CLAMP_MAX: 1.0
-    flop: "2*BATCH*OUT_CH*H*W*(IN_CH/NUM_GROUPS)*KERNEL_SIZE*KERNEL_SIZE"
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*(HEIGHT-KERNEL_SIZE+1)*(WIDTH-KERNEL_SIZE+1)"

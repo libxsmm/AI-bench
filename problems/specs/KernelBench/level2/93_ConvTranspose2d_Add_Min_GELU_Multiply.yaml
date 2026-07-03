@@ -1,8 +1,8 @@
+# KernelBench YAML config for 93_ConvTranspose2d_Add_Min_GELU_Multiply
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -10,17 +10,32 @@ inits:
   - dim: STRIDE
   - dim: ADD_VALUE
   - dim: MULTIPLY_VALUE
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 8
-      HEIGHT: 32
-      WIDTH: 32
+      BATCH: 2
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 2
+      HEIGHT: 64
+      WIDTH: 64
       KERNEL_SIZE: 4
       STRIDE: 2
       ADD_VALUE: 0.5
       MULTIPLY_VALUE: 2.0
+      BATCH_SIZE: 2
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 128
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 128
+      HEIGHT: 64
+      WIDTH: 64
+      KERNEL_SIZE: 4
+      STRIDE: 2
+      ADD_VALUE: 0.5
+      MULTIPLY_VALUE: 2.0
+      BATCH_SIZE: 128
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*HEIGHT*WIDTH"

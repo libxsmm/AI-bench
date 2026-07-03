@@ -1,8 +1,8 @@
+# KernelBench YAML config for 36_ConvTranspose2d_Min_Sum_GELU_Add
 inputs:
   X:
-    shape: [BATCH_SIZE, IN_CHANNELS, HEIGHT, WIDTH]
+    shape: [BATCH, IN_CHANNELS, HEIGHT, WIDTH]
     dtype: inherit
-
 inits:
   - dim: IN_CHANNELS
   - dim: OUT_CHANNELS
@@ -11,18 +11,34 @@ inits:
   - dim: PADDING
   - dim: OUTPUT_PADDING
   - dim: BIAS_SHAPE
-
 ci:
   - params: [X]
     dtype: float32
     dims:
-      BATCH_SIZE: 2
-      IN_CHANNELS: 4
-      OUT_CHANNELS: 8
-      HEIGHT: 32
-      WIDTH: 32
+      BATCH: 16
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 2
+      HEIGHT: 2
+      WIDTH: 2
       KERNEL_SIZE: 3
       STRIDE: 2
       PADDING: 1
       OUTPUT_PADDING: 1
       BIAS_SHAPE: [1, 1, 1]
+      BATCH_SIZE: 16
+bench-gpu:
+  - params: [X]
+    dtype: float16
+    dims:
+      BATCH: 16
+      IN_CHANNELS: 64
+      OUT_CHANNELS: 128
+      HEIGHT: 128
+      WIDTH: 128
+      KERNEL_SIZE: 3
+      STRIDE: 2
+      PADDING: 1
+      OUTPUT_PADDING: 1
+      BIAS_SHAPE: [1, 1, 1]
+      BATCH_SIZE: 16
+    flop: "2*BATCH*IN_CHANNELS*OUT_CHANNELS*KERNEL_SIZE*KERNEL_SIZE*HEIGHT*WIDTH"
