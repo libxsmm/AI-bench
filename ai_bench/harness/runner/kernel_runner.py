@@ -90,6 +90,11 @@ class KernelRunner:
             self.warmup = 25
             self.rep = 100
 
+        if "AIBENCH_WARMUP" in os.environ:
+            self.warmup = int(os.environ["AIBENCH_WARMUP"])
+        if "AIBENCH_REP" in os.environ:
+            self.rep = int(os.environ["AIBENCH_REP"])
+
         # Configure Triton backend.
         #
         # Torch inductor initializes Triton defaulting to CUDA whenever it is available.
