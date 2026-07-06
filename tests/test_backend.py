@@ -1,5 +1,6 @@
 """Tests for AI Bench harness with focus on backend selection and mocked execution."""
 
+import os
 from pathlib import Path
 import tempfile
 from unittest import mock
@@ -319,6 +320,22 @@ class TestKernelBenchRunnerInit:
 
         assert kb_runner.warmup == 200
         assert kb_runner.rep == 100
+
+    @mock.patch("os.path.isdir")
+    def test_init_warmup_rep_from_env_var(self, mock_isdir):
+        """Test warmup and rep settings from environment variables."""
+        mock_isdir.return_value = True
+
+        os.environ["AIBENCH_WARMUP"] = "7"
+        os.environ["AIBENCH_REP"] = "71"
+
+        kb_runner = runner.KernelBenchRunner(
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.PYTORCH,
+        )
+
+        assert kb_runner.warmup == 7
+        assert kb_runner.rep == 71
 
 
 class TestKernelBenchRunnerExecution:
