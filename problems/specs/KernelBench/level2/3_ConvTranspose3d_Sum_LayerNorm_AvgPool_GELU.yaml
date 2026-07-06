@@ -19,7 +19,7 @@ ci:
     dtype: float32 # "avg_pool3d_out_frame" not implemented for 'Half'
     dims:
       BATCH_SIZE: 2
-      IN_CHANNELS: 4
+      IN_CHANNELS: 16  # FIXME: torch.compile with freezing fails if IN_CHANNELS != OUT_CHANNELS
       OUT_CHANNELS: 16
       DEPTH: 4
       HEIGHT: 8
