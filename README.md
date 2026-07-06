@@ -15,6 +15,9 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 
+## Project Docs
+* [**Problem Specification Files**](docs/problem_spec.md)
+
 ## Installation
 
 The project is using [uv](https://docs.astral.sh/uv/) package manager.
@@ -281,6 +284,8 @@ Environment variables used for project configuration:
 | `AIBENCH_SYCL_COMPILER` | Path to SYCL compiler (default: `icpx`) |
 | `AIBENCH_SYCL_INCLUDE` | Colon-separated include paths for CUTLASS/SYCL headers |
 | `AIBENCH_SYCL_FLAGS` | Extra compiler flags (space-separated) |
+| `AIBENCH_WARMUP` | Override number of warmup iterations |
+| `AIBENCH_REP` | Override number of timed iterations |
 | `AIBENCH_CPU_MIN_CACHE_NUKE_MIB` | Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU |
 
 ## License

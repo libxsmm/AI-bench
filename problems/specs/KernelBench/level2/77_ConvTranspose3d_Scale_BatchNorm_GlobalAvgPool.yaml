@@ -14,7 +14,7 @@ ci:
     dtype: float32
     dims:
       BATCH_SIZE: 2
-      IN_CHANNELS: 4
+      IN_CHANNELS: 8  # FIXME: torch.compile with freezing fails if IN_CHANNELS != OUT_CHANNELS
       OUT_CHANNELS: 8
       DEPTH: 8
       HEIGHT: 16

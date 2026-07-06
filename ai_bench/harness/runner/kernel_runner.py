@@ -5,6 +5,7 @@ from pathlib import Path
 import types
 
 import torch
+import torch._inductor.config as inductor_config
 import yaml
 
 from . import config
@@ -89,6 +90,11 @@ class KernelRunner:
             self.warmup = 25
             self.rep = 100
 
+        if "AIBENCH_WARMUP" in os.environ:
+            self.warmup = int(os.environ["AIBENCH_WARMUP"])
+        if "AIBENCH_REP" in os.environ:
+            self.rep = int(os.environ["AIBENCH_REP"])
+
         # Configure Triton backend.
         #
         # Torch inductor initializes Triton defaulting to CUDA whenever it is available.
@@ -102,6 +108,11 @@ class KernelRunner:
         else:
             # Disable CPU backend - use default accelerator.
             os.environ["TRITON_CPU_BACKEND"] = "0"
+
+        # Freezing enables fusion opportunities in inference mode. Enable it by default, unless inductor's env var is
+        # set.
+        if "TORCHINDUCTOR_FREEZING" not in os.environ:
+            inductor_config.freezing = True
 
     def is_torch_backend(self) -> bool:
         """Check if the backend is a torch variant.
@@ -227,7 +238,7 @@ class KernelRunner:
         memory_format = ai_hc.get_variant_memory_format(variant)
         if memory_format is not None:
             model = model.to(memory_format=memory_format)
-        return model
+        return model.eval()
 
     def benchmark_model(self, variant, model, args) -> KernelStats:
         """Gather model's performance.
@@ -243,14 +254,15 @@ class KernelRunner:
         fn = model
 
         # Measure performance.
-        meas_us = testing.time(
-            fn,
-            args,
-            warmup=self.warmup,
-            rep=self.rep,
-            min_cache_nuke_mib=self.min_cache_nuke_mib,
-            device=self.device,
-        )
+        with torch.no_grad():
+            meas_us = testing.time(
+                fn,
+                args,
+                warmup=self.warmup,
+                rep=self.rep,
+                min_cache_nuke_mib=self.min_cache_nuke_mib,
+                device=self.device,
+            )
 
         # Statistics - FLOPs.
         flop = ai_hc.get_flop(variant)
@@ -367,7 +379,8 @@ class KernelRunner:
             # Simple CI run to verify functionality.
             if self.spec_type == ai_hc.SpecKey.V_CI:
                 self.logger.info(f"Validating: {variant}")
-                model(*args)
+                with torch.no_grad():
+                    model(*args)
                 continue
 
             self.logger.info(f"Benchmarking: {variant}")
