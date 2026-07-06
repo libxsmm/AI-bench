@@ -60,6 +60,20 @@ jobs:
         run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
             '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
+  CPU-PyTorch-Compile:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.DEVICE_CPU && inputs.BACKEND_PYTORCH_COMPILE)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Emerald Rapids
+        env:
+          TORCHINDUCTOR_MAX_AUTOTUNE: 1
+        run: "${{ env.SRUN }} --partition=emr --time=0:30:00 --constraint=\"notrb\" -- \
+            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
+
   CPU-Triton:
     runs-on: pcl-tiergarten
     if: |
