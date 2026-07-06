@@ -71,7 +71,7 @@ jobs:
       - name: Intel Emerald Rapids
         env:
           TORCHINDUCTOR_MAX_AUTOTUNE: 1
-        run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
+        run: "${{ env.SRUN }} --partition=emr --time=0:30:00 --constraint=\"notrb\" -- \
             '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
 
   CPU-Triton:
