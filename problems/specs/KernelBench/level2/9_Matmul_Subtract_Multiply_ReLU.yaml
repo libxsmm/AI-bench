@@ -20,6 +20,30 @@ ci:
       MUL_VAL: 1.5
     flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
 
+simple-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 64
+      IN_FEAT: 256
+      OUT_FEAT: 512
+      SUB_VAL: 2.0
+      MUL_VAL: 1.5
+    atol: 1.5e-2  # rtol explodes for a handful of elements: if 0 is expected (relu!), but the Triton kernel returns a small positive number
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      SUB_VAL: 2.0
+      MUL_VAL: 1.5
+    atol: 1.5e-2  # see comment in simple-cpu
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+
 bench-gpu:
   - params: [X]
     dtype: float16
