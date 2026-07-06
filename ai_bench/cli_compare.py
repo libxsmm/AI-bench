@@ -35,7 +35,8 @@ def get_problem_choices() -> list[str]:
     return choices
 
 
-def main():
+def create_parser() -> argparse.ArgumentParser:
+    """Create argument parser for CLI."""
     parser = argparse.ArgumentParser(
         description="Compare kernel performance across backends",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -113,7 +114,20 @@ Examples:
     )
 
     argcomplete.autocomplete(parser)
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Main entry point for CLI.
+
+    Args:
+        argv: Command line arguments (defaults to sys.argv[1:])
+
+    Returns:
+        Exit code (0 for success, non-zero for errors)
+    """
+    parser = create_parser()
+    args = parser.parse_args(argv)
 
     if args.backends:
         backends = [ai_hc.Backend(b) for b in args.backends]
