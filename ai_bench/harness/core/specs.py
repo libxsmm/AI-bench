@@ -3,6 +3,7 @@ try:
 except ImportError:
     from strenum import StrEnum
 
+import copy
 from functools import cache
 from typing import Dict
 
@@ -311,6 +312,32 @@ def get_inits(variant: dict, inits: list[dict]) -> list[object]:
         else:
             raise ValueError("Unsupported init value")
     return init_vals
+
+
+def expand_variants(variants: list[dict]) -> list[dict]:
+    """Expand variants whose 'dims' is a list of dim mappings.
+
+    A variant may declare 'dims' as a list of dim mappings to run the same
+    configuration across multiple shapes. Each mapping becomes its own
+    variant, so per-variant formula fields ('flop', 'mem_bytes') are
+    evaluated against each dims option.
+
+    Args:
+        variants: Specs' variant entries
+    Returns:
+        Flattened list of variant entries, each with a single 'dims' mapping
+    """
+    expanded: list[dict] = []
+    for variant in variants:
+        dims = variant.get(VKey.DIMS)
+        if isinstance(dims, list):
+            for dims_option in dims:
+                new_variant = copy.deepcopy(variant)
+                new_variant[VKey.DIMS] = dims_option
+                expanded.append(new_variant)
+        else:
+            expanded.append(variant)
+    return expanded
 
 
 def get_variant_torch_dtype(variant: dict) -> torch.dtype | None:

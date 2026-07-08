@@ -135,7 +135,7 @@ bench-gpu:
 |---|---|---|---|
 | `params` | yes | list of input names | Which declared `inputs` to build and pass to the kernel, in order. |
 | `dtype` | no* | string | Torch dtype name applied to the model/inputs. Required unless every input using it has an explicit (non-`inherit`) `dtype` of its own. |
-| `dims` | yes | mapping | Concrete size for every dim name used by this variant's inputs/inits. Values are numbers, booleans, or lists of numbers (for shape-valued dims like `BIAS_SHAPE: [32, 1, 1]`). |
+| `dims` | yes | mapping | Concrete size for every dim name used by this variant's inputs/inits. Values are numbers, booleans, or lists of numbers (for shape-valued dims like `BIAS_SHAPE: [32, 1, 1]`). May also be a list of such mappings to expand the variant across several shapes (see [Expanding dims](#expanding-dims)). |
 | `flop` | no | number or formula string | FLOP count, or a formula over `dims` (e.g. `"2*BATCH*N*N"`). Estimated automatically if omitted (PyTorch backend only). |
 | `mem_bytes` | no | number or formula string | Memory traffic in bytes, or a formula over `dims`. Estimated automatically if omitted (PyTorch backend only). |
 | `rtol` | no | number | Relative tolerance override for correctness checks. Default: `1e-2`. |
@@ -154,6 +154,29 @@ mem_bytes: "(M*K + K*N + M*N) * 4" # f32
 ```
 
 Supported operators: `+ - * / **`. No function calls.
+
+### Expanding dims
+
+To run one variant across several shapes without repeating the whole entry,
+set `dims` to a list of mappings. Each mapping is expanded into its own
+variant, and per-variant formula fields (`flop`, `mem_bytes`) are evaluated
+against each option:
+
+```yaml
+bench-gpu:
+  - params: [A, B]
+    dtype: float16
+    dims:
+      - N: 1024
+      - N: 2048
+      - N: 4096
+    flop: "2*N*N*N"
+    rtol: 1.0e-03
+    atol: 1.0e-05
+```
+
+This is equivalent to writing three separate variants that share the same
+`params`, `dtype`, `flop`, and tolerances but differ in `N`.
 
 ## Tips
 

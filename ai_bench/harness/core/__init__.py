@@ -6,6 +6,7 @@ from .specs import InKey
 from .specs import SpecKey
 from .specs import VKey
 from .specs import apply_input_inits
+from .specs import expand_variants
 from .specs import get_atol
 from .specs import get_flop
 from .specs import get_inits
@@ -31,6 +32,7 @@ __all__ = [
     "SpecKey",
     "VKey",
     "apply_input_inits",
+    "expand_variants",
     "get_atol",
     "get_flop",
     "get_inits",

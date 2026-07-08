@@ -26,9 +26,12 @@ bench-cpu:
   - params: [A, B]
     dtype: bfloat16
     dims:
-      M: 3072
+    - M: 3072
       N: 3072
       K: 4096
+    - M: 2048
+      N: 2048
+      K: 8192
     atol: 1
     flop: "2*M*N*K"
     mem_bytes: "(M*K + K*N + M*N) * 2" # bf16
