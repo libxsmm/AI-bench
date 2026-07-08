@@ -387,5 +387,105 @@ class TestMemoryFormat:
             )
 
 
+class TestExpandVariants:
+    """Tests for expanding variants with a list of dims."""
+
+    def test_expands_list_of_dims(self):
+        """Test a variant with a list of dims expands into one variant each."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["A", "B"],
+            ai_hc.VKey.TYPE: "float16",
+            ai_hc.VKey.DIMS: [{"N": 1024}, {"N": 2048}, {"N": 4096}],
+            ai_hc.VKey.FLOP: "2*N*N*N",
+            ai_hc.VKey.MEM_BYTES: "2*N*N",
+            ai_hc.VKey.RTOL: 1.0e-03,
+            ai_hc.VKey.ATOL: 1.0e-05,
+        }
+
+        expanded = ai_hc.expand_variants([variant])
+
+        assert len(expanded) == 3
+        assert [v[ai_hc.VKey.DIMS] for v in expanded] == [
+            {"N": 1024},
+            {"N": 2048},
+            {"N": 4096},
+        ]
+        # Shared fields are preserved on every expanded variant.
+        for v in expanded:
+            assert v[ai_hc.VKey.PARAMS] == ["A", "B"]
+            assert v[ai_hc.VKey.TYPE] == "float16"
+            assert v[ai_hc.VKey.RTOL] == 1.0e-03
+            assert v[ai_hc.VKey.ATOL] == 1.0e-05
+
+        # Formula fields are evaluated per dims option.
+        assert [ai_hc.get_flop(v) for v in expanded] == [
+            2 * 1024**3,
+            2 * 2048**3,
+            2 * 4096**3,
+        ]
+        assert [ai_hc.get_mem_bytes(v) for v in expanded] == [
+            2 * 1024**2,
+            2 * 2048**2,
+            2 * 4096**2,
+        ]
+
+    def test_mapping_dims_unchanged(self):
+        """Test a variant with a plain dims mapping is passed through as-is."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["A"],
+            ai_hc.VKey.DIMS: {"N": 128},
+        }
+
+        expanded = ai_hc.expand_variants([variant])
+
+        assert expanded == [variant]
+
+    def test_shape_valued_dim_not_expanded(self):
+        """Test list-valued dims (shapes) do not trigger expansion."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["X"],
+            ai_hc.VKey.DIMS: {"BIAS_SHAPE": [32, 1, 1], "N": 64},
+        }
+
+        expanded = ai_hc.expand_variants([variant])
+
+        assert len(expanded) == 1
+        assert expanded[0][ai_hc.VKey.DIMS] == {"BIAS_SHAPE": [32, 1, 1], "N": 64}
+
+    def test_mixed_variants(self):
+        """Test a list mixing expandable and plain variants."""
+        list_variant = {
+            ai_hc.VKey.PARAMS: ["A"],
+            ai_hc.VKey.DIMS: [{"N": 16}, {"N": 32}],
+        }
+        plain_variant = {
+            ai_hc.VKey.PARAMS: ["A"],
+            ai_hc.VKey.DIMS: {"N": 64},
+        }
+
+        expanded = ai_hc.expand_variants([list_variant, plain_variant])
+
+        assert len(expanded) == 3
+        assert [v[ai_hc.VKey.DIMS] for v in expanded] == [
+            {"N": 16},
+            {"N": 32},
+            {"N": 64},
+        ]
+
+    def test_expansion_is_deep_copied(self):
+        """Test expanded variants are independent copies of the source."""
+        variant = {
+            ai_hc.VKey.PARAMS: ["A"],
+            ai_hc.VKey.DIMS: [{"N": 16}, {"N": 32}],
+        }
+
+        expanded = ai_hc.expand_variants([variant])
+        expanded[0][ai_hc.VKey.PARAMS].append("B")
+
+        # Mutating one expanded variant must not affect the others or source.
+        assert expanded[1][ai_hc.VKey.PARAMS] == ["A"]
+        assert variant[ai_hc.VKey.PARAMS] == ["A"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
