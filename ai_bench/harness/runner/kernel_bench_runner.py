@@ -216,7 +216,7 @@ class KernelBenchRunner(KernelRunner):
             f"Kernel: {spec_path.parent.name} / {spec_path.name} [{self.backend}]"
         )
 
-        variants = spec[self.spec_type]
+        variants = ai_hc.expand_variants(spec[self.spec_type])
         stats = []
         for variant in variants:
             dims = variant.get("dims", {})

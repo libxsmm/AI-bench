@@ -196,7 +196,7 @@ class KernelRunner:
         Returns:
             Defined spec type variants
         """
-        return spec[self.spec_type]
+        return ai_hc.expand_variants(spec[self.spec_type])
 
     def get_spec_inputs(self, spec: dict) -> dict:
         """Get problem inputs.
