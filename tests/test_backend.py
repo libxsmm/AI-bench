@@ -7,6 +7,7 @@ from unittest import mock
 
 import pytest
 import torch
+import torch._inductor.config as inductor_config
 
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness import runner
@@ -336,6 +337,50 @@ class TestKernelBenchRunnerInit:
 
         assert kb_runner.warmup == 7
         assert kb_runner.rep == 71
+
+    @pytest.mark.parametrize(
+        "backend",
+        [ai_hc.Backend.PYTORCH, ai_hc.Backend.PYTORCH_COMPILE],
+    )
+    @mock.patch("os.path.isdir")
+    def test_freezing_enabled_for_torch_backends(self, mock_isdir, backend):
+        """Test that inductor freezing is enabled for native torch backends."""
+        mock_isdir.return_value = True
+
+        with mock.patch.dict(os.environ, clear=False):
+            os.environ.pop("TORCHINDUCTOR_FREEZING", None)
+            with mock.patch.object(inductor_config, "freezing", False):
+                runner.KernelBenchRunner(
+                    device=torch.device("cpu"),
+                    backend=backend,
+                )
+
+                assert inductor_config.freezing is True
+
+    @pytest.mark.parametrize(
+        "backend",
+        [
+            ai_hc.Backend.MLIR,
+            ai_hc.Backend.TRITON,
+            ai_hc.Backend.HELION,
+            ai_hc.Backend.GLUON,
+            ai_hc.Backend.SYCL,
+        ],
+    )
+    @mock.patch("os.path.isdir")
+    def test_freezing_disabled_for_non_torch_backends(self, mock_isdir, backend):
+        """Test that inductor freezing stays disabled for non-torch backends like MLIR."""
+        mock_isdir.return_value = True
+
+        with mock.patch.dict(os.environ, clear=False):
+            os.environ.pop("TORCHINDUCTOR_FREEZING", None)
+            with mock.patch.object(inductor_config, "freezing", False):
+                runner.KernelBenchRunner(
+                    device=torch.device("cpu"),
+                    backend=backend,
+                )
+
+                assert inductor_config.freezing is False
 
 
 class TestKernelBenchRunnerExecution:

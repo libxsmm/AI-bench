@@ -109,9 +109,10 @@ class KernelRunner:
             # Disable CPU backend - use default accelerator.
             os.environ["TRITON_CPU_BACKEND"] = "0"
 
-        # Freezing enables fusion opportunities in inference mode. Enable it by default, unless inductor's env var is
-        # set.
-        if "TORCHINDUCTOR_FREEZING" not in os.environ:
+        # Freezing enables fusion opportunities in inference mode.
+        # Enable it by default for PyTorch backends, unless inductor's env var is set.
+        # It is not enabled for MLIR to avoid large constant materialization.
+        if self.is_torch_backend() and "TORCHINDUCTOR_FREEZING" not in os.environ:
             inductor_config.freezing = True
 
     def is_torch_backend(self) -> bool:
