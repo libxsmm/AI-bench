@@ -39,6 +39,20 @@ class Model(torch.nn.Module):
         return x * 2
 """
 
+# Spec exposing a custom, non-default variant key used to exercise --variant.
+_SPEC_CUSTOM_VARIANT = """
+inputs:
+  X:
+    shape: [N]
+    dtype: float32
+my-variant:
+  - params: [X]
+    dims:
+      N: 8
+    flop: N
+    mem_bytes: N * 4
+"""
+
 
 @pytest.fixture(autouse=True)
 def _reset_finder():
@@ -84,6 +98,7 @@ class TestCreateParser:
         assert args.no_env is False
         assert args.csv is None
         assert args.note == ""
+        assert args.variant is None
 
     def test_device_group_mutually_exclusive(self):
         """Test that --xpu and --cuda cannot be combined."""
@@ -171,6 +186,24 @@ class TestMainSpecType:
     )
     def test_spec_type(self, mock_kb_runner, argv, expected):
         """Test that --bench and device select the right spec category."""
+        rc = cli.main(argv)
+
+        assert rc == 0
+        assert mock_kb_runner.call_args.kwargs["spec_type"] == expected
+
+    @pytest.mark.parametrize(
+        "argv, expected",
+        [
+            (["--no-env", "--variant", "bench-gpu-1"], "bench-gpu-1"),
+            (["--no-env", "--bench", "--variant", "custom"], "custom"),
+            (
+                ["--no-env", "--bench", "--xpu", "--variant", "my-variant"],
+                "my-variant",
+            ),
+        ],
+    )
+    def test_variant_overrides_spec_type(self, mock_kb_runner, argv, expected):
+        """Test that --variant overrides the default spec-type selection."""
         rc = cli.main(argv)
 
         assert rc == 0
@@ -429,5 +462,25 @@ class TestMainIntegration:
         spec.write_text(_SPEC_CI)
 
         rc = cli.main(["--no-env", "--kernel", str(kernel), str(spec)])
+
+        assert rc == 0
+
+    def test_single_kernel_custom_variant_run(self, tmp_path):
+        """Test that --variant selects and benchmarks a custom spec variant."""
+        kernel = tmp_path / "double.py"
+        kernel.write_text(_KERNEL_DOUBLE)
+        spec = tmp_path / "double.yaml"
+        spec.write_text(_SPEC_CUSTOM_VARIANT)
+
+        rc = cli.main(
+            [
+                "--no-env",
+                "--variant",
+                "my-variant",
+                "--kernel",
+                str(kernel),
+                str(spec),
+            ]
+        )
 
         assert rc == 0

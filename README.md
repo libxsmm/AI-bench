@@ -90,6 +90,9 @@ ai-bench --xpu --sycl
 # Benchmark mode (with timing)
 ai-bench --xpu --bench
 
+# Benchmark a custom spec variant
+ai-bench --variant custom-variant
+
 # Log results to CSV
 ai-bench --xpu --bench --csv results.csv --note "baseline run"
 

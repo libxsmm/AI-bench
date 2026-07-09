@@ -41,6 +41,9 @@ Examples:
   # Run with MLIR backend
   ai-bench --bench --mlir
 
+  # Benchmark a custom spec variant
+  ai-bench --variant custom-variant
+
   # Save results to CSV
   ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
@@ -210,6 +213,12 @@ Environment file (.env) example:
         default=False,
         help="Run full benchmarks (default: CI validation only)",
     )
+    mode_group.add_argument(
+        "--variant",
+        type=str,
+        default=None,
+        help="Variant name from spec (e.g. bench-gpu-1). Overrides default spec_type selection.",
+    )
 
     # Output options
     output_group = parser.add_argument_group("output options")
@@ -317,6 +326,10 @@ def main(argv: list[str] | None = None) -> int:
             spec_type = core.SpecKey.V_BENCH_GPU
     else:
         spec_type = core.SpecKey.V_CI
+
+    # Override spec type if given
+    if args.variant:
+        spec_type = args.variant
 
     # Determine units
     flops_unit = runner.FlopsUnit.GFLOPS if args.gflops else runner.FlopsUnit.TFLOPS

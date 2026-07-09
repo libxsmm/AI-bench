@@ -30,7 +30,7 @@ class KernelBenchRunner(KernelRunner):
 
     def __init__(
         self,
-        spec_type: ai_hc.SpecKey = ai_hc.SpecKey.V_CI,
+        spec_type: ai_hc.SpecKey | str = ai_hc.SpecKey.V_CI,
         device: torch.device | None = None,
         backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
         flops_unit: config.FlopsUnit = config.FlopsUnit.TFLOPS,
