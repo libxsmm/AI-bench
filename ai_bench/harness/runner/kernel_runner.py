@@ -59,6 +59,7 @@ class KernelRunner:
         flops_unit: FLOPS unit to use for reporting
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
+        validate_only: Force a single validation run instead of benchmarking
     """
 
     def __init__(
@@ -68,11 +69,13 @@ class KernelRunner:
         backend: ai_hc.Backend = ai_hc.Backend.PYTORCH,
         flops_unit: config.FlopsUnit = config.FlopsUnit.TFLOPS,
         mem_bw_unit: config.MemBwUnit = config.MemBwUnit.GBS,
+        validate_only: bool = False,
     ):
         self.backend = backend
         self.logger = setup_logger()
         self.flops_unit = flops_unit
         self.mem_bw_unit = mem_bw_unit
+        self.validate_only = validate_only
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
@@ -137,6 +140,14 @@ class KernelRunner:
     def is_gpu(self) -> bool:
         """Check if the device is a GPU."""
         return self.is_xpu() or self.is_cuda()
+
+    def is_validation_run(self) -> bool:
+        """Check if the run should validate only, without benchmarking.
+        Returns:
+            True when a single validation run is requested, either via the
+            CI spec type or an explicit validation-only override.
+        """
+        return self.validate_only or self.spec_type == ai_hc.SpecKey.V_CI
 
     def load_model(self, kernel_path: Path) -> types.ModuleType | None:
         """Load a kernel model.
@@ -377,8 +388,8 @@ class KernelRunner:
                 model.compile(dynamic=False)
             args = ai_hc.get_inputs(variant, spec_inputs, device=self.device)
 
-            # Simple CI run to verify functionality.
-            if self.spec_type == ai_hc.SpecKey.V_CI:
+            # Simple validation run to verify functionality.
+            if self.is_validation_run():
                 self.logger.info(f"Validating: {variant}")
                 with torch.no_grad():
                     model(*args)

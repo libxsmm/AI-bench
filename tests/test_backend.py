@@ -382,6 +382,30 @@ class TestKernelBenchRunnerInit:
 
                 assert inductor_config.freezing is False
 
+    @pytest.mark.parametrize(
+        "spec_type, validate_only, expected",
+        [
+            (ai_hc.SpecKey.V_CI, False, True),
+            (ai_hc.SpecKey.V_BENCH_CPU, False, False),
+            ("my-variant", False, False),
+            ("my-variant", True, True),
+            (ai_hc.SpecKey.V_BENCH_CPU, True, True),
+        ],
+    )
+    @mock.patch("os.path.isdir")
+    def test_is_validation_run(self, mock_isdir, spec_type, validate_only, expected):
+        """Test validation-run detection across spec types and --ci override."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            spec_type=spec_type,
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.PYTORCH,
+            validate_only=validate_only,
+        )
+
+        assert kb_runner.is_validation_run() is expected
+
 
 class TestKernelBenchRunnerExecution:
     """Tests for KernelBenchRunner execution with mocked kernels."""
@@ -539,6 +563,92 @@ class Model(torch.nn.Module):
             )
             # Should not raise any exceptions.
             kb_runner.run_kernels()
+
+    def test_validate_only_skips_benchmark(self, temp_dirs):
+        """Test that validate_only forces validation, skipping benchmarking."""
+        spec_content = """
+inputs:
+  X:
+    shape: [N]
+    dtype: float32
+bench-cpu:
+  - params: [X]
+    dims:
+      N: 8
+    flop: N
+    mem_bytes: N * 4
+"""
+        kernel_content = """
+import torch
+
+class Model(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x * 2
+"""
+        self._create_spec_file(temp_dirs["specs"], "double.yaml", spec_content)
+        self._create_kernel_file(
+            temp_dirs["pytorch_kernels"], "double.py", kernel_content
+        )
+
+        with mock.patch(
+            "ai_bench.utils.finder.project_root", return_value=temp_dirs["root"]
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_BENCH_CPU,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.PYTORCH,
+                validate_only=True,
+            )
+            with mock.patch.object(kb_runner, "benchmark_model") as mock_bench:
+                kb_runner.run_kernels()
+
+            mock_bench.assert_not_called()
+
+    def test_bench_spec_benchmarks_without_validate_only(self, temp_dirs):
+        """Test that a bench spec benchmarks when validate_only is not set."""
+        spec_content = """
+inputs:
+  X:
+    shape: [N]
+    dtype: float32
+bench-cpu:
+  - params: [X]
+    dims:
+      N: 8
+    flop: N
+    mem_bytes: N * 4
+"""
+        kernel_content = """
+import torch
+
+class Model(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x * 2
+"""
+        self._create_spec_file(temp_dirs["specs"], "double.yaml", spec_content)
+        self._create_kernel_file(
+            temp_dirs["pytorch_kernels"], "double.py", kernel_content
+        )
+
+        with mock.patch(
+            "ai_bench.utils.finder.project_root", return_value=temp_dirs["root"]
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_BENCH_CPU,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.PYTORCH,
+                validate_only=False,
+            )
+            with mock.patch.object(kb_runner, "benchmark_model") as mock_bench:
+                kb_runner.run_kernels()
+
+            mock_bench.assert_called()
 
     def test_run_kernels_different_backends(self, temp_dirs):
         """Test running same spec with different backends."""

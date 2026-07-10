@@ -93,6 +93,9 @@ ai-bench --xpu --bench
 # Benchmark a custom spec variant
 ai-bench --variant custom-variant
 
+# Validate a custom spec variant without benchmarking
+ai-bench --variant custom-variant --ci
+
 # Log results to CSV
 ai-bench --xpu --bench --csv results.csv --note "baseline run"
 

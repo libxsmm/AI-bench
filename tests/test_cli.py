@@ -99,6 +99,7 @@ class TestCreateParser:
         assert args.csv is None
         assert args.note == ""
         assert args.variant is None
+        assert args.ci is False
 
     def test_device_group_mutually_exclusive(self):
         """Test that --xpu and --cuda cannot be combined."""
@@ -208,6 +209,55 @@ class TestMainSpecType:
 
         assert rc == 0
         assert mock_kb_runner.call_args.kwargs["spec_type"] == expected
+
+
+class TestMainValidateOnly:
+    """Tests for the --ci validation-only override in main()."""
+
+    def test_default_validate_only_false(self, mock_kb_runner):
+        """Test that validate_only defaults to False without --ci."""
+        rc = cli.main(["--no-env"])
+
+        assert rc == 0
+        assert mock_kb_runner.call_args.kwargs["validate_only"] is False
+
+    def test_ci_forwards_validate_only(self, mock_kb_runner):
+        """Test that --ci forces validation-only on the runner."""
+        rc = cli.main(["--no-env", "--ci"])
+
+        assert rc == 0
+        assert mock_kb_runner.call_args.kwargs["validate_only"] is True
+
+    def test_ci_with_variant_forces_validation(self, mock_kb_runner):
+        """Test that --ci validates a custom variant instead of benchmarking."""
+        rc = cli.main(["--no-env", "--variant", "bench-gpu-1", "--ci"])
+
+        assert rc == 0
+        kwargs = mock_kb_runner.call_args.kwargs
+        assert kwargs["spec_type"] == "bench-gpu-1"
+        assert kwargs["validate_only"] is True
+
+    def test_ci_forwards_to_kernel_runner(self, mock_kernel_runner, tmp_path):
+        """Test that --ci forwards validate_only in single-kernel mode."""
+        kernel = tmp_path / "double.py"
+        kernel.write_text(_KERNEL_DOUBLE)
+        spec = tmp_path / "double.yaml"
+        spec.write_text(_SPEC_CUSTOM_VARIANT)
+
+        rc = cli.main(
+            [
+                "--no-env",
+                "--variant",
+                "my-variant",
+                "--ci",
+                "--kernel",
+                str(kernel),
+                str(spec),
+            ]
+        )
+
+        assert rc == 0
+        assert mock_kernel_runner.call_args.kwargs["validate_only"] is True
 
 
 class TestMainUnits:
