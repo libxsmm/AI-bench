@@ -26,6 +26,7 @@ class KernelBenchRunner(KernelRunner):
         flops_unit: FLOPS unit to use for reporting
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
+        validate_only: Force a single validation run instead of benchmarking
     """
 
     def __init__(
@@ -37,6 +38,7 @@ class KernelBenchRunner(KernelRunner):
         mem_bw_unit: config.MemBwUnit = config.MemBwUnit.GBS,
         csv_path: str | None = None,
         note: str = "",
+        validate_only: bool = False,
     ):
         super().__init__(
             spec_type=spec_type,
@@ -44,6 +46,7 @@ class KernelBenchRunner(KernelRunner):
             backend=backend,
             flops_unit=flops_unit,
             mem_bw_unit=mem_bw_unit,
+            validate_only=validate_only,
         )
         self.specs = ai_utils.specs() / "KernelBench"
         self.csv_path = csv_path
@@ -225,7 +228,7 @@ class KernelBenchRunner(KernelRunner):
             k = dims.get("K", m)
             dtype = variant.get(ai_hc.VKey.TYPE)
 
-            is_ci = self.spec_type == ai_hc.SpecKey.V_CI
+            is_ci = self.is_validation_run()
             iterations = 0 if is_ci else 20
 
             self.logger.info(f"{'Validating' if is_ci else 'Benchmarking'}: {variant}")

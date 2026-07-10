@@ -44,6 +44,9 @@ Examples:
   # Benchmark a custom spec variant
   ai-bench --variant custom-variant
 
+  # Validate a custom spec variant without benchmarking
+  ai-bench --variant custom-variant --ci
+
   # Save results to CSV
   ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
@@ -219,6 +222,12 @@ Environment file (.env) example:
         default=None,
         help="Variant name from spec (e.g. bench-gpu-1). Overrides default spec_type selection.",
     )
+    mode_group.add_argument(
+        "--ci",
+        action="store_true",
+        default=False,
+        help="Force a single validation run instead of benchmarking (works with --variant).",
+    )
 
     # Output options
     output_group = parser.add_argument_group("output options")
@@ -363,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
                 backend=backend,
                 flops_unit=flops_unit,
                 mem_bw_unit=mem_bw_unit,
+                validate_only=args.ci,
             )
             kernel_runner.run_kernel_spec(kernel_path, spec_path)
             return 0
@@ -376,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
             mem_bw_unit=mem_bw_unit,
             csv_path=args.csv,
             note=args.note,
+            validate_only=args.ci,
         )
         kb_runner.run_kernels()
         return 0
