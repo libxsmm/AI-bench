@@ -246,6 +246,13 @@ class KernelRunner:
         """
         model_inits = ai_hc.get_inits(variant, inits)
         model_dtype = ai_hc.get_variant_torch_dtype(variant)
+
+        # TODO: There should be a better way to set the dtype for MLIR backend.
+        if self.backend == ai_hc.Backend.MLIR:
+            os.environ["AIBENCH_MLIR_SCHED_DTYPE"] = (
+                str(model_dtype).split(".")[-1] if model_dtype else "float32"
+            )
+
         model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
         memory_format = ai_hc.get_variant_memory_format(variant)
         if memory_format is not None:

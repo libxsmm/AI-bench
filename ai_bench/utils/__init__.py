@@ -6,6 +6,7 @@ from .finder import gluon_kernels_dir
 from .finder import helion_kernels_dir
 from .finder import kernel_bench_dir
 from .finder import mlir_kernels_dir
+from .finder import mlir_schedules_dir
 from .finder import project_root
 from .finder import reset_configuration
 from .finder import specs
@@ -29,6 +30,7 @@ __all__ = [
     "import_from_path",
     "kernel_bench_dir",
     "mlir_kernels_dir",
+    "mlir_schedules_dir",
     "project_root",
     "reset_configuration",
     "specs",
