@@ -43,7 +43,7 @@ class FireModule(nn.Module):
 
 
 @torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
+    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.get_cpu_compile_fn())
 )
 class Model(nn.Module):
     def __init__(self, num_classes=1000):
