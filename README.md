@@ -283,7 +283,6 @@ Environment variables used for project configuration:
 | `AIBENCH_HELION_KERNELS_DIR` | Path to Helion kernels directory |
 | `AIBENCH_MLIR_KERNELS_DIR` | Path to MLIR kernels directory |
 | `AIBENCH_MLIR_SCHEDULES_DIR` | Path to MLIR CPU pipeline schedules (YAML descriptors) directory |
-| `AIBENCH_MLIR_SCHED_DTYPE` | Data type descriptor used for pipeline selection (default: `float32`) |
 | `AIBENCH_MLIR_LIB_PATH` | Paths to MLIR shared libraries (colon separated) |
 | `AIBENCH_MLIR_DUMP` | Dump imported MLIR IR |
 | `AIBENCH_MLIR_DUMP_OBJ` | Dump jitted MLIR to an object file |

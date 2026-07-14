@@ -1,6 +1,5 @@
 import functools
 from functools import cache
-import os
 from pathlib import Path
 from typing import Callable
 
@@ -33,7 +32,9 @@ def _get_target_info() -> TargetInfo:
     return TargetInfo()
 
 
-def _select_pipeline_file(base_path: Path, pipeline: str | None = None) -> str:
+def _select_pipeline_file(
+    base_path: Path, pipeline: str | None = None, dtype: str | None = None
+) -> str:
     """
     Dynamically select a lowering pipeline descriptor (YAML).
 
@@ -41,16 +42,16 @@ def _select_pipeline_file(base_path: Path, pipeline: str | None = None) -> str:
     specific pipeline from the schedules directory, falling back to the bundled
     default pipeline when no specific descriptor is available.
 
-    Selection can be steered through environment variables:
-        - AIBENCH_MLIR_SCHED_DTYPE: data type descriptor to look up (default "f32").
-
     Args:
         base_path: Directory holding the pipeline descriptors.
+        pipeline: Optional pipeline name to select.
+        dtype: Optional data type descriptor to select.
     Returns:
         Path to the selected pipeline descriptor file.
     """
     pipeline_file = str(base_path / _DEFAULT_PIPELINE)
-    dtype = os.environ.get("AIBENCH_MLIR_SCHED_DTYPE", "float32")
+    if not dtype:
+        dtype = "float32"
 
     if pipeline:
         file, _ = PipelineDescriptor.find_pipeline_file(
@@ -65,7 +66,9 @@ def _select_pipeline_file(base_path: Path, pipeline: str | None = None) -> str:
     return pipeline_file
 
 
-def cpu_pipeline(module: ir.Module, pipeline: str | None = None) -> ir.Module:
+def cpu_pipeline(
+    module: ir.Module, pipeline: str | None = None, dtype: str | None = None
+) -> ir.Module:
     """
     The default lowering pipeline for CPU.
     Lowers MLIR ops within the module to MLIR LLVM IR dialect.
@@ -83,7 +86,7 @@ def cpu_pipeline(module: ir.Module, pipeline: str | None = None) -> ir.Module:
         MLIR module with lowered IR.
     """
     base_path = mlir_schedules_dir()
-    pipeline_file = _select_pipeline_file(base_path, pipeline)
+    pipeline_file = _select_pipeline_file(base_path, pipeline, dtype)
     _get_logger().info(f"MLIR pipeline: {pipeline_file}")
 
     # Build the lowering pipeline from the selected YAML descriptor.
@@ -96,5 +99,7 @@ def cpu_pipeline(module: ir.Module, pipeline: str | None = None) -> ir.Module:
     return module
 
 
-def get_cpu_compile_fn(pipeline: str | None = None) -> Callable[[ir.Module], ir.Module]:
-    return functools.partial(cpu_pipeline, pipeline=pipeline)
+def get_cpu_compile_fn(
+    pipeline: str | None = None, dtype: str | None = None
+) -> Callable[[ir.Module], ir.Module]:
+    return functools.partial(cpu_pipeline, pipeline=pipeline, dtype=dtype)

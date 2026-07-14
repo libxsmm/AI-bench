@@ -340,6 +340,16 @@ def expand_variants(variants: list[dict]) -> list[dict]:
     return expanded
 
 
+def get_variant_dtype(variant: dict) -> str | None:
+    """Get data type for given specs' variant.
+    Args:
+        variant: Specs' variant entry
+    Returns:
+        data type if available
+    """
+    return variant.get(VKey.TYPE, None)
+
+
 def get_variant_torch_dtype(variant: dict) -> torch.dtype | None:
     """Get torch data type for given specs' variant.
     Args:
