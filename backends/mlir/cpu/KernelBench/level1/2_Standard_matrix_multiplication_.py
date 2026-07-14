@@ -1,17 +1,13 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False,
-    backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.get_cpu_compile_fn("matmul")),
-)
 class Model(nn.Module):
     """
     Simple model that performs a single matrix multiplication (C = A * B)
     """
+
+    mlir_pipeline = "matmul"
 
     def __init__(self):
         super(Model, self).__init__()

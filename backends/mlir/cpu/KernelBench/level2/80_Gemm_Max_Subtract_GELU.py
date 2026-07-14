@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.get_cpu_compile_fn())
-)
 class Model(nn.Module):
     """
     Model that performs a GEMM, followed by a max operation, subtraction, and GELU activation.

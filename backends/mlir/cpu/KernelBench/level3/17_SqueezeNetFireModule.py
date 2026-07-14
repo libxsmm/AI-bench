@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.get_cpu_compile_fn())
-)
 class Model(nn.Module):
     def __init__(
         self, in_channels, squeeze_channels, expand1x1_channels, expand3x3_channels

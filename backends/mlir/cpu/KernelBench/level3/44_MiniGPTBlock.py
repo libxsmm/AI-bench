@@ -4,8 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import ai_bench.mlir
-
 # From https://github.com/karpathy/minGPT/blob/master/mingpt/model.py
 
 
@@ -90,9 +88,6 @@ class CausalSelfAttention(nn.Module):
         return y
 
 
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.get_cpu_compile_fn())
-)
 class Model(nn.Module):
     """an unassuming Transformer block"""
 
