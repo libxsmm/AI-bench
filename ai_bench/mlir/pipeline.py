@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from typing import Callable
 
-import lighthouse.dialects as lh_dialects
 from lighthouse.execution.target import TargetInfo
 from lighthouse.pipeline.descriptor import Descriptor
 from lighthouse.pipeline.descriptor import PipelineDescriptor
@@ -86,10 +85,6 @@ def cpu_pipeline(module: ir.Module, pipeline: str | None = None) -> ir.Module:
     base_path = mlir_schedules_dir()
     pipeline_file = _select_pipeline_file(base_path, pipeline)
     _get_logger().info(f"MLIR pipeline: {pipeline_file}")
-
-    # FIXME: Solve it in LH.
-    with module.context:
-        lh_dialects.register_and_load(reload=True)
 
     # Build the lowering pipeline from the selected YAML descriptor.
     driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
