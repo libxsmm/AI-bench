@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     """
     Model that performs a 3D convolution, scales the output, applies tanh, multiplies by a scaling factor, and applies sigmoid.

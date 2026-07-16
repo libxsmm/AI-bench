@@ -2,12 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     """
     Simple model that performs an ELU activation.

@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import ai_bench.mlir
-
 
 class InceptionModule(nn.Module):
     def __init__(
@@ -55,9 +53,6 @@ class InceptionModule(nn.Module):
         return torch.cat(outputs, 1)
 
 
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     def __init__(self, num_classes=1000):
         """

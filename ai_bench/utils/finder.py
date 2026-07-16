@@ -16,6 +16,7 @@ _kernels_dir: Path | None = None
 _triton_kernels_dir: Path | None = None
 _helion_kernels_dir: Path | None = None
 _mlir_kernels_dir: Path | None = None
+_mlir_schedules_dir: Path | None = None
 _gluon_kernels_dir: Path | None = None
 _sycl_kernels_dir: Path | None = None
 _env_loaded: bool = False
@@ -88,6 +89,7 @@ def configure(
     triton_kernels_dir: Path | str | None = None,
     helion_kernels_dir: Path | str | None = None,
     mlir_kernels_dir: Path | str | None = None,
+    mlir_schedules_dir: Path | str | None = None,
     gluon_kernels_dir: Path | str | None = None,
     sycl_kernels_dir: Path | str | None = None,
 ) -> None:
@@ -101,6 +103,7 @@ def configure(
         triton_kernels_dir: Path to Triton kernel implementations
         helion_kernels_dir: Path to Helion kernel implementations
         mlir_kernels_dir: Path to MLIR kernel implementations
+        mlir_schedules_dir: Path to MLIR CPU pipeline schedules (YAML descriptors)
         gluon_kernels_dir: Path to Gluon kernel implementations
         sycl_kernels_dir: Path to SYCL kernel implementations
 
@@ -117,6 +120,7 @@ def configure(
         _triton_kernels_dir, \
         _helion_kernels_dir, \
         _mlir_kernels_dir, \
+        _mlir_schedules_dir, \
         _gluon_kernels_dir, \
         _sycl_kernels_dir
 
@@ -130,6 +134,8 @@ def configure(
         _helion_kernels_dir = Path(helion_kernels_dir)
     if mlir_kernels_dir is not None:
         _mlir_kernels_dir = Path(mlir_kernels_dir)
+    if mlir_schedules_dir is not None:
+        _mlir_schedules_dir = Path(mlir_schedules_dir)
     if gluon_kernels_dir is not None:
         _gluon_kernels_dir = Path(gluon_kernels_dir)
     if sycl_kernels_dir is not None:
@@ -147,6 +153,7 @@ def reset_configuration() -> None:
         _triton_kernels_dir, \
         _helion_kernels_dir, \
         _mlir_kernels_dir, \
+        _mlir_schedules_dir, \
         _gluon_kernels_dir, \
         _sycl_kernels_dir, \
         _env_loaded
@@ -155,6 +162,7 @@ def reset_configuration() -> None:
     _triton_kernels_dir = None
     _helion_kernels_dir = None
     _mlir_kernels_dir = None
+    _mlir_schedules_dir = None
     _gluon_kernels_dir = None
     _sycl_kernels_dir = None
     _env_loaded = False
@@ -352,6 +360,39 @@ def mlir_kernels_dir() -> Path:
         "AIBENCH_MLIR_KERNELS_DIR",
         default,
         "MLIR kernels directory",
+    )
+
+
+def mlir_schedules_dir() -> Path:
+    """Path to the MLIR CPU pipeline schedules (YAML descriptors) directory.
+
+    Holds the lowering pipeline descriptors selected by
+    ``ai_bench.mlir.cpu_pipeline`` (via Lighthouse's ``find_pipeline_file``),
+    including the fallback ``default.yaml`` pipeline.
+
+    Can be configured via:
+    - ai_bench.configure(mlir_schedules_dir=...)
+    - AIBENCH_MLIR_SCHEDULES_DIR environment variable
+    - Auto-detected from project structure
+
+    Returns:
+        Path to MLIR schedules directory
+
+    Raises:
+        ConfigurationError: If path cannot be determined
+    """
+
+    def default() -> Path:
+        path = project_root() / "backends" / "utils" / "mlir_cpu_utils" / "schedules"
+        if not path.exists():
+            raise FileNotFoundError(f"Default MLIR schedules path not found: {path}")
+        return path
+
+    return _get_path(
+        _mlir_schedules_dir,
+        "AIBENCH_MLIR_SCHEDULES_DIR",
+        default,
+        "MLIR schedules directory",
     )
 
 

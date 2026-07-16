@@ -1,16 +1,13 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     """
     Simple model that performs a LeakyReLU activation.
     """
+
+    mlir_pipeline = "element_wise"
 
     def __init__(self, negative_slope: float = 0.01):
         """

@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     def __init__(
         self, in_channels, out_1x1, reduce_3x3, out_3x3, reduce_5x5, out_5x5, pool_proj

@@ -281,6 +281,21 @@ def benchmark_problem(
                 model = runner.init_model(model_obj, variants[variant_idx], inits)
                 if backend == str(ai_hc.Backend.PYTORCH_COMPILE):
                     model.compile(dynamic=False)
+                if backend == ai_hc.Backend.MLIR:
+                    import ai_bench.mlir as ai_mlir
+
+                    mlir_pipeline = None
+                    if hasattr(model, "mlir_pipeline"):
+                        mlir_pipeline = model.mlir_pipeline
+                    model_dtype = ai_hc.get_variant_dtype(variants[variant_idx])
+                    model.compile(
+                        dynamic=False,
+                        backend=ai_mlir.cpu_backend(
+                            ai_mlir.get_cpu_compile_fn(
+                                pipeline=mlir_pipeline, dtype=model_dtype
+                            )
+                        ),
+                    )
                 # save pytorch model for correctness check
                 if backend == str(ai_hc.Backend.PYTORCH):
                     pytorch_model = model

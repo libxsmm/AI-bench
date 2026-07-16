@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     """
     A model that performs a transposed 3D convolution, clamps the output to a minimum value,

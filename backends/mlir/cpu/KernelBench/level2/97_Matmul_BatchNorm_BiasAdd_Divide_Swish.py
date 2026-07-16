@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     """
     Model that performs a matrix multiplication, batch normalization, bias addition, division, and Swish activation.

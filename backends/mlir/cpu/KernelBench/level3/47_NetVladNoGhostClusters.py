@@ -19,17 +19,11 @@ https://github.com/albanie/collaborative-experts/blob/master/model/net_vlad.py
 
 import math
 
-import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-import ai_bench.mlir
 
-
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     def __init__(self, cluster_size, feature_size, ghost_clusters):
         super(Model, self).__init__()
