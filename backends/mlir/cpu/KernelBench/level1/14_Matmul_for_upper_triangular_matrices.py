@@ -7,6 +7,9 @@ class Model(nn.Module):
     Simple model that performs matrix multiplication (C = A * B) for upper triangular matrices.
     """
 
+    # FIXME: Issue with tiling, disabled for now.
+    # mlir_pipeline = "matmul"
+
     def __init__(self):
         super(Model, self).__init__()
 

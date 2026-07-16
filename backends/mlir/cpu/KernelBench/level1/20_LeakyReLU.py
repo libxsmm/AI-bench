@@ -7,6 +7,8 @@ class Model(nn.Module):
     Simple model that performs a LeakyReLU activation.
     """
 
+    mlir_pipeline = "element_wise"
+
     def __init__(self, negative_slope: float = 0.01):
         """
         Initializes the LeakyReLU module.

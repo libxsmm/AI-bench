@@ -7,6 +7,8 @@ class Model(nn.Module):
     Simple model that performs a single matrix multiplication (C = A * B) where one of the matrices is tall and skinny (M >> N or N >> M)
     """
 
+    mlir_pipeline = "matmul"
+
     def __init__(self):
         super(Model, self).__init__()
 

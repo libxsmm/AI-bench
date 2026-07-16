@@ -2,6 +2,9 @@ import torch.nn as nn
 
 
 class Model(nn.Module):
+    # FIXME: Issue with tiling, disabled for now.
+    # mlir_pipeline = "matmul"
+
     def __init__(self, input_size, hidden_layer_sizes, output_size):
         """
         :param input_size: The number of input features
