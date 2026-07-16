@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Callable
 
 from lighthouse.execution.target import TargetInfo
+from lighthouse.pipeline import find_pipeline_file
 from lighthouse.pipeline.descriptor import Descriptor
-from lighthouse.pipeline.descriptor import PipelineDescriptor
 from lighthouse.pipeline.driver import BackendDriver
 from mlir import ir
 
@@ -13,7 +13,45 @@ from ai_bench.utils import mlir_schedules_dir
 from ai_bench.utils.logger import setup_logger
 
 # Fallback pipeline descriptor, used when no target-specific pipeline is found.
-_DEFAULT_PIPELINE = "default.yaml"
+_DEFAULT_PIPELINE = "scalar-lowering.yaml"
+
+# Maps verbose (torch-style) dtype names to the MLIR-style shorthand used in the
+# pipeline descriptor filenames (e.g. ``float32`` -> ``f32``, ``bfloat16`` ->
+# ``bf16``). Entries already in shorthand form pass through unchanged.
+_DTYPE_ALIASES: dict[str, str] = {
+    "bool": "i1",
+    "float16": "f16",
+    "half": "f16",
+    "bfloat16": "bf16",
+    "float32": "f32",
+    "float": "f32",
+    "float64": "f64",
+    "double": "f64",
+    "int8": "i8",
+    "int16": "i16",
+    "int32": "i32",
+    "int": "i32",
+    "int64": "i64",
+    "long": "i64",
+    "uint8": "ui8",
+    "uint16": "ui16",
+    "uint32": "ui32",
+    "uint64": "ui64",
+}
+
+
+def normalize_dtype(dtype: str) -> str:
+    """
+    Normalize a data type descriptor to the shorthand notation used by the
+    pipeline descriptor filenames.
+
+    Args:
+        dtype: Data type descriptor (e.g. ``"float32"``, ``"bf16"``).
+    Returns:
+        The shorthand data type notation (e.g. ``"f32"``, ``"bf16"``).
+    """
+    key = dtype.strip().lower()
+    return _DTYPE_ALIASES.get(key, key)
 
 
 @cache
@@ -33,7 +71,9 @@ def _get_target_info() -> TargetInfo:
 
 
 def _select_pipeline_file(
-    base_path: Path, pipeline: str | None = None, dtype: str | None = None
+    pipeline: str | None = None,
+    dtype: str | None = None,
+    base_path: Path | None = None,
 ) -> str:
     """
     Dynamically select a lowering pipeline descriptor (YAML).
@@ -49,16 +89,16 @@ def _select_pipeline_file(
     Returns:
         Path to the selected pipeline descriptor file.
     """
-    pipeline_file = str(base_path / _DEFAULT_PIPELINE)
+    pipeline_file = _DEFAULT_PIPELINE
     if not dtype:
         dtype = "float32"
 
     if pipeline:
-        file, _ = PipelineDescriptor.find_pipeline_file(
+        file, _ = find_pipeline_file(
             target=_get_target_info(),
-            base_path=base_path,
             pipeline=pipeline,
-            dtype=dtype,
+            dtype=normalize_dtype(dtype),
+            base_path=base_path,
         )
         if file:
             pipeline_file = file
@@ -86,8 +126,10 @@ def cpu_pipeline(
         MLIR module with lowered IR.
     """
     base_path = mlir_schedules_dir()
-    pipeline_file = _select_pipeline_file(base_path, pipeline, dtype)
-    _get_logger().info(f"MLIR pipeline: {pipeline_file}")
+    pipeline_file = _select_pipeline_file(
+        pipeline=pipeline, dtype=dtype, base_path=base_path
+    )
+    _get_logger().info(f"  MLIR pipeline: {pipeline_file}")
 
     # Build the lowering pipeline from the selected YAML descriptor.
     driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
