@@ -1123,8 +1123,17 @@ class Model(torch.nn.Module):
 
     def test_full_ci_pipeline_mlir(self, integration_setup):
         """Test complete CI pipeline with MLIR backend."""
-        with mock.patch(
-            "ai_bench.utils.finder.project_root", return_value=integration_setup
+        # The real MLIR backend requires the optional 'lighthouse' dependency,
+        # which is not available in the unit-test environment. Stub the
+        # 'ai_bench.mlir' module so the runner compiles the model with torch's
+        # eager backend instead of a full MLIR lowering.
+        fake_mlir = mock.MagicMock()
+        fake_mlir.cpu_backend.return_value = "eager"
+        with (
+            mock.patch(
+                "ai_bench.utils.finder.project_root", return_value=integration_setup
+            ),
+            mock.patch.dict("sys.modules", {"ai_bench.mlir": fake_mlir}),
         ):
             kb_runner = runner.KernelBenchRunner(
                 spec_type=ai_hc.SpecKey.V_CI,

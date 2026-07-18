@@ -5,12 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # From https://github.com/karpathy/minGPT/blob/master/mingpt/model.py
-import ai_bench.mlir
 
 
-@torch.compile(
-    dynamic=False, backend=ai_bench.mlir.cpu_backend(ai_bench.mlir.cpu_pipeline)
-)
 class Model(nn.Module):
     """
     A vanilla multi-head masked self-attention layer with a projection at the end.

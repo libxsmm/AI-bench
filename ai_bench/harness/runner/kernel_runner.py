@@ -246,6 +246,7 @@ class KernelRunner:
         """
         model_inits = ai_hc.get_inits(variant, inits)
         model_dtype = ai_hc.get_variant_torch_dtype(variant)
+
         model = model_obj(*model_inits).to(self.device, dtype=model_dtype)
         memory_format = ai_hc.get_variant_memory_format(variant)
         if memory_format is not None:
@@ -384,8 +385,25 @@ class KernelRunner:
         stats = []
         for variant in spec_variants:
             model = self.init_model(model_obj, variant, spec_inits)
+
             if self.backend == ai_hc.Backend.PYTORCH_COMPILE:
                 model.compile(dynamic=False)
+            if self.backend == ai_hc.Backend.MLIR:
+                import ai_bench.mlir as ai_mlir
+
+                mlir_pipeline = None
+                if hasattr(model, "mlir_pipeline"):
+                    mlir_pipeline = model.mlir_pipeline
+                model_dtype = ai_hc.get_variant_dtype(variant)
+                model.compile(
+                    dynamic=False,
+                    backend=ai_mlir.cpu_backend(
+                        ai_mlir.get_cpu_compile_fn(
+                            pipeline=mlir_pipeline, dtype=model_dtype
+                        )
+                    ),
+                )
+
             args = ai_hc.get_inputs(variant, spec_inputs, device=self.device)
 
             # Simple validation run to verify functionality.

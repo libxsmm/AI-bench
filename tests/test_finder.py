@@ -55,6 +55,15 @@ class TestConfiguration:
 
         assert finder.helion_kernels_dir() == helion_dir
 
+    def test_configure_mlir_schedules_dir(self, tmp_path):
+        """Test configuring MLIR schedules directory."""
+        schedules_dir = tmp_path / "schedules"
+        schedules_dir.mkdir()
+
+        finder.configure(mlir_schedules_dir=schedules_dir)
+
+        assert finder.mlir_schedules_dir() == schedules_dir
+
     def test_configure_with_string_path(self, tmp_path):
         """Test configuring with string path instead of Path object."""
         specs_dir = tmp_path / "specs"
@@ -120,6 +129,7 @@ class TestEnvironmentVariables:
             "AIBENCH_TRITON_KERNELS_DIR",
             "AIBENCH_HELION_KERNELS_DIR",
             "AIBENCH_MLIR_KERNELS_DIR",
+            "AIBENCH_MLIR_SCHEDULES_DIR",
         ]:
             self._saved_env[key] = os.environ.get(key)
 
@@ -176,6 +186,15 @@ class TestEnvironmentVariables:
         os.environ["AIBENCH_MLIR_KERNELS_DIR"] = str(mlir_dir)
 
         assert finder.mlir_kernels_dir() == mlir_dir
+
+    def test_mlir_schedules_from_env_var(self, tmp_path):
+        """Test MLIR schedules path from environment variable."""
+        schedules_dir = tmp_path / "schedules"
+        schedules_dir.mkdir()
+
+        os.environ["AIBENCH_MLIR_SCHEDULES_DIR"] = str(schedules_dir)
+
+        assert finder.mlir_schedules_dir() == schedules_dir
 
     def test_env_var_nonexistent_path_raises(self, tmp_path):
         """Test that env var with nonexistent path raises error."""

@@ -43,8 +43,15 @@ class CPUBackend(lh_compile.MLIRBackend):
             libs = lib_paths.split(":")
             shared_libs.extend(libs)
         super().__init__(
-            device, fn_compile, dialect, ir_context, shared_libs=shared_libs, **kwargs
+            device,
+            fn_compile,
+            dialect,
+            ir_context,
+            shared_libs=shared_libs,
+            entry_func="main",
+            **kwargs,
         )
+        assert self.entry_func == "main", "Expected entry function to be 'main'"
 
     def get_mlir(
         self, model: torch.nn.Module, example_inputs: list[torch.Tensor]
