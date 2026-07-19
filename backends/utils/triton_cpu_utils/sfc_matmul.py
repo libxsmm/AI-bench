@@ -177,10 +177,7 @@ def _sfc_matmul_kernel(
             block_shape=(1, BLOCK_SIZE_M, BLOCK_SIZE_N),
         )
 
-    if not IS_FIRST_K_BLOCK:
-        c = ctmp_desc.load([pid, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
-    else:
-        c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accum_dtype)
+    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accum_dtype)
 
     for block_ki in range(block_k, min(block_k + BLOCKS_K_PER_PROG, BLOCKS_K)):
         a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
@@ -193,9 +190,11 @@ def _sfc_matmul_kernel(
 
         c = tl.dot(a, b, acc=c, out_dtype=accum_dtype)
 
-    if BLOCKING_FACTOR_K > 1 and not IS_LAST_K_BLOCK:
-        c = c.reshape((1, BLOCK_SIZE_M, BLOCK_SIZE_N))
-        ctmp_desc.store([pid, 0, 0], c)
+    if not IS_FIRST_K_BLOCK:
+        c += ctmp_desc.load([pid, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
+
+    if not IS_LAST_K_BLOCK:
+        ctmp_desc.store([pid, 0, 0], c.reshape((1, BLOCK_SIZE_M, BLOCK_SIZE_N)))
         return
 
     if HAS_BIAS:
