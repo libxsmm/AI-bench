@@ -21,14 +21,14 @@ def _reduce_kernel(inp_ptr, out_ptr, scaling_factor, M, N, BLOCK_SIZE_N: tl.cons
         block_shape=[1, BLOCK_SIZE_N],
     )
 
-    sum = tl.zeros([], dtype=inp_ptr.type.element_ty)
+    row_sum = tl.zeros([], dtype=inp_ptr.type.element_ty)
     m = tl.program_id(0)
     for n in range(0, N, BLOCK_SIZE_N):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        sum += tl.sum(x, axis=0)
-    sum *= scaling_factor
+        row_sum += tl.sum(x, axis=0)
+    row_sum *= scaling_factor
 
-    tl.store(out_ptr + m, tl.cast(sum, out_ptr.type.element_ty))
+    tl.store(out_ptr + m, tl.cast(row_sum, out_ptr.type.element_ty))
 
 
 batch_size = 1024
