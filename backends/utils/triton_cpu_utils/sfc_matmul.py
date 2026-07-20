@@ -221,7 +221,7 @@ def _sfc_matmul_kernel(
 
 
 @triton.jit
-def no_post_op(x):
+def _no_post_op(x):
     return x
 
 
@@ -365,7 +365,7 @@ def sfc_matmul(
             IS_FIRST_K_BLOCK=ik == 0,
             IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
             HAS_BIAS=bias is not None,
-            POST_OP=post_op if post_op is not None else no_post_op,
+            POST_OP=post_op if post_op is not None else _no_post_op,
             assume_in_bounds=True,
         )
 

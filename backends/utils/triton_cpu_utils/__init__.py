@@ -1,11 +1,19 @@
 """Helper utilities for AI-bench Triton CPU kernels."""
 
 from .gilbert_d2xy import gilbert_d2xy
+from .reduction import reduce_last_dim
+from .reduction import softmax
 from .sfc_matmul import pack_weights_for_sfc_matmul
 from .sfc_matmul import sfc_matmul
+from .triton_helpers import gelu
+from .triton_helpers import mish
 
 __all__ = [
+    "gelu",
     "gilbert_d2xy",
+    "mish",
     "pack_weights_for_sfc_matmul",
+    "reduce_last_dim",
     "sfc_matmul",
+    "softmax",
 ]

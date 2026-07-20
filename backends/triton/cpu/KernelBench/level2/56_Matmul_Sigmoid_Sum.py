@@ -12,10 +12,20 @@ from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
-batch_size = 1024
-input_size = 8192
-hidden_size = 8192
-scaling_factor = 1.5
+
+@triton.jit
+def _mm_epi(x):
+    return tl.sigmoid(x)
+
+
+@triton.jit
+def _red(val, x):
+    return val + tl.sum(x, axis=0)
+
+
+batch_size = 128
+input_size = 32768
+hidden_size = 32768
 
 
 def get_inputs():
@@ -23,50 +33,32 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [input_size, hidden_size, scaling_factor]
+    return [input_size, hidden_size]
 
 
 class Model(nn.Module):
-    def __init__(self, input_size, hidden_size, scaling_factor):
+    def __init__(self, input_size, hidden_size):
         super().__init__()
-        self.weight = nn.Parameter(torch.randn(hidden_size, input_size))
-        self.scaling_factor = scaling_factor
-
-        @triton.jit
-        def _gemm_epilogue(x):
-            x /= 2.0
-            return x
-
-        @triton.jit
-        def _red(val, block):
-            return val + tl.sum(block, axis=0)
-
-        sf_val = tl.constexpr(scaling_factor)
-
-        @triton.jit
-        def _red_epilogue(x):
-            x *= sf_val
-            return x
-
-        self._gemm_epilogue_fun = _gemm_epilogue
-        self._red_fun = _red
-        self._red_epilogue_fun = _red_epilogue
+        self.linear = nn.Linear(input_size, hidden_size)
         self._weight_packed = None
+        self._bias = None
 
     def forward(self, x):
         if self._weight_packed is None:
             # AMX-optimized block size
             self._weight_packed = pack_weights_for_sfc_matmul(
-                self.weight.data.to(dtype=x.dtype),
+                self.linear.weight.data.to(dtype=x.dtype),
                 BLOCK_SIZE_N=32,
                 BLOCK_SIZE_K=32,
             )
+            self._bias = self.linear.bias.data.to(dtype=x.dtype)
 
         res_mm = sfc_matmul(
             x,
             self._weight_packed,
+            self._bias,
+            post_op=_mm_epi,
             trunc_output=False,
-            post_op=self._gemm_epilogue_fun,
             b_is_prepacked=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
@@ -74,8 +66,7 @@ class Model(nn.Module):
         res_red = reduce_last_dim(
             res_mm,
             out_dtype=x.dtype,
-            reduction=self._red_fun,
-            post_op=self._red_epilogue_fun,
+            reduction=_red,
             keep_dim=True,
         )
 

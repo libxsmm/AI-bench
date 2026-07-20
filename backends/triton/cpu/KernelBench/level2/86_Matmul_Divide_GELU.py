@@ -6,8 +6,8 @@
 import torch
 import torch.nn as nn
 import triton
-import triton.language as tl
 
+from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
 
@@ -36,7 +36,7 @@ class Model(nn.Module):
         @triton.jit
         def _epilogue(x):
             x /= div
-            return 0.5 * x * (1.0 + tl.math.erf(x * 0.7071067811865476))
+            return gelu(x)
 
         self._epilogue_fun = _epilogue
         self._weight_packed = None
