@@ -8,7 +8,7 @@ def _softplus(x, THRESHOLD: tl.constexpr = 20.0):
 
 
 @triton.jit
-def _tanh(x):
+def tanh(x):
     # tanh(x) = 2*sigmoid(2x) - 1
     # sigmoid(z) = 1/(1 + exp2(-z * log2(e)))
     inv_ln2: tl.constexpr = 1.4426950408889634
@@ -20,7 +20,7 @@ def _tanh(x):
 
 @triton.jit
 def mish(x):
-    return x * _tanh(_softplus(x))
+    return x * tanh(_softplus(x))
 
 
 @triton.jit

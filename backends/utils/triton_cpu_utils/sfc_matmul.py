@@ -126,6 +126,7 @@ def _sfc_matmul_kernel(
     c_ptr,
     ctmp_ptr,
     bias_ptr,
+    post_op_arg_ptr,
     sfc_map_ptr,
     M,
     N,
@@ -139,6 +140,7 @@ def _sfc_matmul_kernel(
     IS_LAST_K_BLOCK: tl.constexpr,
     HAS_BIAS: tl.constexpr,
     POST_OP: tl.constexpr,
+    POST_OP_HAS_ARG: tl.constexpr,
 ):
     VNNI: tl.constexpr = 32 // b_ptr.type.element_ty.primitive_bitwidth
 
@@ -207,7 +209,12 @@ def _sfc_matmul_kernel(
         bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(accum_dtype)
         c += bias[None, :]
 
-    c = POST_OP(c)
+    if POST_OP_HAS_ARG:
+        c = POST_OP(
+            c, block_m, block_n, post_op_arg_ptr, M, N, BLOCK_SIZE_M, BLOCK_SIZE_N
+        )
+    else:
+        c = POST_OP(c)
 
     c = c.to(out_dtype).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
 
@@ -264,6 +271,7 @@ def sfc_matmul(
     b: torch.Tensor,
     bias=None,
     post_op=None,
+    post_op_arg=None,
     trunc_output=True,
     b_is_prepacked=False,
     blocking_factor_k=1,
@@ -353,6 +361,7 @@ def sfc_matmul(
             c,
             ctmp,
             bias,
+            post_op_arg,
             sfc_map_mn,
             M,
             N,
@@ -366,6 +375,7 @@ def sfc_matmul(
             IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
             HAS_BIAS=bias is not None,
             POST_OP=post_op if post_op is not None else _no_post_op,
+            POST_OP_HAS_ARG=post_op_arg is not None,
             assume_in_bounds=True,
         )
 

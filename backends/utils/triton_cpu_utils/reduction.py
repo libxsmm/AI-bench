@@ -20,7 +20,7 @@ def _reduce_last_dim_kernel(
         block_shape=[1, BLOCK_SIZE_N],
     )
 
-    row_val = tl.zeros([], dtype=out_ptr.type.element_ty)
+    row_val = tl.zeros([], dtype=inp_ptr.type.element_ty)
     m = tl.program_id(0)
     for n in range(0, N, BLOCK_SIZE_N):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
@@ -29,6 +29,42 @@ def _reduce_last_dim_kernel(
     row_val = POST_OP(row_val)
 
     tl.store(out_ptr + m, tl.cast(row_val, out_ptr.type.element_ty))
+
+
+@triton.jit
+def _reduce_first_dim_kernel(
+    inp_ptr,
+    out_ptr,
+    M,
+    N,
+    BLOCK_SIZE_N: tl.constexpr,
+    REDUCTION: tl.constexpr,
+    POST_OP: tl.constexpr,
+):
+    inp_desc = tl.make_tensor_descriptor(
+        inp_ptr,
+        shape=[M, N],
+        strides=[N, 1],
+        block_shape=[1, BLOCK_SIZE_N],
+    )
+    out_desc = tl.make_tensor_descriptor(
+        out_ptr,
+        shape=[1, N],
+        strides=[N, 1],
+        block_shape=[1, BLOCK_SIZE_N],
+    )
+
+    col_vals = tl.zeros([BLOCK_SIZE_N], dtype=inp_ptr.type.element_ty)
+    n = tl.program_id(0) * BLOCK_SIZE_N
+    for m in range(0, M):
+        x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
+        col_vals = REDUCTION(col_vals, x)
+
+    col_vals = POST_OP(col_vals)
+
+    out_desc.store(
+        [0, n], col_vals.to(out_ptr.type.element_ty).reshape([1, BLOCK_SIZE_N])
+    )
 
 
 @triton.jit
@@ -49,6 +85,26 @@ def reduce_last_dim(inp, out_dtype, reduction, post_op=None, keep_dim=False):
     BLOCK_SIZE_N = 256  # AVX-512 optimized block size
     assert N % BLOCK_SIZE_N == 0, "N must be divisible by BLOCK_SIZE_N"
     _reduce_last_dim_kernel[(M,)](
+        inp,
+        out,
+        M,
+        N,
+        BLOCK_SIZE_N=BLOCK_SIZE_N,
+        REDUCTION=reduction,
+        POST_OP=post_op or _no_post_op,
+        assume_in_bounds=True,
+    )
+    return out
+
+
+def reduce_first_dim(inp, out_dtype, reduction, post_op=None, keep_dim=False):
+    assert inp.ndim == 2, "Input tensor must be 2D"
+    M, N = inp.shape
+    out_shape = (1, N) if keep_dim else (N,)
+    out = torch.empty(out_shape, dtype=out_dtype, device=inp.device)
+    BLOCK_SIZE_N = 256  # AVX-512 optimized block size
+    assert N % BLOCK_SIZE_N == 0, "N must be divisible by BLOCK_SIZE_N"
+    _reduce_first_dim_kernel[(N // BLOCK_SIZE_N,)](
         inp,
         out,
         M,

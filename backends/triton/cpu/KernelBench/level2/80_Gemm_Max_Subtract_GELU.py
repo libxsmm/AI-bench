@@ -1,0 +1,113 @@
+# ruff: noqa: E731
+# Status: Experimental / uncurated
+# Expectation: Correctness-first, performance not representative
+
+
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+from triton_cpu_utils import gelu
+from triton_cpu_utils import pack_weights_for_sfc_matmul
+from triton_cpu_utils import reduce_first_dim
+from triton_cpu_utils import sfc_matmul
+
+
+@triton.jit
+def _max_red(vals, x):
+    return tl.maximum(vals, x)
+
+
+@triton.jit
+def _kernel(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
+    inp_desc = tl.make_tensor_descriptor(
+        inp_ptr,
+        shape=[1, N],
+        strides=[N, 1],
+        block_shape=[1, BLOCK_SIZE_N],
+    )
+    out_desc = tl.make_tensor_descriptor(
+        out_ptr,
+        shape=[1, N],
+        strides=[N, 1],
+        block_shape=[1, BLOCK_SIZE_N],
+    )
+
+    row_sum = tl.zeros([], dtype=inp_ptr.type.element_ty)
+    for n in range(0, N, BLOCK_SIZE_N):
+        x = inp_desc.load([0, n]).reshape([BLOCK_SIZE_N])
+        row_sum += tl.sum(x, axis=0)
+
+    row_mean = row_sum / N
+    for n in range(0, N, BLOCK_SIZE_N):
+        x = inp_desc.load([0, n]).reshape([BLOCK_SIZE_N])
+        x = x - row_mean
+        x = gelu(x)
+        out_desc.store([0, n], x.to(out_ptr.type.element_ty).reshape([1, BLOCK_SIZE_N]))
+
+
+batch_size = 1024
+in_features = 8192
+out_features = 8192
+max_dim = 1
+
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+
+def get_init_inputs():
+    return [in_features, out_features, max_dim]
+
+
+class Model(nn.Module):
+    def __init__(self, in_features, out_features, max_dim):
+        super().__init__()
+        self.linear = nn.Linear(in_features, out_features)
+        self.max_dim = max_dim
+
+        self._weight_packed = None
+        self._bias = None
+
+    def forward(self, x):
+        if self.max_dim == 1:
+            return torch.zeros([batch_size, 1], dtype=x.dtype)
+
+        if self._weight_packed is None:
+            # AMX-optimized block size
+            self._weight_packed = pack_weights_for_sfc_matmul(
+                self.linear.weight.data.to(dtype=x.dtype),
+                BLOCK_SIZE_N=32,
+                BLOCK_SIZE_K=32,
+            )
+            self._bias = self.linear.bias.data.to(dtype=x.dtype)
+
+        res_mm = sfc_matmul(
+            x,
+            self._weight_packed,
+            bias=self._bias,
+            trunc_output=False,
+            b_is_prepacked=True,
+            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
+        )
+
+        res_max = reduce_first_dim(
+            res_mm,
+            out_dtype=res_mm.dtype,  # keep it in f32
+            reduction=_max_red,
+            keep_dim=True,
+        )
+
+        M, N = res_max.shape
+        BLOCK_SIZE_N = 256  # AVX-512 optimized block size
+        assert M == 1 and N % BLOCK_SIZE_N == 0, "N must be divisible by BLOCK_SIZE_N"
+        out = torch.empty((1, N), dtype=x.dtype)
+        _kernel[(1,)](
+            res_max,
+            out,
+            N,
+            BLOCK_SIZE_N=BLOCK_SIZE_N,
+            assume_in_bounds=True,
+        )
+        return out
