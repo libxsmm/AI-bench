@@ -155,14 +155,31 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
 
         # Log some debug info about where differences occur
         if diff.numel() > 0:
-            num_mismatched = (
-                (diff > atol + rtol * torch.abs(original_output)).sum().item()
-            )
+            mismatch_mask = diff > atol + rtol * torch.abs(original_output)
+            num_mismatched = mismatch_mask.sum().item()
             total_elements = diff.numel()
             logger.debug(
                 f"Mismatched elements: {num_mismatched}/{total_elements} "
                 f"({100 * num_mismatched / total_elements:.2f}%)"
             )
+
+            # Print the coordinates and values of mismatched elements
+            mismatch_indices = torch.nonzero(mismatch_mask, as_tuple=False)
+            max_to_print = 20
+            for idx in mismatch_indices[:max_to_print]:
+                coord = tuple(idx.tolist())
+                orig_val = original_output[coord].item()
+                abs_diff = diff[coord].item()
+                rel_diff = abs_diff / (abs(orig_val) + 1e-8)
+                logger.debug(
+                    f"  {coord}: original={orig_val:.6e}, "
+                    f"optimized={optimized_output[coord].item():.6e}, "
+                    f"diff={abs_diff:.6e}, rel_diff={rel_diff:.6e}"
+                )
+            if num_mismatched > max_to_print:
+                logger.debug(
+                    f"  ... and {num_mismatched - max_to_print} more mismatched elements"
+                )
 
     return is_close
 
