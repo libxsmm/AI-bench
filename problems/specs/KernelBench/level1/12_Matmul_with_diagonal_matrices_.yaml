@@ -30,6 +30,21 @@ bench-cpu:
       N: 4096
     flop: "2*M*N"
 
+# Disabled for now.
+# mlir-cpu-bench:
+#   - params: [A, B]
+#     dtype: float32
+#     dims:
+#       M: 4096
+#       N: 4096
+#     flop: "2*M*N"
+#   - params: [A, B]
+#     dtype: bfloat16
+#     dims:
+#       M: 4096
+#       N: 4096
+#     flop: "2*M*N"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

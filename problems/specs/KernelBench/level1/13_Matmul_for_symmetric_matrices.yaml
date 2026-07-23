@@ -28,3 +28,17 @@ bench-cpu:
     dims:
       N: 4096
     atol: 0.5
+
+mlir-cpu-bench:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      N: 4096
+    atol: 0.5
+    flop: "2*N*N*N"
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      N: 4096
+    atol: 0.5
+    flop: "2*N*N*N"
