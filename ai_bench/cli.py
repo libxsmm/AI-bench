@@ -228,6 +228,12 @@ Environment file (.env) example:
         default=False,
         help="Force a single validation run instead of benchmarking (works with --variant).",
     )
+    mode_group.add_argument(
+        "--dtype",
+        type=str,
+        default=None,
+        help="Run only variants with this problem-spec dtype (e.g. float32, int64).",
+    )
 
     # Output options
     output_group = parser.add_argument_group("output options")
@@ -373,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                 flops_unit=flops_unit,
                 mem_bw_unit=mem_bw_unit,
                 validate_only=args.ci,
+                dtype=args.dtype,
             )
             kernel_runner.run_kernel_spec(kernel_path, spec_path)
             return 0
@@ -387,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
             csv_path=args.csv,
             note=args.note,
             validate_only=args.ci,
+            dtype=args.dtype,
         )
         kb_runner.run_kernels()
         return 0

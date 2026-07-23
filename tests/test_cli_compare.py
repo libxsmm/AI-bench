@@ -217,6 +217,17 @@ class TestMainTolerances:
         assert kwargs["atol"] == 1e-6
 
 
+class TestMainDtype:
+    """Tests for the --dtype variant filter."""
+
+    def test_dtype_forwards_to_benchmark(self, mock_backend):
+        """Test dtype is forwarded to comparison benchmarking."""
+        rc = cli_compare.main(["--problem", "level1/double", "--dtype", "bfloat16"])
+
+        assert rc == 0
+        assert mock_backend.benchmark.call_args.kwargs["dtype"] == "bfloat16"
+
+
 class TestMainProblem:
     """Tests for problem argument handling in main()."""
 
