@@ -191,6 +191,7 @@ The CSV file includes the following columns:
 - `mem_note`: Memory measurement annotation (see 'Notes legend')
 - `time_us`: Execution time in microseconds
 - `input_values`: Input dimensions as JSON
+- `dtype`: Variant's data type if specified
 - `note`: User-provided note
 
 Additionally, any environment variables prefixed with `AIBENCH_` are automatically captured and included in the CSV output. This is useful for recording system configuration:
