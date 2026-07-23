@@ -14,6 +14,8 @@ import torch
 
 from ai_bench import cli_compare
 from ai_bench.harness import core as ai_hc
+from ai_bench.harness import runner as ai_hr
+from ai_bench.harness.runner import benchmark_compare
 from ai_bench.utils import finder
 
 # Minimal, trivial kernel/spec content reused by the integration test. The
@@ -264,6 +266,48 @@ class TestMainOutputFormat:
 
         mock_backend.brief.assert_called_once()
         mock_backend.full.assert_not_called()
+
+
+class TestMainUnits:
+    """Tests for FLOPS and memory-bandwidth unit selection."""
+
+    def test_default_units(self, mock_backend):
+        """Test default units are TFLOPS and GB/s."""
+        cli_compare.main(["--problem", "level1/double"])
+
+        kwargs = mock_backend.benchmark.call_args.kwargs
+        assert kwargs["flops_unit"] == ai_hr.FlopsUnit.TFLOPS
+        assert kwargs["mem_bw_unit"] == ai_hr.MemBwUnit.GBS
+
+    def test_gflops_and_mbs(self, mock_backend):
+        """Test output flags select GFLOPS and MB/s."""
+        cli_compare.main(["--problem", "level1/double", "--gflops", "--mbs"])
+
+        kwargs = mock_backend.benchmark.call_args.kwargs
+        assert kwargs["flops_unit"] == ai_hr.FlopsUnit.GFLOPS
+        assert kwargs["mem_bw_unit"] == ai_hr.MemBwUnit.MBS
+
+    def test_full_output_uses_result_units(self, monkeypatch):
+        """Test full output labels performance columns with result units."""
+        result = types.SimpleNamespace(
+            meas_us=1.0,
+            flops=2.0,
+            flops_unit=ai_hr.FlopsUnit.GFLOPS,
+            mem_bw=3.0,
+            mem_bw_unit=ai_hr.MemBwUnit.MBS,
+        )
+        variant = benchmark_compare.VariantResult(
+            backends={"pytorch": result},
+            speedups={"pytorch": 1.0},
+        )
+        info = mock.MagicMock()
+        monkeypatch.setattr(benchmark_compare.logger, "info", info)
+
+        benchmark_compare.print_variant_results(variant)
+
+        output = "\n".join(str(call.args[0]) for call in info.call_args_list)
+        assert "GFLOPS" in output
+        assert "MB/s" in output
 
 
 class TestMainErrorHandling:

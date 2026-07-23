@@ -12,6 +12,7 @@ import argcomplete
 import torch
 
 from ai_bench.harness import core as ai_hc
+from ai_bench.harness import runner as ai_hr
 from ai_bench.harness.runner.benchmark_compare import benchmark_problem
 from ai_bench.harness.runner.benchmark_compare import print_comparison
 from ai_bench.harness.runner.benchmark_compare import print_comparison_brief
@@ -119,6 +120,20 @@ Examples:
         help="Run only variants with this problem-spec dtype (e.g. float32, int64).",
     )
 
+    output_group = parser.add_argument_group("output options")
+    output_group.add_argument(
+        "--gflops",
+        action="store_true",
+        default=False,
+        help="Report GFLOPS (default: TFLOPS)",
+    )
+    output_group.add_argument(
+        "--mbs",
+        action="store_true",
+        default=False,
+        help="Report MB/s (default: GB/s)",
+    )
+
     argcomplete.autocomplete(parser)
     return parser
 
@@ -160,6 +175,9 @@ def main(argv: list[str] | None = None) -> int:
             else ai_hc.SpecKey.V_BENCH_CPU
         )
 
+    flops_unit = ai_hr.FlopsUnit.GFLOPS if args.gflops else ai_hr.FlopsUnit.TFLOPS
+    mem_bw_unit = ai_hr.MemBwUnit.MBS if args.mbs else ai_hr.MemBwUnit.GBS
+
     try:
         results = benchmark_problem(
             problem=args.problem,
@@ -169,6 +187,8 @@ def main(argv: list[str] | None = None) -> int:
             atol=args.atol,
             backends=backends,
             dtype=args.dtype,
+            flops_unit=flops_unit,
+            mem_bw_unit=mem_bw_unit,
         )
         (print_comparison_brief if args.brief else print_comparison)(results)
         return 0

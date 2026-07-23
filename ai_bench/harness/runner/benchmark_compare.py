@@ -10,6 +10,8 @@ import torch
 
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
+from ai_bench.harness.runner.config import FlopsUnit
+from ai_bench.harness.runner.config import MemBwUnit
 from ai_bench.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -212,6 +214,8 @@ def benchmark_problem(
     atol: float | None = None,
     backends: Optional[List[ai_hc.Backend]] = None,
     dtype: str | None = None,
+    flops_unit: FlopsUnit = FlopsUnit.TFLOPS,
+    mem_bw_unit: MemBwUnit = MemBwUnit.GBS,
 ) -> dict:
     """Benchmark a specific problem across multiple backends.
 
@@ -228,6 +232,8 @@ def benchmark_problem(
         atol: Override absolute tolerance. If None, uses per-variant spec value.
         backends: List of backends to benchmark
         dtype: Run only variants whose problem-spec dtype matches this value.
+        flops_unit: FLOPS unit to use for reporting.
+        mem_bw_unit: Memory bandwidth unit to use for reporting.
     Returns:
         Dictionary with benchmark results
     """
@@ -274,6 +280,8 @@ def benchmark_problem(
                     device=device,
                     backend=backend,
                     dtype=dtype,
+                    flops_unit=flops_unit,
+                    mem_bw_unit=mem_bw_unit,
                 )
 
                 spec_path = runner.specs / level / f"{kernel_name}.yaml"
@@ -471,12 +479,18 @@ def print_variant_results(variant_result: VariantResult, idx: int = 0):
         r.flops_unit for r in variant_result.backends.values() if r is not None
     ]
     flops_unit = next((f for f in flops_unit_list if f is not None), None)
+    mem_bw_unit_list = [
+        r.mem_bw_unit for r in variant_result.backends.values() if r is not None
+    ]
+    mem_bw_unit = next((m for m in mem_bw_unit_list if m is not None), None)
 
     if not flops_unit:
         flops_unit = "FLOPS"
+    if not mem_bw_unit:
+        mem_bw_unit = "B/s"
     if have_bw:
         logger.info(
-            f"{'Backend':<18} {'Time (μs)':>12} {flops_unit:>8} {'GB/s':>8} {'Speedup':>10}"
+            f"{'Backend':<18} {'Time (μs)':>12} {flops_unit:>8} {mem_bw_unit:>8} {'Speedup':>10}"
         )
         logger.info("-" * 80)
     else:
