@@ -207,10 +207,11 @@ class VariantResult:
 def benchmark_problem(
     problem: str,
     device: torch.device,
-    spec_type: str = ai_hc.SpecKey.V_BENCH_GPU,
+    spec_type: ai_hc.SpecKey | str = ai_hc.SpecKey.V_BENCH_GPU,
     rtol: float | None = None,
     atol: float | None = None,
     backends: Optional[List[ai_hc.Backend]] = None,
+    dtype: str | None = None,
 ) -> dict:
     """Benchmark a specific problem across multiple backends.
 
@@ -226,6 +227,7 @@ def benchmark_problem(
         rtol: Override relative tolerance. If None, uses per-variant spec value.
         atol: Override absolute tolerance. If None, uses per-variant spec value.
         backends: List of backends to benchmark
+        dtype: Run only variants whose problem-spec dtype matches this value.
     Returns:
         Dictionary with benchmark results
     """
@@ -268,7 +270,10 @@ def benchmark_problem(
             logger.info(f"backend: {backend}")
             try:
                 runner = KernelBenchRunner(
-                    spec_type=spec_type, device=device, backend=backend
+                    spec_type=spec_type,
+                    device=device,
+                    backend=backend,
+                    dtype=dtype,
                 )
 
                 spec_path = runner.specs / level / f"{kernel_name}.yaml"

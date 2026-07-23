@@ -112,6 +112,12 @@ Examples:
         default=None,
         help="Variant name from spec (e.g. bench-gpu-1). Overrides default spec_type selection.",
     )
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default=None,
+        help="Run only variants with this problem-spec dtype (e.g. float32, int64).",
+    )
 
     argcomplete.autocomplete(parser)
     return parser
@@ -162,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             rtol=args.rtol,
             atol=args.atol,
             backends=backends,
+            dtype=args.dtype,
         )
         (print_comparison_brief if args.brief else print_comparison)(results)
         return 0

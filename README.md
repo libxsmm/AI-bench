@@ -96,6 +96,9 @@ ai-bench --variant custom-variant
 # Validate a custom spec variant without benchmarking
 ai-bench --variant custom-variant --ci
 
+# Run only float32 variants
+ai-bench --bench --dtype float32
+
 # Log results to CSV
 ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
@@ -117,6 +120,9 @@ ai-bench-compare --problem level1/1_Square_matrix_multiplication_
 
 # Compare PyTorch and Triton backends on XPU
 ai-bench-compare --problem level2/99_Matmul_GELU_Softmax --backend pytorch triton --xpu
+
+# Compare only bfloat16 variants
+ai-bench-compare --problem level1/1_Square_matrix_multiplication_ --dtype bfloat16
 ```
 
 Optionally, custom CLI autocompletion is available for certain scripts. It can be activated using:
@@ -214,6 +220,9 @@ Notes legend:
 | `--gluon` | Use Gluon backend (default: PyTorch eager) |
 | `--sycl` | Use SYCL backend (default: PyTorch eager) |
 | `--bench` | Run benchmarks with timing (default: CI validation) |
+| `--ci` | Force a single validation run only for any variant |
+| `--variant VARIANT` | Run only specified spec `VARIANT` |
+| `--dtype DTYPE` | Run only variants with specified `DTYPE` |
 | `--gflops` | Report GFLOPS (default: TFLOPS) |
 | `--mbs` | Report MB/s (default: GB/s) |
 | `--csv PATH` | Log results to specified CSV file |

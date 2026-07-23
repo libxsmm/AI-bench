@@ -28,6 +28,7 @@ class KernelBenchRunner(KernelRunner):
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
         validate_only: Force a single validation run instead of benchmarking
+        dtype: Run only variants whose problem-spec dtype matches this value
     """
 
     def __init__(
@@ -40,6 +41,7 @@ class KernelBenchRunner(KernelRunner):
         csv_path: str | None = None,
         note: str = "",
         validate_only: bool = False,
+        dtype: str | None = None,
     ):
         super().__init__(
             spec_type=spec_type,
@@ -48,6 +50,7 @@ class KernelBenchRunner(KernelRunner):
             flops_unit=flops_unit,
             mem_bw_unit=mem_bw_unit,
             validate_only=validate_only,
+            dtype=dtype,
         )
         self.specs = ai_utils.specs() / "KernelBench"
         self.csv_path = csv_path
@@ -220,7 +223,7 @@ class KernelBenchRunner(KernelRunner):
             f"Kernel: {spec_path.parent.name} / {spec_path.name} [{self.backend}]"
         )
 
-        variants = ai_hc.expand_variants(spec[self.spec_type])
+        variants = self.get_spec_variants(spec)
         stats = []
         for variant in variants:
             dims = variant.get("dims", {})

@@ -173,6 +173,46 @@ class TestSpecFunctions:
 class TestKernelBenchRunnerInit:
     """Tests for KernelBenchRunner initialization."""
 
+    @mock.patch("os.path.isdir", return_value=True)
+    def test_dtype_filters_expanded_variants(self, mock_isdir):
+        """Test dtype filtering happens after dimension expansion."""
+        spec = {
+            ai_hc.SpecKey.V_CI: [
+                {
+                    ai_hc.VKey.TYPE: "float32",
+                    ai_hc.VKey.DIMS: [{"N": 8}, {"N": 16}],
+                },
+                {
+                    ai_hc.VKey.TYPE: "int64",
+                    ai_hc.VKey.DIMS: {"N": 32},
+                },
+            ]
+        }
+        kb_runner = runner.KernelBenchRunner(dtype="float32")
+
+        variants = kb_runner.get_spec_variants(spec)
+
+        assert [variant[ai_hc.VKey.DIMS]["N"] for variant in variants] == [8, 16]
+        assert all(variant[ai_hc.VKey.TYPE] == "float32" for variant in variants)
+
+    @mock.patch("os.path.isdir", return_value=True)
+    def test_dtype_filter_defaults_to_all_variants(self, mock_isdir):
+        """Test omitting dtype preserves variants of every dtype."""
+        spec = {
+            ai_hc.SpecKey.V_CI: [
+                {ai_hc.VKey.TYPE: "float32", ai_hc.VKey.DIMS: {"N": 8}},
+                {ai_hc.VKey.TYPE: "int64", ai_hc.VKey.DIMS: {"N": 16}},
+            ]
+        }
+        kb_runner = runner.KernelBenchRunner()
+
+        variants = kb_runner.get_spec_variants(spec)
+
+        assert [variant[ai_hc.VKey.TYPE] for variant in variants] == [
+            "float32",
+            "int64",
+        ]
+
     @mock.patch("os.path.isdir")
     def test_init_pytorch_backend(self, mock_isdir):
         """Test runner initialization with PyTorch backend."""

@@ -60,6 +60,7 @@ class KernelRunner:
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
         validate_only: Force a single validation run instead of benchmarking
+        dtype: Run only variants whose problem-spec dtype matches this value
     """
 
     def __init__(
@@ -70,12 +71,14 @@ class KernelRunner:
         flops_unit: config.FlopsUnit = config.FlopsUnit.TFLOPS,
         mem_bw_unit: config.MemBwUnit = config.MemBwUnit.GBS,
         validate_only: bool = False,
+        dtype: str | None = None,
     ):
         self.backend = backend
         self.logger = setup_logger()
         self.flops_unit = flops_unit
         self.mem_bw_unit = mem_bw_unit
         self.validate_only = validate_only
+        self.dtype = dtype
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
@@ -208,7 +211,14 @@ class KernelRunner:
         Returns:
             Defined spec type variants
         """
-        return ai_hc.expand_variants(spec[self.spec_type])
+        variants = ai_hc.expand_variants(spec[self.spec_type])
+        if self.dtype is None:
+            return variants
+        return [
+            variant
+            for variant in variants
+            if variant.get(ai_hc.VKey.TYPE) == self.dtype
+        ]
 
     def get_spec_inputs(self, spec: dict) -> dict:
         """Get problem inputs.
