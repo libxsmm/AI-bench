@@ -33,6 +33,22 @@ bench-cpu:
       K: 2949
     flop: "2*M*N*K"
 
+mlir-cpu-bench:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      M: 8205
+      N: 5921
+      K: 2949
+    flop: "2*M*N*K"
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 8205
+      N: 5921
+      K: 2949
+    flop: "2*M*N*K"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

@@ -39,6 +39,27 @@ bench-cpu:
       K: 768
     flop: "2*B*I*J*K*L"
 
+# Disabled for now due to issues with tiling.
+# mlir-cpu-bench:
+#   - params: [A, B]
+#     dtype: float32
+#     dims:
+#       B: 8
+#       I: 256
+#       J: 512
+#       L: 256
+#       K: 768
+#     flop: "2*B*I*J*K*L"
+#   - params: [A, B]
+#     dtype: bfloat16
+#     dims:
+#       B: 8
+#       I: 256
+#       J: 512
+#       L: 256
+#       K: 768
+#     flop: "2*B*I*J*K*L"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16
