@@ -69,6 +69,7 @@ class KernelBenchRunner(KernelRunner):
             "mem_note",
             "time_us",
             "input_values",
+            "dtype",
             "note",
         ]
         aibench_env_keys = sorted(
@@ -172,6 +173,7 @@ class KernelBenchRunner(KernelRunner):
                             "input_values": json.dumps(
                                 run.variant.get(ai_hc.VKey.DIMS, {})
                             ),
+                            "dtype": run.variant.get(ai_hc.VKey.TYPE, ""),
                             "note": self.note,
                         }
                         row.update(aibench_env)

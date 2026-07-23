@@ -42,9 +42,10 @@ def test_csv_logging_and_env_capture(monkeypatch, temp_csv_file):
 inputs:
   X:
     shape: [N]
-    dtype: float32
+    dtype: inherit
 bench-cpu:
   - params: [X]
+    dtype: float32
     dims:
       N: 4
     flop: 8*N
@@ -90,6 +91,7 @@ class Model(torch.nn.Module):
     row = rows[0]
     assert row.get("flops_unit") == "TFLOPS"
     assert row.get("mem_bw_unit") == "GB/s"
+    assert row.get("dtype") == "float32"
     assert row.get("note") == "Unit test note"
     assert row.get("AIBENCH_CARD") == "D770"
     assert row.get("AIBENCH_SYSTEM") == "TestSystem"
