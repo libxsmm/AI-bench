@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+from natsort import natsorted
 import torch
 
 from . import config
@@ -113,7 +114,7 @@ class KernelBenchRunner(KernelRunner):
         Returns:
             Paths to spec directories
         """
-        return sorted(
+        return natsorted(
             [Path(entry) for entry in os.scandir(self.specs) if entry.is_dir()]
         )
 
@@ -131,7 +132,7 @@ class KernelBenchRunner(KernelRunner):
         # Iterate over specs of kernel levels.
         for spec_dir in self.get_spec_dirs():
             # Iterate over specs - one per kernel.
-            for file in sorted(os.listdir(spec_dir)):
+            for file in natsorted(os.listdir(spec_dir)):
                 # Spec and kernel file names are expected to be identical.
                 kernel_dir = self.kernels / spec_dir.name
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ext))

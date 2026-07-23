@@ -564,6 +564,41 @@ class Model(torch.nn.Module):
             # Should not raise any exceptions.
             kb_runner.run_kernels()
 
+    def test_run_kernels_sorts_specs_naturally(self, temp_dirs):
+        """Test natural ordering across numeric components and separators."""
+        filenames = [
+            "53-last.yaml",
+            "2_kernel_100.yaml",
+            "11.eleventh.yaml",
+            "2_kernel_20.yaml",
+            "1_first.yaml",
+        ]
+        for filename in filenames:
+            self._create_spec_file(temp_dirs["specs"], filename, "")
+
+        with mock.patch(
+            "ai_bench.utils.finder.project_root", return_value=temp_dirs["root"]
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.PYTORCH,
+            )
+            with mock.patch.object(
+                kb_runner, "run_kernel_spec", return_value=None
+            ) as mock_run_kernel_spec:
+                kb_runner.run_kernels()
+
+        actual_order = [
+            call.args[1].name for call in mock_run_kernel_spec.call_args_list
+        ]
+        assert actual_order == [
+            "1_first.yaml",
+            "2_kernel_20.yaml",
+            "2_kernel_100.yaml",
+            "11.eleventh.yaml",
+            "53-last.yaml",
+        ]
+
     def test_validate_only_skips_benchmark(self, temp_dirs):
         """Test that validate_only forces validation, skipping benchmarking."""
         spec_content = """
