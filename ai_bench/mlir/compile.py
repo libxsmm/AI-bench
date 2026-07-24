@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from collections.abc import Sequence
 import os
+from pathlib import Path
 import warnings
 
 import lighthouse.ingress.torch.compile as lh_compile
@@ -8,6 +9,28 @@ from mlir import ir
 import torch
 
 from ai_bench.utils.logger import setup_logger
+
+
+def _xpu_matmul_params_file() -> str:
+    """Return the local XeGPU matmul parameter database path."""
+    return str(
+        Path(__file__).resolve().parents[2]
+        / "backends"
+        / "utils"
+        / "mlir_xpu_utils"
+        / "matmul_params.json"
+    )
+
+
+def _override_lighthouse_xpu_param_db(logger) -> None:
+    """Point Lighthouse XeGPU parameter selector to AI-bench's local JSON DB."""
+    from lighthouse.schedule.xegpu import xegpu_parameter_selector
+
+    json_file = _xpu_matmul_params_file()
+    if not Path(json_file).exists():
+        raise FileNotFoundError(f"Missing XPU matmul params file: {json_file}")
+    xegpu_parameter_selector.DEFAULT_JSON_FILE = json_file
+    logger.info(f"--- MLIR XPU - Using matmul params: {json_file}")
 
 
 class CPUBackend(lh_compile.MLIRBackend):
@@ -100,6 +123,39 @@ class CPUBackend(lh_compile.MLIRBackend):
         return jit_func
 
 
+class GPUBackend(CPUBackend):
+    """
+    A wrapper around PyTorch MLIR GPU backend.
+
+    Reuses the AI-bench MLIR wrapper behavior while targeting an accelerator
+    device supported by Lighthouse's GPU backend.
+    """
+
+    def __init__(
+        self,
+        device: torch.device,
+        fn_compile: Callable[[ir.Module], ir.Module],
+        dialect: lh_compile.TargetDialect = lh_compile.TargetDialect.LINALG_ON_TENSORS,
+        ir_context: ir.Context | None = None,
+        shared_libs: Sequence[str] = [],
+        **kwargs,
+    ):
+        assert device.type in ("cuda", "rocm", "xpu"), "Expected a GPU device"
+        logger = setup_logger()
+        if device.type == "xpu":
+            _override_lighthouse_xpu_param_db(logger)
+            shared_libs = list(shared_libs)
+            shared_libs.append("libmlir_levelzero_runtime.so")
+        super().__init__(
+            device,
+            fn_compile,
+            dialect=dialect,
+            ir_context=ir_context,
+            shared_libs=shared_libs,
+            **kwargs,
+        )
+
+
 def cpu_backend(
     fn_compile: Callable[[ir.Module], ir.Module],
     dialect: lh_compile.TargetDialect = lh_compile.TargetDialect.LINALG_ON_TENSORS,
@@ -124,6 +180,40 @@ def cpu_backend(
     """
     return CPUBackend(
         torch.device("cpu"),
+        fn_compile,
+        dialect=dialect,
+        ir_context=ir_context,
+        shared_libs=shared_libs,
+        **kwargs,
+    )
+
+
+def gpu_backend(
+    fn_compile: Callable[[ir.Module], ir.Module],
+    device: torch.device,
+    dialect: lh_compile.TargetDialect = lh_compile.TargetDialect.LINALG_ON_TENSORS,
+    ir_context: ir.Context | None = None,
+    shared_libs: Sequence[str] = [],
+    **kwargs,
+) -> Callable[[torch.fx.GraphModule, list[torch.Tensor]], Callable]:
+    """
+    GPU backend for JIT-compiling a PyTorch model using MLIR.
+
+    Args:
+        fn_compile: Function to compile imported MLIR to LLVM IR dialect.
+            The function accepts an MLIR module, and returns an MLIR module with
+            transformed IR.
+        device: Target GPU device.
+        dialect: The target dialect for MLIR IR imported from PyTorch model.
+        ir_context: An optional MLIR context to use for compilation.
+        shared_libs: Paths to external runtime libraries used to execute
+            compiled MLIR function.
+
+    Returns:
+        object: A PyTorch model or a partially bound decorator.
+    """
+    return GPUBackend(
+        device,
         fn_compile,
         dialect=dialect,
         ir_context=ir_context,
