@@ -91,6 +91,7 @@ dev = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+timeout = 60
 filterwarnings = [
     'error', # Turn all uncaptured warnings into errors.
     'ignore::DeprecationWarning',

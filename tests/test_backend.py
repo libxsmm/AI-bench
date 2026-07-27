@@ -1359,14 +1359,22 @@ class Model(torch.nn.Module):
 
     def test_full_ci_pipeline_mlir(self, integration_setup):
         """Test complete CI pipeline with MLIR backend."""
-        # Force torch.compile to use eager backend for this integration test.
-        # Patching the module symbol is more robust than swapping sys.modules
-        # because ai_bench.mlir may already be imported by earlier tests.
+        import ai_bench
+
+        fake_mlir = mock.MagicMock()
+        fake_mlir.cpu_backend.return_value = "eager"
+        # Two patches are required:
+        # 1. sys.modules["ai_bench.mlir"] — for `import ai_bench.mlir as ai_mlir`
+        #    when the module is NOT yet loaded.
+        # 2. ai_bench.mlir attribute — for the IMPORT_FROM bytecode which does
+        #    getattr(ai_bench, "mlir") instead of a sys.modules lookup when the
+        #    module was already imported by an earlier test.
         with (
             mock.patch(
                 "ai_bench.utils.finder.project_root", return_value=integration_setup
             ),
-            mock.patch("ai_bench.mlir.cpu_backend", return_value="eager"),
+            mock.patch.dict("sys.modules", {"ai_bench.mlir": fake_mlir}),
+            mock.patch.object(ai_bench, "mlir", fake_mlir, create=True),
         ):
             kb_runner = runner.KernelBenchRunner(
                 spec_type=ai_hc.SpecKey.V_CI,
