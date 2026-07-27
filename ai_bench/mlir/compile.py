@@ -11,6 +11,7 @@ import torch
 from ai_bench.utils.logger import setup_logger
 
 
+# TODO: Add proper discovery to 'finder' module if params need to be kept locally.
 def _xpu_matmul_params_file() -> str:
     """Return the local XeGPU matmul parameter database path."""
     return str(
@@ -22,6 +23,7 @@ def _xpu_matmul_params_file() -> str:
     )
 
 
+# TODO: Fix configuration in Lighthouse.
 def _override_lighthouse_xpu_param_db(logger) -> None:
     """Point Lighthouse XeGPU parameter selector to AI-bench's local JSON DB."""
     from lighthouse.schedule.xegpu import xegpu_parameter_selector
