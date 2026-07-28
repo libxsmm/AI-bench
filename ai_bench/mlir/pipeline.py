@@ -1,6 +1,4 @@
 import functools
-import os
-import sys
 from functools import cache
 from pathlib import Path
 from typing import Callable
@@ -10,12 +8,10 @@ from lighthouse.execution.target import TargetInfo
 from lighthouse.pipeline import find_pipeline_file
 from lighthouse.pipeline.descriptor import Descriptor
 from lighthouse.pipeline.driver import BackendDriver
-from lighthouse.schedule.xegpu import (
-    XeGPUParameterSelector,
-    elemwise_schedule,
-    mlp_schedule,
-    xegpu_to_binary,
-)
+from lighthouse.schedule.xegpu import XeGPUParameterSelector
+from lighthouse.schedule.xegpu import elemwise_schedule
+from lighthouse.schedule.xegpu import mlp_schedule
+from lighthouse.schedule.xegpu import xegpu_to_binary
 from lighthouse.utils.mlir import inspect_payload
 from mlir import ir
 
@@ -151,66 +147,11 @@ def _compile_pipeline(
     _get_logger().info(f"  MLIR pipeline: {pipeline_file}")
 
     # Build the lowering pipeline from the selected YAML descriptor.
-    logger = _get_logger()
-    logger.info(f"BackendDriver: creating driver for module with context {id(module.context)}")
     driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
-    logger.info(f"BackendDriver: adding stage from {pipeline_file}")
     driver.add_stage(Descriptor(pipeline_file))
-    logger.info(f"BackendDriver: applying pipeline...")
 
     # Lower IR.
-    # In debug mode, apply stages one by one so we can identify the exact stage
-    # that aborts when MLIR raises a fatal C++ assertion.
-    try:
-        if os.environ.get("AIBENCH_MLIR_TRACE_STAGES"):
-            for i, stage in enumerate(driver.stages):
-                stage_module = getattr(stage, "module", None)
-                stage_schedule = getattr(stage, "schedule", None)
-                if stage_module is not None:
-                    has_named_seq_attr = (
-                        "transform.with_named_sequence"
-                        in stage_module.operation.attributes
-                    )
-                    first_op_name = (
-                        stage_module.body.operations[0].name
-                        if len(stage_module.body.operations) > 0
-                        else "<empty>"
-                    )
-                else:
-                    has_named_seq_attr = None
-                    first_op_name = "<n/a>"
-                schedule_op_name = (
-                    stage_schedule.name if stage_schedule is not None else "<n/a>"
-                )
-                print(
-                    "AIBENCH_TRACE: "
-                    f"applying stage[{i}] "
-                    f"schedule_op={schedule_op_name} "
-                    f"module_has_named_seq={has_named_seq_attr} "
-                    f"module_first_op={first_op_name} "
-                    f"stage={stage}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                logger.info(f"BackendDriver: applying stage[{i}] {stage}")
-                with module.context:
-                    module = stage.apply(module)
-                print(
-                    f"AIBENCH_TRACE: stage[{i}] applied",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                logger.info(f"BackendDriver: stage[{i}] applied")
-            logger.info("BackendDriver: pipeline applied successfully")
-        else:
-            module = driver.apply(module)
-            logger.info(f"BackendDriver: pipeline applied successfully")
-    except Exception as e:
-        logger.error(f"BackendDriver.apply() failed: {type(e).__name__}: {e}")
-        logger.error(f"Module context id: {id(module.context)}")
-        raise
-
-    return module
+    return driver.apply(module)
 
 
 def _infer_xpu_kernel_metadata(
@@ -247,7 +188,6 @@ def _compile_xpu_adaptive(
     payload_func_name: str = "main",
 ) -> ir.Module:
     """Lower XPU payload using adaptive Lighthouse schedules."""
-    logger = _get_logger()
     schedule_kind, schedule_params = _infer_xpu_kernel_metadata(
         module, payload_func_name=payload_func_name
     )
@@ -275,51 +215,11 @@ def _compile_xpu_adaptive(
             large_register_file=True,
         )
 
-    driver = BackendDriver(module, payload_func_name, result_to_args=False, benchmark=False)
+    driver = BackendDriver(
+        module, payload_func_name, result_to_args=False, benchmark=False
+    )
     driver.add_transform(schedule)
     driver.add_transform(lower_to_binary)
-
-    if os.environ.get("AIBENCH_MLIR_TRACE_STAGES"):
-        logger.info(
-            f"XPU adaptive schedule kind={schedule_kind}, stages={len(driver.stages)}"
-        )
-        for i, stage in enumerate(driver.stages):
-            stage_module = getattr(stage, "module", None)
-            stage_schedule = getattr(stage, "schedule", None)
-            if stage_module is not None:
-                has_named_seq_attr = (
-                    "transform.with_named_sequence"
-                    in stage_module.operation.attributes
-                )
-                first_op_name = (
-                    stage_module.body.operations[0].name
-                    if len(stage_module.body.operations) > 0
-                    else "<empty>"
-                )
-            else:
-                has_named_seq_attr = None
-                first_op_name = "<n/a>"
-            schedule_op_name = (
-                stage_schedule.name if stage_schedule is not None else "<n/a>"
-            )
-            print(
-                "AIBENCH_TRACE_ADAPTIVE: "
-                f"applying stage[{i}] "
-                f"schedule_op={schedule_op_name} "
-                f"module_has_named_seq={has_named_seq_attr} "
-                f"module_first_op={first_op_name} "
-                f"stage={stage}",
-                file=sys.stderr,
-                flush=True,
-            )
-            with module.context:
-                module = stage.apply(module)
-            print(
-                f"AIBENCH_TRACE_ADAPTIVE: stage[{i}] applied",
-                file=sys.stderr,
-                flush=True,
-            )
-        return module
 
     return driver.apply(module)
 

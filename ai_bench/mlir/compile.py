@@ -10,7 +10,6 @@ import torch
 
 from ai_bench.utils.logger import setup_logger
 
-
 _XPU_SHARED_IR_CONTEXT: ir.Context | None = None
 
 
