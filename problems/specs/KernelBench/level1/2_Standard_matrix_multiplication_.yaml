@@ -56,6 +56,17 @@ mlir-cpu-bench:
     flop: "2*M*N*K"
     mem_bytes: "(M*K + K*N + M*N) * 2" # bf16
 
+mlir-gpu-bench:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 2048
+      N: 4096
+      K: 8192
+    atol: 1
+    flop: "2*M*N*K"
+    mem_bytes: "(M*K + K*N + M*N) * 2" # bf16
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

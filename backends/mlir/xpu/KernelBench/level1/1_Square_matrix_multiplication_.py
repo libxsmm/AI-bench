@@ -13,7 +13,4 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
-        assert all(dim == 4096 for dim in A.shape), "A shape must be 4096"
-        assert all(dim == 4096 for dim in B.shape), "B shape must be 4096"
-
         return torch.matmul(A, B)
