@@ -60,13 +60,15 @@ def _get_logger():
 
 
 @cache
-def _get_target_info() -> TargetInfo:
+def _get_target_info(device_type: str = "cpu") -> TargetInfo:
     """
-    Get target information for the current CPU architecture.
+    Get target information for the active compilation target.
 
     Returns:
         TargetInfo object containing architecture and feature information.
     """
+    if device_type == "xpu":
+        return TargetInfo(arch="xegpu", features=[])
     return TargetInfo()
 
 
@@ -74,6 +76,7 @@ def _select_pipeline_file(
     pipeline: str | None = None,
     dtype: str | None = None,
     base_path: Path | None = None,
+    device_type: str = "cpu",
 ) -> str:
     """
     Dynamically select a lowering pipeline descriptor (YAML).
@@ -95,7 +98,7 @@ def _select_pipeline_file(
 
     if pipeline:
         file, _ = find_pipeline_file(
-            target=_get_target_info(),
+            target=_get_target_info(device_type),
             pipeline=pipeline,
             dtype=normalize_dtype(dtype),
             base_path=base_path,
@@ -106,8 +109,11 @@ def _select_pipeline_file(
     return pipeline_file
 
 
-def cpu_pipeline(
-    module: ir.Module, pipeline: str | None = None, dtype: str | None = None
+def _compile_pipeline(
+    module: ir.Module,
+    pipeline: str | None = None,
+    dtype: str | None = None,
+    device_type: str = "cpu",
 ) -> ir.Module:
     """
     The default lowering pipeline for CPU.
@@ -127,7 +133,10 @@ def cpu_pipeline(
     """
     base_path = mlir_schedules_dir()
     pipeline_file = _select_pipeline_file(
-        pipeline=pipeline, dtype=dtype, base_path=base_path
+        pipeline=pipeline,
+        dtype=dtype,
+        base_path=base_path,
+        device_type=device_type,
     )
     _get_logger().info(f"  MLIR pipeline: {pipeline_file}")
 
@@ -141,7 +150,27 @@ def cpu_pipeline(
     return module
 
 
+def cpu_pipeline(
+    module: ir.Module, pipeline: str | None = None, dtype: str | None = None
+) -> ir.Module:
+    """Lower MLIR for a CPU target."""
+    return _compile_pipeline(module, pipeline=pipeline, dtype=dtype, device_type="cpu")
+
+
+def xpu_pipeline(
+    module: ir.Module, pipeline: str | None = None, dtype: str | None = None
+) -> ir.Module:
+    """Lower MLIR for an XPU target."""
+    return _compile_pipeline(module, pipeline=pipeline, dtype=dtype, device_type="xpu")
+
+
 def get_cpu_compile_fn(
     pipeline: str | None = None, dtype: str | None = None
 ) -> Callable[[ir.Module], ir.Module]:
     return functools.partial(cpu_pipeline, pipeline=pipeline, dtype=dtype)
+
+
+def get_xpu_compile_fn(
+    pipeline: str | None = None, dtype: str | None = None
+) -> Callable[[ir.Module], ir.Module]:
+    return functools.partial(xpu_pipeline, pipeline=pipeline, dtype=dtype)

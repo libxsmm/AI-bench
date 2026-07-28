@@ -473,6 +473,9 @@ class TestKernelBenchRunnerExecution:
             mlir_xpu_kernels_dir = (
                 tmpdir / "backends" / "mlir" / "xpu" / "KernelBench" / "level1"
             )
+            mlir_cuda_kernels_dir = (
+                tmpdir / "backends" / "mlir" / "cuda" / "KernelBench" / "level1"
+            )
 
             specs_dir.mkdir(parents=True)
             pytorch_kernels_dir.mkdir(parents=True)
@@ -480,6 +483,7 @@ class TestKernelBenchRunnerExecution:
             helion_kernels_dir.mkdir(parents=True)
             mlir_cpu_kernels_dir.mkdir(parents=True)
             mlir_xpu_kernels_dir.mkdir(parents=True)
+            mlir_cuda_kernels_dir.mkdir(parents=True)
 
             yield {
                 "root": tmpdir,
@@ -489,6 +493,7 @@ class TestKernelBenchRunnerExecution:
                 "helion_kernels": helion_kernels_dir,
                 "mlir_cpu_kernels": mlir_cpu_kernels_dir,
                 "mlir_xpu_kernels": mlir_xpu_kernels_dir,
+                "mlir_cuda_kernels": mlir_cuda_kernels_dir,
             }
 
     def _create_spec_file(self, specs_dir: Path, filename: str, content: str):
@@ -860,6 +865,162 @@ class Model(torch.nn.Module):
             assert "mlir/cpu" in str(mlir_cpu_runner.kernels)
             assert "mlir/xpu" in str(mlir_xpu_runner.kernels)
 
+    def test_run_kernel_spec_mlir_cpu_uses_cpu_backend(self, temp_dirs):
+        """Test MLIR CPU execution uses the CPU backend wrapper."""
+        spec_content = """
+inputs:
+  X:
+    shape: [N]
+    dtype: bfloat16
+ci:
+  - params: [X]
+    dims:
+      N: 8
+    dtype: bfloat16
+"""
+        kernel_content = """
+import torch
+
+class Model(torch.nn.Module):
+    mlir_pipeline = "matmul"
+
+    def forward(self, x):
+        return x
+"""
+        self._create_spec_file(temp_dirs["specs"], "mlir_cpu.yaml", spec_content)
+        self._create_kernel_file(
+            temp_dirs["mlir_cpu_kernels"], "mlir_cpu.py", kernel_content
+        )
+
+        fake_mlir = mock.MagicMock()
+        fake_mlir.get_cpu_compile_fn.return_value = "cpu-compile-fn"
+        fake_mlir.cpu_backend.return_value = "cpu-backend"
+
+        class FakeModel:
+            mlir_pipeline = "matmul"
+
+            def __init__(self):
+                self.compile = mock.Mock()
+
+            def __call__(self, *args):
+                return args
+
+        with (
+            mock.patch(
+                "ai_bench.utils.finder.project_root", return_value=temp_dirs["root"]
+            ),
+            mock.patch.dict("sys.modules", {"ai_bench.mlir": fake_mlir}),
+            mock.patch(
+                "ai_bench.harness.core.get_inputs", return_value=[torch.tensor([1])]
+            ),
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("cpu"),
+                backend=ai_hc.Backend.MLIR,
+            )
+            fake_model = FakeModel()
+            with mock.patch.object(kb_runner, "init_model", return_value=fake_model):
+                kb_runner.run_kernel_spec(
+                    temp_dirs["mlir_cpu_kernels"] / "mlir_cpu.py",
+                    temp_dirs["specs"] / "mlir_cpu.yaml",
+                )
+
+        fake_mlir.get_cpu_compile_fn.assert_called_once_with(
+            pipeline="matmul", dtype="bfloat16"
+        )
+        fake_mlir.cpu_backend.assert_called_once_with("cpu-compile-fn")
+        fake_mlir.get_xpu_compile_fn.assert_not_called()
+        fake_mlir.gpu_backend.assert_not_called()
+        fake_model.compile.assert_called_once_with(dynamic=False, backend="cpu-backend")
+
+    def test_run_kernel_spec_mlir_xpu_uses_gpu_backend(self, temp_dirs):
+        """Test MLIR XPU execution uses the GPU backend wrapper."""
+        spec_content = """
+inputs:
+  X:
+    shape: [N]
+    dtype: bfloat16
+ci:
+  - params: [X]
+    dims:
+      N: 8
+    dtype: bfloat16
+"""
+        kernel_content = """
+import torch
+
+class Model(torch.nn.Module):
+    mlir_pipeline = "matmul"
+
+    def forward(self, x):
+        return x
+"""
+        self._create_spec_file(temp_dirs["specs"], "mlir_xpu.yaml", spec_content)
+        self._create_kernel_file(
+            temp_dirs["mlir_xpu_kernels"], "mlir_xpu.py", kernel_content
+        )
+
+        fake_mlir = mock.MagicMock()
+        fake_mlir.get_cpu_compile_fn.return_value = "cpu-compile-fn"
+        fake_mlir.cpu_backend.return_value = "cpu-backend"
+        fake_mlir.get_xpu_compile_fn.return_value = "xpu-compile-fn"
+        fake_mlir.gpu_backend.return_value = "xpu-backend"
+
+        class FakeModel:
+            mlir_pipeline = "matmul"
+
+            def __init__(self):
+                self.compile = mock.Mock()
+
+            def __call__(self, *args):
+                return args
+
+        with (
+            mock.patch(
+                "ai_bench.utils.finder.project_root", return_value=temp_dirs["root"]
+            ),
+            mock.patch.dict("sys.modules", {"ai_bench.mlir": fake_mlir}),
+            mock.patch(
+                "ai_bench.harness.core.get_inputs", return_value=[torch.tensor([1])]
+            ),
+        ):
+            kb_runner = runner.KernelBenchRunner(
+                spec_type=ai_hc.SpecKey.V_CI,
+                device=torch.device("xpu"),
+                backend=ai_hc.Backend.MLIR,
+            )
+            fake_model = FakeModel()
+            with mock.patch.object(kb_runner, "init_model", return_value=fake_model):
+                kb_runner.run_kernel_spec(
+                    temp_dirs["mlir_xpu_kernels"] / "mlir_xpu.py",
+                    temp_dirs["specs"] / "mlir_xpu.yaml",
+                )
+
+        fake_mlir.get_cpu_compile_fn.assert_not_called()
+        fake_mlir.cpu_backend.assert_not_called()
+        fake_mlir.get_xpu_compile_fn.assert_called_once_with(
+            pipeline="matmul", dtype="bfloat16"
+        )
+        fake_mlir.gpu_backend.assert_called_once_with(
+            "xpu-compile-fn", device=torch.device("xpu")
+        )
+        fake_model.compile.assert_called_once_with(dynamic=False, backend="xpu-backend")
+
+    def test_xpu_pipeline_lookup_uses_xegpu_descriptors(self):
+        """Test XPU compile helper resolves the packaged xegpu matmul pipeline."""
+        pytest.importorskip("lighthouse")
+        from ai_bench.mlir import pipeline as ai_mlir_pipeline
+
+        pipeline_file = ai_mlir_pipeline._select_pipeline_file(
+            pipeline="matmul",
+            dtype="bfloat16",
+            base_path=Path("tmp/nonexistent-mlir-schedules"),
+            device_type="xpu",
+        )
+
+        assert pipeline_file.endswith("xegpu/matmul/bf16.yaml")
+
     def test_run_kernels_with_inits(self, temp_dirs):
         """Test running kernel that requires initialization parameters."""
         spec_content = """
@@ -1198,17 +1359,22 @@ class Model(torch.nn.Module):
 
     def test_full_ci_pipeline_mlir(self, integration_setup):
         """Test complete CI pipeline with MLIR backend."""
-        # The real MLIR backend requires the optional 'lighthouse' dependency,
-        # which is not available in the unit-test environment. Stub the
-        # 'ai_bench.mlir' module so the runner compiles the model with torch's
-        # eager backend instead of a full MLIR lowering.
+        import ai_bench
+
         fake_mlir = mock.MagicMock()
         fake_mlir.cpu_backend.return_value = "eager"
+        # Two patches are required:
+        # 1. sys.modules["ai_bench.mlir"] — for `import ai_bench.mlir as ai_mlir`
+        #    when the module is NOT yet loaded.
+        # 2. ai_bench.mlir attribute — for the IMPORT_FROM bytecode which does
+        #    getattr(ai_bench, "mlir") instead of a sys.modules lookup when the
+        #    module was already imported by an earlier test.
         with (
             mock.patch(
                 "ai_bench.utils.finder.project_root", return_value=integration_setup
             ),
             mock.patch.dict("sys.modules", {"ai_bench.mlir": fake_mlir}),
+            mock.patch.object(ai_bench, "mlir", fake_mlir, create=True),
         ):
             kb_runner = runner.KernelBenchRunner(
                 spec_type=ai_hc.SpecKey.V_CI,

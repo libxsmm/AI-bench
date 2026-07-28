@@ -10,10 +10,13 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 | | PyTorch | Triton | Helion | MLIR | Gluon | SYCL |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **CPU** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **XPU** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **XPU** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **CUDA** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
+
+_NOTE_: MLIR XPU requires **custom** LLVM build with Intel GPU support enabled.  
+Override `PYTHONPATH` to point to `mlir_core` packages and ensure LLVM libs can be found.
 
 ## Project Docs
 * [**Problem Specification Files**](docs/problem_spec.md)

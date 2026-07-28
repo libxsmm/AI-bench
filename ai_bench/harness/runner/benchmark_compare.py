@@ -314,17 +314,28 @@ def benchmark_problem(
                 if backend == ai_hc.Backend.MLIR:
                     import ai_bench.mlir as ai_mlir
 
+                    if runner.device.type == "cuda":
+                        raise ValueError("MLIR CUDA backend is not supported")
+
                     mlir_pipeline = None
                     if hasattr(model, "mlir_pipeline"):
                         mlir_pipeline = model.mlir_pipeline
                     model_dtype = ai_hc.get_variant_dtype(variants[variant_idx])
+                    if runner.device.type == "xpu":
+                        compile_fn = ai_mlir.get_xpu_compile_fn(
+                            pipeline=mlir_pipeline, dtype=model_dtype
+                        )
+                        mlir_backend = ai_mlir.gpu_backend(
+                            compile_fn, device=runner.device
+                        )
+                    else:
+                        compile_fn = ai_mlir.get_cpu_compile_fn(
+                            pipeline=mlir_pipeline, dtype=model_dtype
+                        )
+                        mlir_backend = ai_mlir.cpu_backend(compile_fn)
                     model.compile(
                         dynamic=False,
-                        backend=ai_mlir.cpu_backend(
-                            ai_mlir.get_cpu_compile_fn(
-                                pipeline=mlir_pipeline, dtype=model_dtype
-                            )
-                        ),
+                        backend=mlir_backend,
                     )
                 # save pytorch model for correctness check
                 if backend == str(ai_hc.Backend.PYTORCH):

@@ -401,17 +401,26 @@ class KernelRunner:
             if self.backend == ai_hc.Backend.MLIR:
                 import ai_bench.mlir as ai_mlir
 
+                if self.is_cuda():
+                    raise ValueError("MLIR CUDA backend is not supported")
+
                 mlir_pipeline = None
                 if hasattr(model, "mlir_pipeline"):
                     mlir_pipeline = model.mlir_pipeline
                 model_dtype = ai_hc.get_variant_dtype(variant)
+                if self.is_xpu():
+                    compile_fn = ai_mlir.get_xpu_compile_fn(
+                        pipeline=mlir_pipeline, dtype=model_dtype
+                    )
+                    backend = ai_mlir.gpu_backend(compile_fn, device=self.device)
+                else:
+                    compile_fn = ai_mlir.get_cpu_compile_fn(
+                        pipeline=mlir_pipeline, dtype=model_dtype
+                    )
+                    backend = ai_mlir.cpu_backend(compile_fn)
                 model.compile(
                     dynamic=False,
-                    backend=ai_mlir.cpu_backend(
-                        ai_mlir.get_cpu_compile_fn(
-                            pipeline=mlir_pipeline, dtype=model_dtype
-                        )
-                    ),
+                    backend=backend,
                 )
 
             args = ai_hc.get_inputs(variant, spec_inputs, device=self.device)
