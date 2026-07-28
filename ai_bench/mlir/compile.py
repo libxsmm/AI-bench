@@ -11,6 +11,17 @@ import torch
 from ai_bench.utils.logger import setup_logger
 
 
+_XPU_SHARED_IR_CONTEXT: ir.Context | None = None
+
+
+def _get_xpu_shared_ir_context() -> ir.Context:
+    """Return a process-wide MLIR context for XPU compilation."""
+    global _XPU_SHARED_IR_CONTEXT
+    if _XPU_SHARED_IR_CONTEXT is None:
+        _XPU_SHARED_IR_CONTEXT = ir.Context()
+    return _XPU_SHARED_IR_CONTEXT
+
+
 # TODO: Add proper discovery to 'finder' module if params need to be kept locally.
 def _xpu_matmul_params_file() -> str:
     """Return the local XeGPU matmul parameter database path."""
@@ -148,6 +159,8 @@ class GPUBackend(CPUBackend):
             _override_lighthouse_xpu_param_db(logger)
             shared_libs = list(shared_libs)
             shared_libs.append("libmlir_levelzero_runtime.so")
+            if ir_context is None:
+                ir_context = _get_xpu_shared_ir_context()
         super().__init__(
             device,
             fn_compile,
