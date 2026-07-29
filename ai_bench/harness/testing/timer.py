@@ -35,7 +35,7 @@ def time_cpu(
     # Supress Kineto logging.
     os.environ["KINETO_LOG_LEVEL"] = "99"
 
-    nuke_a, nuke_b = None, None
+    nuke_a, nuke_b, nuke_c = None, None, None
     if min_cache_nuke_mib > 0:
         nuke_size = 2048
         n_layers = math.ceil(
@@ -43,6 +43,7 @@ def time_cpu(
         )  # 3 matrices, 2 bytes per bfloat16
         nuke_a = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
         nuke_b = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
+        nuke_c = torch.empty((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
 
     for _ in range(warmup):
         fn(*args)
@@ -50,8 +51,7 @@ def time_cpu(
     with profile(activities=[ProfilerActivity.CPU], acc_events=False) as prof:
         for _ in range(rep):
             if min_cache_nuke_mib > 0:
-                torch.bmm(nuke_a, nuke_b)
-
+                torch.bmm(nuke_a, nuke_b, out=nuke_c)
             with record_function("profiled_fn"):
                 fn(*args)
 

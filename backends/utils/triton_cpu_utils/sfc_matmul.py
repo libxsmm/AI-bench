@@ -138,6 +138,8 @@ def _sfc_matmul_kernel(
     BLOCKING_FACTOR_K: tl.constexpr,
     IS_FIRST_K_BLOCK: tl.constexpr,
     IS_LAST_K_BLOCK: tl.constexpr,
+    ACCUM_DTYPE: tl.constexpr,
+    OUT_DTYPE: tl.constexpr,
     HAS_BIAS: tl.constexpr,
     POST_OP: tl.constexpr,
     POST_OP_HAS_ARG: tl.constexpr,
@@ -148,9 +150,6 @@ def _sfc_matmul_kernel(
     BLOCKS_N = N // BLOCK_SIZE_N
     BLOCKS_K = K // BLOCK_SIZE_K
     BLOCKS_K_PER_PROG = tl.cdiv(BLOCKS_K, BLOCKING_FACTOR_K)
-
-    accum_dtype: tl.constexpr = ctmp_ptr.type.element_ty
-    out_dtype: tl.constexpr = c_ptr.type.element_ty
 
     pid = tl.program_id(axis=0)
     block_m = tl.load(sfc_map_ptr + 2 * pid)
@@ -179,7 +178,7 @@ def _sfc_matmul_kernel(
             block_shape=(1, BLOCK_SIZE_M, BLOCK_SIZE_N),
         )
 
-    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accum_dtype)
+    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
 
     for block_ki in range(block_k, min(block_k + BLOCKS_K_PER_PROG, BLOCKS_K)):
         a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
@@ -190,7 +189,7 @@ def _sfc_matmul_kernel(
         if VNNI > 1:
             b = tl.extra.cpu.vnni_decode(b)
 
-        c = tl.dot(a, b, acc=c, out_dtype=accum_dtype)
+        c = tl.dot(a, b, acc=c, out_dtype=ACCUM_DTYPE)
 
     if not IS_FIRST_K_BLOCK:
         c += ctmp_desc.load([pid, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
@@ -206,7 +205,7 @@ def _sfc_matmul_kernel(
             strides=(1,),
             block_shape=(BLOCK_SIZE_N,),
         )
-        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(accum_dtype)
+        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(ACCUM_DTYPE)
         c += bias[None, :]
 
     if POST_OP_HAS_ARG:
@@ -216,7 +215,7 @@ def _sfc_matmul_kernel(
     else:
         c = POST_OP(c)
 
-    c = c.to(out_dtype).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+    c = c.to(OUT_DTYPE).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
 
     c_desc = tl.make_tensor_descriptor(
         base=c_ptr,
@@ -264,6 +263,30 @@ def pack_weights_for_sfc_matmul(
         .contiguous()
         .reshape(K, N)
     )
+
+
+def _get_accum_dtype(torch_dtype):
+    if torch_dtype in [torch.float16, torch.bfloat16, torch.float32]:
+        return torch.float32
+    elif torch_dtype == torch.int8:
+        return torch.int32
+    else:
+        raise ValueError(f"Unsupported dtype: {torch_dtype}")
+
+
+def _torch_to_triton_dtype(torch_dtype):
+    if torch_dtype == torch.float16:
+        return tl.float16
+    elif torch_dtype == torch.bfloat16:
+        return tl.bfloat16
+    elif torch_dtype == torch.float32:
+        return tl.float32
+    elif torch_dtype == torch.int8:
+        return tl.int8
+    elif torch_dtype == torch.int32:
+        return tl.int32
+    else:
+        raise ValueError(f"Unsupported dtype: {torch_dtype}")
 
 
 def sfc_matmul(
@@ -337,22 +360,21 @@ def sfc_matmul(
 
     sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
 
-    accum_dtype = torch.int32 if a.dtype == torch.int8 else torch.float32
+    accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
 
     c = torch.empty((M, N), device=a.device, dtype=out_dtype)
     if blocking_factor_k > 1:
-        ctmp = torch.empty(
-            (M, N),
-            device=a.device,
-            dtype=accum_dtype,
-        )
+        if not trunc_output:
+            ctmp = c
+        else:
+            ctmp = torch.empty(
+                (M, N),
+                device=a.device,
+                dtype=accum_dtype,
+            )
     else:
-        ctmp = torch.empty(
-            (1,),
-            device=a.device,
-            dtype=accum_dtype,
-        )
+        ctmp = None
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
@@ -373,6 +395,8 @@ def sfc_matmul(
             BLOCKING_FACTOR_K=blocking_factor_k,
             IS_FIRST_K_BLOCK=ik == 0,
             IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
+            ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
+            OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
             HAS_BIAS=bias is not None,
             POST_OP=post_op if post_op is not None else _no_post_op,
             POST_OP_HAS_ARG=post_op_arg is not None,
