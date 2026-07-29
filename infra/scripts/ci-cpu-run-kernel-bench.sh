@@ -96,6 +96,9 @@ BENCH_FLAGS="--gflops"
 if [[ "${RUN_MODE}" == "${RUN_MODE_BENCH}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --bench"
 fi
+if [[ "${RUN_MODE}" == "${RUN_MODE_CI}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --ci"
+fi
 
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TORCH_COMPILE}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --torch-compile"
