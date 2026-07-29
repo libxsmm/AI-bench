@@ -146,6 +146,25 @@ jobs:
         run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
             '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
 
+  XPU-Check-LLVM:
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.DEVICE_XPU && inputs.BACKEND_MLIR)
+    uses: ./.github/workflows/build-llvm.yml
+    secrets: inherit
+
+  XPU-MLIR:
+    runs-on: pcl-tiergarten
+    needs: XPU-Check-LLVM
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.DEVICE_XPU && inputs.BACKEND_MLIR)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Arc Pro B50
+        run: "${{ env.SRUN }} --partition=b50 --time=0:30:00 -- \
+            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b mlir'"
+
   CUDA-PyTorch:
     runs-on: pcl-tiergarten
     if: |
