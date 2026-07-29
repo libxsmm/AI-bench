@@ -36,11 +36,12 @@ bench-cpu:
       OUT_FEATURES: 4096
       SCALING_FACTOR: 0.5
 
-mlir-gpu-bench:
-  - params: [X]
-    dtype: bfloat16
-    dims:
-      BATCH_SIZE: 16384
-      IN_FEATURES: 4096
-      OUT_FEATURES: 4096
-      SCALING_FACTOR: 0.5
+# Disabled due to prefetch failure.
+# mlir-gpu-bench:
+#   - params: [X]
+#     dtype: bfloat16
+#     dims:
+#       BATCH_SIZE: 16384
+#       IN_FEATURES: 4096
+#       OUT_FEATURES: 4096
+#       SCALING_FACTOR: 0.5

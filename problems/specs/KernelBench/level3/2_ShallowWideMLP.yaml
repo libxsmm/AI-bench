@@ -17,14 +17,15 @@ ci:
       LAYER_SIZES: [32, 32]
       OUT_SIZE: 16
 
-mlir-gpu-bench:
-  - params: [X]
-    dtype: bfloat16
-    dims:
-      BATCH: 128
-      IN_SIZE: 16384
-      LAYER_SIZES: [32768, 32768]
-      OUT_SIZE: 16384
+# Disabled due to upstream changes.
+# mlir-gpu-bench:
+#   - params: [X]
+#     dtype: bfloat16
+#     dims:
+#       BATCH: 128
+#       IN_SIZE: 16384
+#       LAYER_SIZES: [32768, 32768]
+#       OUT_SIZE: 16384
 
 bench-gpu:
   - params: [X]

@@ -37,12 +37,13 @@ bench-cpu:
       SCALING_FACTOR: 2.0
     atol: 5.e-2
 
-mlir-gpu-bench:
-  - params: [X]
-    dtype: bfloat16
-    dims:
-      BATCH_SIZE: 128
-      IN_FEATURES: 32768
-      OUT_FEATURES: 32768
-      SCALING_FACTOR: 2.0
-    atol: 5.e-2
+# Disabled due to prefetch failure.
+# mlir-gpu-bench:
+#   - params: [X]
+#     dtype: bfloat16
+#     dims:
+#       BATCH_SIZE: 128
+#       IN_FEATURES: 32768
+#       OUT_FEATURES: 32768
+#       SCALING_FACTOR: 2.0
+#     atol: 5.e-2

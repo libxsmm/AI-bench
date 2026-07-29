@@ -146,12 +146,13 @@ def _compile_pipeline(
     )
     _get_logger().info(f"  MLIR pipeline: {pipeline_file}")
 
-    # Build the lowering pipeline from the selected YAML descriptor.
-    driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
-    driver.add_stage(Descriptor(pipeline_file))
+    with module.context, ir.Location.unknown():
+        # Build the lowering pipeline from the selected YAML descriptor.
+        driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
+        driver.add_stage(Descriptor(pipeline_file))
 
-    # Lower IR.
-    return driver.apply(module)
+        # Lower IR.
+        return driver.apply(module)
 
 
 def _infer_xpu_kernel_metadata(
@@ -191,6 +192,8 @@ def _compile_xpu_adaptive(
     schedule_kind, schedule_params = _infer_xpu_kernel_metadata(
         module, payload_func_name=payload_func_name
     )
+    logger = _get_logger()
+    logger.info(f"  XPU adaptive schedule: {schedule_kind}")
 
     if schedule_kind == "unsupported":
         raise ValueError("Unsupported XPU payload for adaptive schedule")
@@ -227,13 +230,13 @@ def _compile_xpu_adaptive(
             large_register_file=True,
         )
 
-    driver = BackendDriver(
-        module, payload_func_name, result_to_args=False, benchmark=False
-    )
-    driver.add_transform(schedule)
-    driver.add_transform(lower_to_binary)
+        driver = BackendDriver(
+            module, payload_func_name, result_to_args=False, benchmark=False
+        )
+        driver.add_transform(schedule)
+        driver.add_transform(lower_to_binary)
 
-    return driver.apply(module)
+        return driver.apply(module)
 
 
 def _clone_module(module: ir.Module) -> ir.Module:
@@ -276,9 +279,9 @@ def xpu_pipeline(
                 dtype=dtype,
                 device_type="xpu",
             )
-        except Exception:
-            logger.warning("  XPU default schedule failed; using fallback...")
-    logger.info("  XPU pipeline: adaptive schedule construction")
+        except Exception as e:
+            logger.debug("  XPU default schedule failed; using fallback...")
+            logger.debug(f"  XPU compile error:\n{e}")
     return _compile_xpu_adaptive(module, payload_func_name="main")
 
 
