@@ -43,6 +43,14 @@ mlir-cpu-bench:
       N: 64
     flop: "2*M*M*N"
 
+mlir-gpu-bench:
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 32768
+      N: 32
+    flop: "2*M*M*N"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

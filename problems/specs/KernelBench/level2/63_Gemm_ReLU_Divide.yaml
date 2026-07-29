@@ -16,3 +16,12 @@ ci:
       IN_FEATURES: 32
       OUT_FEATURES: 32
       DIVISOR: 2.0
+
+mlir-gpu-bench:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+      DIVISOR: 2.0
