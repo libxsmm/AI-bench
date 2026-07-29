@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import math
 import os
+import time as pytime
 import warnings
 
 import torch
@@ -47,16 +48,34 @@ def time_cpu(
     for _ in range(warmup):
         fn(*args)
 
-    with profile(activities=[ProfilerActivity.CPU], acc_events=False) as prof:
+    try:
+        with profile(activities=[ProfilerActivity.CPU], acc_events=False) as prof:
+            for _ in range(rep):
+                if min_cache_nuke_mib > 0:
+                    torch.bmm(nuke_a, nuke_b)
+
+                with record_function("profiled_fn"):
+                    fn(*args)
+
+        events = [e for e in prof.events() if e.name.startswith("profiled_fn")]
+        times = torch.tensor([e.cpu_time for e in events], dtype=torch.float)
+    except RuntimeError as exc:
+        # On some builds, enabling Kineto can fail when XPU profiling support is
+        # unavailable even for CPU-only activity requests. Fall back to wall-clock.
+        # FIXME: Should be solved in PyTorch 2.14.
+        #   See: https://github.com/intel/torch-xpu-ops/issues/4318
+        if "Kineto" not in str(exc) and "PTI_ERROR_NOT_IMPLEMENTED" not in str(exc):
+            raise
+
+        fallback_times = []
         for _ in range(rep):
             if min_cache_nuke_mib > 0:
                 torch.bmm(nuke_a, nuke_b)
-
-            with record_function("profiled_fn"):
-                fn(*args)
-
-    events = [e for e in prof.events() if e.name.startswith("profiled_fn")]
-    times = torch.tensor([e.cpu_time for e in events], dtype=torch.float)
+            t0 = pytime.perf_counter_ns()
+            fn(*args)
+            t1 = pytime.perf_counter_ns()
+            fallback_times.append((t1 - t0) / 1e3)
+        times = torch.tensor(fallback_times, dtype=torch.float)
 
     # Trim extremes if there are enough measurements.
     if len(times) >= 10:

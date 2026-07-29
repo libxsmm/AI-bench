@@ -1323,15 +1323,23 @@ class Model(torch.nn.Module):
 
     def test_full_ci_pipeline_pytorch_compile(self, integration_setup):
         """Test complete CI pipeline with PyTorch compile backend."""
+        # Mock triton_key() to avoid file I/O hangs with xpu dependencies.
+        # When torch.compile uses inductor, triton_hash_with_backend() calls triton_key()
+        # to hash the libtriton binary. With xpu deps, reading this file hangs for >60s
+        # due to environment conflicts. We bypass this by mocking to return a constant.
         with mock.patch(
-            "ai_bench.utils.finder.project_root", return_value=integration_setup
-        ):
-            kb_runner = runner.KernelBenchRunner(
-                spec_type=ai_hc.SpecKey.V_CI,
-                device=torch.device("cpu"),
-                backend=ai_hc.Backend.PYTORCH_COMPILE,
-            )
-            kb_runner.run_kernels()
+            "torch._inductor.runtime.triton_compat.triton_key"
+        ) as mock_triton_key:
+            mock_triton_key.return_value = "mocked-triton-key"
+            with mock.patch(
+                "ai_bench.utils.finder.project_root", return_value=integration_setup
+            ):
+                kb_runner = runner.KernelBenchRunner(
+                    spec_type=ai_hc.SpecKey.V_CI,
+                    device=torch.device("cpu"),
+                    backend=ai_hc.Backend.PYTORCH_COMPILE,
+                )
+                kb_runner.run_kernels()
 
     def test_full_ci_pipeline_triton(self, integration_setup):
         """Test complete CI pipeline with Triton backend."""

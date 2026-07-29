@@ -11,6 +11,7 @@ ci:
     dims:
       BATCH_SIZE: 128
       DIM: 512
+    flop: "2*BATCH_SIZE*DIM"
 
 simple-cpu:
   - params: [x]
@@ -18,6 +19,7 @@ simple-cpu:
     dims:
       BATCH_SIZE: 128
       DIM: 512
+    flop: "2*BATCH_SIZE*DIM"
 
 bench-cpu:
   - params: [x]
@@ -25,4 +27,14 @@ bench-cpu:
     dims:
       BATCH_SIZE: 4096
       DIM: 393216
+    flop: "2*BATCH_SIZE*DIM"
     mem_bytes: "(2*BATCH_SIZE*DIM) * 4" # f32
+
+mlir-gpu-bench:
+  - params: [x]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 4096
+      DIM: 393216
+    flop: "2*BATCH_SIZE*DIM"
+    mem_bytes: "(2*BATCH_SIZE*DIM) * 2" # bf16

@@ -41,6 +41,15 @@ mlir-cpu-bench:
     flop: "1*BATCH*DIM"
     mem_bytes: "(2*BATCH*DIM) * 2" # bf16
 
+mlir-gpu-bench:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 4096
+      DIM: 393216
+    flop: "1*BATCH*DIM"
+    mem_bytes: "(2*BATCH*DIM) * 2" # bf16
+
 bench-gpu:
   - params: [X]
     dtype: float16
