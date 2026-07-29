@@ -206,7 +206,8 @@ def _compile_xpu_adaptive(
                 payload_func_name=payload_func_name,
             )
         else:
-            # Use fixed tile sizes for now
+            # Use fixed tile sizes for now.
+            # Assume all elemwise layers will be fused to a single layer.
             # TODO: Remove when fixed in Lighthouse.
             layer_params = {
                 "wg_m": 128,
@@ -216,7 +217,7 @@ def _compile_xpu_adaptive(
                 "load_m": 8,
                 "load_n": 16,
             }
-            schedule_params[0] |= layer_params
+            schedule_params = [layer_params]
             schedule = elemwise_schedule(
                 params=schedule_params,
                 payload_func_name=payload_func_name,
