@@ -15,6 +15,8 @@ _XPU_SHARED_IR_CONTEXT: ir.Context | None = None
 
 def _get_xpu_shared_ir_context() -> ir.Context:
     """Return a process-wide MLIR context for XPU compilation."""
+    # XPU compilation crashes when contexts are switched.
+    # TODO: Investigate root cause. Initial analysis points to Lighthouse.
     global _XPU_SHARED_IR_CONTEXT
     if _XPU_SHARED_IR_CONTEXT is None:
         _XPU_SHARED_IR_CONTEXT = ir.Context()
@@ -42,7 +44,7 @@ def _override_lighthouse_xpu_param_db(logger) -> None:
     if not Path(json_file).exists():
         raise FileNotFoundError(f"Missing XPU matmul params file: {json_file}")
     xegpu_parameter_selector.DEFAULT_JSON_FILE = json_file
-    logger.info(f"--- MLIR XPU - Using matmul params: {json_file}")
+    logger.info(f"  MLIR XPU - Using matmul params: {json_file}")
 
 
 class CPUBackend(lh_compile.MLIRBackend):
@@ -159,6 +161,7 @@ class GPUBackend(CPUBackend):
             shared_libs = list(shared_libs)
             shared_libs.append("libmlir_levelzero_runtime.so")
             if ir_context is None:
+                # TODO: Remove when fixed in Lighthouse.
                 ir_context = _get_xpu_shared_ir_context()
         super().__init__(
             device,

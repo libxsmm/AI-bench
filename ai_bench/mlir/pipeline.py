@@ -206,6 +206,17 @@ def _compile_xpu_adaptive(
                 payload_func_name=payload_func_name,
             )
         else:
+            # Use fixed tile sizes for now
+            # TODO: Remove when fixed in Lighthouse.
+            layer_params = {
+                "wg_m": 128,
+                "wg_n": 256,
+                "sg_m": 32,
+                "sg_n": 32,
+                "load_m": 8,
+                "load_n": 16,
+            }
+            schedule_params[0] |= layer_params
             schedule = elemwise_schedule(
                 params=schedule_params,
                 payload_func_name=payload_func_name,
@@ -224,6 +235,24 @@ def _compile_xpu_adaptive(
     return driver.apply(module)
 
 
+def _clone_module(module: ir.Module) -> ir.Module:
+    """Return a deep copy of an MLIR module across binding versions."""
+    with module.context, ir.Location.unknown():
+        # Newer bindings may expose Module.clone().
+        clone_fn = getattr(module, "clone", None)
+        if callable(clone_fn):
+            return clone_fn()
+
+        # Some builds expose clone on the top-level operation.
+        op_clone_fn = getattr(module.operation, "clone", None)
+        if callable(op_clone_fn):
+            # In some bindings, ir.Module has no public constructor.
+            return ir.Module.parse(str(op_clone_fn()))
+
+        # Portable fallback: round-trip through assembly in same context.
+        return ir.Module.parse(str(module))
+
+
 def cpu_pipeline(
     module: ir.Module, pipeline: str | None = None, dtype: str | None = None
 ) -> ir.Module:
@@ -236,20 +265,20 @@ def xpu_pipeline(
 ) -> ir.Module:
     """Lower MLIR for an XPU target."""
     logger = _get_logger()
-    try:
-        logger.info("XPU pipeline: using adaptive schedule construction")
-        return _compile_xpu_adaptive(module, payload_func_name="main")
-    except Exception as e:
-        logger.warning(
-            "XPU adaptive scheduling failed; falling back to descriptor pipeline: "
-            f"{type(e).__name__}: {e}"
-        )
-        return _compile_pipeline(
-            module,
-            pipeline=pipeline,
-            dtype=dtype,
-            device_type="xpu",
-        )
+    if pipeline:
+        try:
+            # Clone module to avoid mutating the original in case of failure.
+            payload = _clone_module(module)
+            return _compile_pipeline(
+                payload,
+                pipeline=pipeline,
+                dtype=dtype,
+                device_type="xpu",
+            )
+        except Exception:
+            logger.warning("  XPU default schedule failed; using fallback...")
+    logger.info("  XPU pipeline: adaptive schedule construction")
+    return _compile_xpu_adaptive(module, payload_func_name="main")
 
 
 def get_cpu_compile_fn(
