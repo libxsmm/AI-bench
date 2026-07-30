@@ -1,10 +1,9 @@
-import functools
-
 import torch
 import triton
 import triton.language as tl
 
-from triton_cpu_utils.gilbert_d2xy import gilbert_d2xy
+from .gilbert_d2xy import gilbert_d2xy
+from .thread_lru_cache import thread_lru_cache
 
 
 # Transforms the A matrix into a tensor of shape:
@@ -231,12 +230,6 @@ def _no_post_op(x):
     return x
 
 
-@functools.lru_cache
-def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
-    gilbert = (gilbert_d2xy(i, x, y) for i in range(x * y))
-    return torch.tensor([c for xy in gilbert for c in xy], dtype=dtype, device=device)
-
-
 def pack_weights_for_sfc_matmul(
     weights: torch.Tensor, BLOCK_SIZE_N, BLOCK_SIZE_K
 ) -> torch.Tensor:
@@ -289,6 +282,29 @@ def _torch_to_triton_dtype(torch_dtype):
         raise ValueError(f"Unsupported dtype: {torch_dtype}")
 
 
+@thread_lru_cache()
+def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
+    gilbert = (gilbert_d2xy(i, x, y) for i in range(x * y))
+    return torch.tensor([c for xy in gilbert for c in xy], dtype=dtype, device=device)
+
+
+@thread_lru_cache()
+def _make_intermediate_buffers(M, N, K, in_dtype, accum_dtype, b_is_prepacked):
+    ap_size = M * K * in_dtype.itemsize
+    bp_size = K * N * in_dtype.itemsize if not b_is_prepacked else 0
+    ctmp_size = M * N * accum_dtype.itemsize
+
+    buf = torch.empty(ap_size + bp_size + ctmp_size, dtype=torch.uint8)
+    ap = buf[:ap_size].view(in_dtype).reshape((M, K))
+    bp = (
+        buf[ap_size : ap_size + bp_size].view(in_dtype).reshape((K, N))
+        if not b_is_prepacked
+        else None
+    )
+    ctmp = buf[ap_size + bp_size :].view(accum_dtype).reshape((M, N))
+    return ap, bp, ctmp
+
+
 def sfc_matmul(
     a: torch.Tensor,
     b: torch.Tensor,
@@ -324,19 +340,16 @@ def sfc_matmul(
 
     sfc_map_mk = _make_sfc_tensor(BLOCKS_M, BLOCKS_K)
     sfc_map_kn = _make_sfc_tensor(BLOCKS_K, BLOCKS_N)
+    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
 
-    ap = torch.empty(
-        (BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K), device=a.device, dtype=a.dtype
+    accum_dtype = _get_accum_dtype(a.dtype)
+    out_dtype = a.dtype if trunc_output else accum_dtype
+
+    ap, bp, ctmp = _make_intermediate_buffers(
+        M, N, K, a.dtype, accum_dtype, b_is_prepacked
     )
-
     if b_is_prepacked:
         bp = b
-    else:
-        bp = torch.empty(
-            (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N),
-            device=b.device,
-            dtype=b.dtype,
-        )
 
     num_blocks = max(
         BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
@@ -358,23 +371,7 @@ def sfc_matmul(
         assume_in_bounds=True,
     )
 
-    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
-
-    accum_dtype = _get_accum_dtype(a.dtype)
-    out_dtype = a.dtype if trunc_output else accum_dtype
-
     c = torch.empty((M, N), device=a.device, dtype=out_dtype)
-    if blocking_factor_k > 1:
-        if not trunc_output:
-            ctmp = c
-        else:
-            ctmp = torch.empty(
-                (M, N),
-                device=a.device,
-                dtype=accum_dtype,
-            )
-    else:
-        ctmp = None
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
