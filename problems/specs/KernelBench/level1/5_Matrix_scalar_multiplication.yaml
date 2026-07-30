@@ -33,6 +33,22 @@ bench-cpu:
       UNIT: 1
     flop: "M*N"
 
+mlir-cpu-bench:
+  - params: [A, B]
+    dtype: float32
+    dims:
+      M: 1024
+      N: 16384
+      UNIT: 1
+    flop: "M*N"
+  - params: [A, B]
+    dtype: bfloat16
+    dims:
+      M: 1024
+      N: 16384
+      UNIT: 1
+    flop: "M*N"
+
 bench-gpu:
   - params: [A, B]
     dtype: float16

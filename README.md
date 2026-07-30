@@ -10,10 +10,14 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 | | PyTorch | Triton | Helion | MLIR | Gluon | SYCL |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **CPU** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **XPU** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **XPU** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **CUDA** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
+
+_NOTE_: MLIR XPU requires **custom** LLVM build with Intel GPU support enabled.  
+Override `PYTHONPATH` to point to `mlir_core` packages and ensure LLVM libs can be found.  
+See Lighthouse [XeGPU example](https://github.com/llvm/lighthouse/blob/main/examples/xegpu/README.md) for more details.
 
 ## Project Docs
 * [**Problem Specification Files**](docs/problem_spec.md)
@@ -96,6 +100,9 @@ ai-bench --variant custom-variant
 # Validate a custom spec variant without benchmarking
 ai-bench --variant custom-variant --ci
 
+# Run only float32 variants
+ai-bench --bench --dtype float32
+
 # Log results to CSV
 ai-bench --xpu --bench --csv results.csv --note "baseline run"
 
@@ -117,6 +124,9 @@ ai-bench-compare --problem level1/1_Square_matrix_multiplication_
 
 # Compare PyTorch and Triton backends on XPU
 ai-bench-compare --problem level2/99_Matmul_GELU_Softmax --backend pytorch triton --xpu
+
+# Compare only bfloat16 variants
+ai-bench-compare --problem level1/1_Square_matrix_multiplication_ --dtype bfloat16
 ```
 
 Optionally, custom CLI autocompletion is available for certain scripts. It can be activated using:
@@ -185,6 +195,7 @@ The CSV file includes the following columns:
 - `mem_note`: Memory measurement annotation (see 'Notes legend')
 - `time_us`: Execution time in microseconds
 - `input_values`: Input dimensions as JSON
+- `dtype`: Variant's data type if specified
 - `note`: User-provided note
 
 Additionally, any environment variables prefixed with `AIBENCH_` are automatically captured and included in the CSV output. This is useful for recording system configuration:
@@ -214,6 +225,9 @@ Notes legend:
 | `--gluon` | Use Gluon backend (default: PyTorch eager) |
 | `--sycl` | Use SYCL backend (default: PyTorch eager) |
 | `--bench` | Run benchmarks with timing (default: CI validation) |
+| `--ci` | Force a single validation run only for any variant |
+| `--variant VARIANT` | Run only specified spec `VARIANT` |
+| `--dtype DTYPE` | Run only variants with specified `DTYPE` |
 | `--gflops` | Report GFLOPS (default: TFLOPS) |
 | `--mbs` | Report MB/s (default: GB/s) |
 | `--csv PATH` | Log results to specified CSV file |

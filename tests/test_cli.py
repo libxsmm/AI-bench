@@ -100,6 +100,7 @@ class TestCreateParser:
         assert args.note == ""
         assert args.variant is None
         assert args.ci is False
+        assert args.dtype is None
 
     def test_device_group_mutually_exclusive(self):
         """Test that --xpu and --cuda cannot be combined."""
@@ -258,6 +259,38 @@ class TestMainValidateOnly:
 
         assert rc == 0
         assert mock_kernel_runner.call_args.kwargs["validate_only"] is True
+
+
+class TestMainDtype:
+    """Tests for the --dtype variant filter."""
+
+    def test_dtype_forwards_to_kernelbench_runner(self, mock_kb_runner):
+        """Test dtype is forwarded for full KernelBench runs."""
+        rc = cli.main(["--no-env", "--dtype", "float32"])
+
+        assert rc == 0
+        assert mock_kb_runner.call_args.kwargs["dtype"] == "float32"
+
+    def test_dtype_forwards_to_single_kernel_runner(self, mock_kernel_runner, tmp_path):
+        """Test dtype is forwarded in single-kernel mode."""
+        kernel = tmp_path / "double.py"
+        kernel.write_text(_KERNEL_DOUBLE)
+        spec = tmp_path / "double.yaml"
+        spec.write_text(_SPEC_CI)
+
+        rc = cli.main(
+            [
+                "--no-env",
+                "--dtype",
+                "int64",
+                "--kernel",
+                str(kernel),
+                str(spec),
+            ]
+        )
+
+        assert rc == 0
+        assert mock_kernel_runner.call_args.kwargs["dtype"] == "int64"
 
 
 class TestMainUnits:

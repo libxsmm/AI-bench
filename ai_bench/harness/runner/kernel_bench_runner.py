@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+from natsort import natsorted
 import torch
 
 from . import config
@@ -27,6 +28,7 @@ class KernelBenchRunner(KernelRunner):
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
         validate_only: Force a single validation run instead of benchmarking
+        dtype: Run only variants whose problem-spec dtype matches this value
     """
 
     def __init__(
@@ -39,6 +41,7 @@ class KernelBenchRunner(KernelRunner):
         csv_path: str | None = None,
         note: str = "",
         validate_only: bool = False,
+        dtype: str | None = None,
     ):
         super().__init__(
             spec_type=spec_type,
@@ -47,6 +50,7 @@ class KernelBenchRunner(KernelRunner):
             flops_unit=flops_unit,
             mem_bw_unit=mem_bw_unit,
             validate_only=validate_only,
+            dtype=dtype,
         )
         self.specs = ai_utils.specs() / "KernelBench"
         self.csv_path = csv_path
@@ -65,6 +69,7 @@ class KernelBenchRunner(KernelRunner):
             "mem_note",
             "time_us",
             "input_values",
+            "dtype",
             "note",
         ]
         aibench_env_keys = sorted(
@@ -113,7 +118,7 @@ class KernelBenchRunner(KernelRunner):
         Returns:
             Paths to spec directories
         """
-        return sorted(
+        return natsorted(
             [Path(entry) for entry in os.scandir(self.specs) if entry.is_dir()]
         )
 
@@ -131,7 +136,7 @@ class KernelBenchRunner(KernelRunner):
         # Iterate over specs of kernel levels.
         for spec_dir in self.get_spec_dirs():
             # Iterate over specs - one per kernel.
-            for file in sorted(os.listdir(spec_dir)):
+            for file in natsorted(os.listdir(spec_dir)):
                 # Spec and kernel file names are expected to be identical.
                 kernel_dir = self.kernels / spec_dir.name
                 kernel_file = Path(kernel_dir / file.replace(".yaml", ext))
@@ -168,6 +173,7 @@ class KernelBenchRunner(KernelRunner):
                             "input_values": json.dumps(
                                 run.variant.get(ai_hc.VKey.DIMS, {})
                             ),
+                            "dtype": run.variant.get(ai_hc.VKey.TYPE, ""),
                             "note": self.note,
                         }
                         row.update(aibench_env)
@@ -219,7 +225,7 @@ class KernelBenchRunner(KernelRunner):
             f"Kernel: {spec_path.parent.name} / {spec_path.name} [{self.backend}]"
         )
 
-        variants = ai_hc.expand_variants(spec[self.spec_type])
+        variants = self.get_spec_variants(spec)
         stats = []
         for variant in variants:
             dims = variant.get("dims", {})

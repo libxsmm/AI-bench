@@ -10,6 +10,8 @@ import torch
 
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness.runner import KernelBenchRunner
+from ai_bench.harness.runner.config import FlopsUnit
+from ai_bench.harness.runner.config import MemBwUnit
 from ai_bench.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -155,14 +157,31 @@ def check_correctness(original_output, optimized_output, rtol, atol) -> bool:
 
         # Log some debug info about where differences occur
         if diff.numel() > 0:
-            num_mismatched = (
-                (diff > atol + rtol * torch.abs(original_output)).sum().item()
-            )
+            mismatch_mask = diff > atol + rtol * torch.abs(original_output)
+            num_mismatched = mismatch_mask.sum().item()
             total_elements = diff.numel()
             logger.debug(
                 f"Mismatched elements: {num_mismatched}/{total_elements} "
                 f"({100 * num_mismatched / total_elements:.2f}%)"
             )
+
+            # Print the coordinates and values of mismatched elements
+            mismatch_indices = torch.nonzero(mismatch_mask, as_tuple=False)
+            max_to_print = 20
+            for idx in mismatch_indices[:max_to_print]:
+                coord = tuple(idx.tolist())
+                orig_val = original_output[coord].item()
+                abs_diff = diff[coord].item()
+                rel_diff = abs_diff / (abs(orig_val) + 1e-8)
+                logger.debug(
+                    f"  {coord}: original={orig_val:.6e}, "
+                    f"optimized={optimized_output[coord].item():.6e}, "
+                    f"diff={abs_diff:.6e}, rel_diff={rel_diff:.6e}"
+                )
+            if num_mismatched > max_to_print:
+                logger.debug(
+                    f"  ... and {num_mismatched - max_to_print} more mismatched elements"
+                )
 
     return is_close
 
@@ -190,10 +209,13 @@ class VariantResult:
 def benchmark_problem(
     problem: str,
     device: torch.device,
-    spec_type: str = ai_hc.SpecKey.V_BENCH_GPU,
+    spec_type: ai_hc.SpecKey | str = ai_hc.SpecKey.V_BENCH_GPU,
     rtol: float | None = None,
     atol: float | None = None,
     backends: Optional[List[ai_hc.Backend]] = None,
+    dtype: str | None = None,
+    flops_unit: FlopsUnit = FlopsUnit.TFLOPS,
+    mem_bw_unit: MemBwUnit = MemBwUnit.GBS,
 ) -> dict:
     """Benchmark a specific problem across multiple backends.
 
@@ -209,6 +231,9 @@ def benchmark_problem(
         rtol: Override relative tolerance. If None, uses per-variant spec value.
         atol: Override absolute tolerance. If None, uses per-variant spec value.
         backends: List of backends to benchmark
+        dtype: Run only variants whose problem-spec dtype matches this value.
+        flops_unit: FLOPS unit to use for reporting.
+        mem_bw_unit: Memory bandwidth unit to use for reporting.
     Returns:
         Dictionary with benchmark results
     """
@@ -251,7 +276,12 @@ def benchmark_problem(
             logger.info(f"backend: {backend}")
             try:
                 runner = KernelBenchRunner(
-                    spec_type=spec_type, device=device, backend=backend
+                    spec_type=spec_type,
+                    device=device,
+                    backend=backend,
+                    dtype=dtype,
+                    flops_unit=flops_unit,
+                    mem_bw_unit=mem_bw_unit,
                 )
 
                 spec_path = runner.specs / level / f"{kernel_name}.yaml"
@@ -284,17 +314,28 @@ def benchmark_problem(
                 if backend == ai_hc.Backend.MLIR:
                     import ai_bench.mlir as ai_mlir
 
+                    if runner.device.type == "cuda":
+                        raise ValueError("MLIR CUDA backend is not supported")
+
                     mlir_pipeline = None
                     if hasattr(model, "mlir_pipeline"):
                         mlir_pipeline = model.mlir_pipeline
                     model_dtype = ai_hc.get_variant_dtype(variants[variant_idx])
+                    if runner.device.type == "xpu":
+                        compile_fn = ai_mlir.get_xpu_compile_fn(
+                            pipeline=mlir_pipeline, dtype=model_dtype
+                        )
+                        mlir_backend = ai_mlir.gpu_backend(
+                            compile_fn, device=runner.device
+                        )
+                    else:
+                        compile_fn = ai_mlir.get_cpu_compile_fn(
+                            pipeline=mlir_pipeline, dtype=model_dtype
+                        )
+                        mlir_backend = ai_mlir.cpu_backend(compile_fn)
                     model.compile(
                         dynamic=False,
-                        backend=ai_mlir.cpu_backend(
-                            ai_mlir.get_cpu_compile_fn(
-                                pipeline=mlir_pipeline, dtype=model_dtype
-                            )
-                        ),
+                        backend=mlir_backend,
                     )
                 # save pytorch model for correctness check
                 if backend == str(ai_hc.Backend.PYTORCH):
@@ -449,12 +490,18 @@ def print_variant_results(variant_result: VariantResult, idx: int = 0):
         r.flops_unit for r in variant_result.backends.values() if r is not None
     ]
     flops_unit = next((f for f in flops_unit_list if f is not None), None)
+    mem_bw_unit_list = [
+        r.mem_bw_unit for r in variant_result.backends.values() if r is not None
+    ]
+    mem_bw_unit = next((m for m in mem_bw_unit_list if m is not None), None)
 
     if not flops_unit:
         flops_unit = "FLOPS"
+    if not mem_bw_unit:
+        mem_bw_unit = "B/s"
     if have_bw:
         logger.info(
-            f"{'Backend':<18} {'Time (μs)':>12} {flops_unit:>8} {'GB/s':>8} {'Speedup':>10}"
+            f"{'Backend':<18} {'Time (μs)':>12} {flops_unit:>8} {mem_bw_unit:>8} {'Speedup':>10}"
         )
         logger.info("-" * 80)
     else:

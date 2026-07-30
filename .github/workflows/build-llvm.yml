@@ -1,0 +1,21 @@
+name: Intel LLVM Build
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  NPROCS_LIMIT_LINK: 8
+  SRUN: ${HOME}/srun.sh
+
+jobs:
+  MLIR-LLVM-INTEL:
+    runs-on: pcl-tiergarten
+    steps:
+      - uses: actions/checkout@v5
+      - name: LLVM Intel
+        run: |-
+              GPU=intel infra/ci-llvm/check_llvm.sh || \
+              ${{ env.SRUN }} --partition=emr --time=0:30:00 -- \
+              'KIND=RelWithDebInfo COMPILER=clang GPU=intel \
+              ${{ github.workspace }}/infra/ci-llvm/build_llvm.sh'

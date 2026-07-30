@@ -26,6 +26,16 @@ bench-cpu:
     flop: "2*BATCH*IN_FEAT*OUT_FEAT"
     atol: 1.e-3
 
+# Disabled due to prefetch failure.
+# mlir-gpu-bench:
+#   - params: [X]
+#     dtype: bfloat16
+#     dims:
+#       BATCH: 1024
+#       IN_FEAT: 8192
+#       OUT_FEAT: 8192
+#     flop: "2*BATCH*IN_FEAT*OUT_FEAT"
+
 bench-gpu:
   - params: [X]
     dtype: float16

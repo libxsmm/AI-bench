@@ -60,6 +60,7 @@ class KernelRunner:
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
         validate_only: Force a single validation run instead of benchmarking
+        dtype: Run only variants whose problem-spec dtype matches this value
     """
 
     def __init__(
@@ -70,12 +71,14 @@ class KernelRunner:
         flops_unit: config.FlopsUnit = config.FlopsUnit.TFLOPS,
         mem_bw_unit: config.MemBwUnit = config.MemBwUnit.GBS,
         validate_only: bool = False,
+        dtype: str | None = None,
     ):
         self.backend = backend
         self.logger = setup_logger()
         self.flops_unit = flops_unit
         self.mem_bw_unit = mem_bw_unit
         self.validate_only = validate_only
+        self.dtype = dtype
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
@@ -208,7 +211,14 @@ class KernelRunner:
         Returns:
             Defined spec type variants
         """
-        return ai_hc.expand_variants(spec[self.spec_type])
+        variants = ai_hc.expand_variants(spec[self.spec_type])
+        if self.dtype is None:
+            return variants
+        return [
+            variant
+            for variant in variants
+            if variant.get(ai_hc.VKey.TYPE) == self.dtype
+        ]
 
     def get_spec_inputs(self, spec: dict) -> dict:
         """Get problem inputs.
@@ -391,17 +401,26 @@ class KernelRunner:
             if self.backend == ai_hc.Backend.MLIR:
                 import ai_bench.mlir as ai_mlir
 
+                if self.is_cuda():
+                    raise ValueError("MLIR CUDA backend is not supported")
+
                 mlir_pipeline = None
                 if hasattr(model, "mlir_pipeline"):
                     mlir_pipeline = model.mlir_pipeline
                 model_dtype = ai_hc.get_variant_dtype(variant)
+                if self.is_xpu():
+                    compile_fn = ai_mlir.get_xpu_compile_fn(
+                        pipeline=mlir_pipeline, dtype=model_dtype
+                    )
+                    backend = ai_mlir.gpu_backend(compile_fn, device=self.device)
+                else:
+                    compile_fn = ai_mlir.get_cpu_compile_fn(
+                        pipeline=mlir_pipeline, dtype=model_dtype
+                    )
+                    backend = ai_mlir.cpu_backend(compile_fn)
                 model.compile(
                     dynamic=False,
-                    backend=ai_mlir.cpu_backend(
-                        ai_mlir.get_cpu_compile_fn(
-                            pipeline=mlir_pipeline, dtype=model_dtype
-                        )
-                    ),
+                    backend=backend,
                 )
 
             args = ai_hc.get_inputs(variant, spec_inputs, device=self.device)
