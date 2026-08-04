@@ -1,10 +1,9 @@
-import functools
-
 import torch
 import triton
 import triton.language as tl
 
-from triton_cpu_utils.gilbert_d2xy import gilbert_d2xy
+from .gilbert_d2xy import gilbert_d2xy
+from .thread_lru_cache import thread_lru_cache
 
 
 # Transforms the A matrix into a tensor of shape:
@@ -126,6 +125,7 @@ def _sfc_matmul_kernel(
     c_ptr,
     ctmp_ptr,
     bias_ptr,
+    post_op_arg_ptr,
     sfc_map_ptr,
     M,
     N,
@@ -137,8 +137,11 @@ def _sfc_matmul_kernel(
     BLOCKING_FACTOR_K: tl.constexpr,
     IS_FIRST_K_BLOCK: tl.constexpr,
     IS_LAST_K_BLOCK: tl.constexpr,
+    ACCUM_DTYPE: tl.constexpr,
+    OUT_DTYPE: tl.constexpr,
     HAS_BIAS: tl.constexpr,
     POST_OP: tl.constexpr,
+    POST_OP_HAS_ARG: tl.constexpr,
 ):
     VNNI: tl.constexpr = 32 // b_ptr.type.element_ty.primitive_bitwidth
 
@@ -146,9 +149,6 @@ def _sfc_matmul_kernel(
     BLOCKS_N = N // BLOCK_SIZE_N
     BLOCKS_K = K // BLOCK_SIZE_K
     BLOCKS_K_PER_PROG = tl.cdiv(BLOCKS_K, BLOCKING_FACTOR_K)
-
-    dtype: tl.constexpr = a_ptr.type.element_ty
-    accum_dtype: tl.constexpr = tl.float32 if dtype.is_floating() else tl.int32
 
     pid = tl.program_id(axis=0)
     block_m = tl.load(sfc_map_ptr + 2 * pid)
@@ -177,7 +177,7 @@ def _sfc_matmul_kernel(
             block_shape=(1, BLOCK_SIZE_M, BLOCK_SIZE_N),
         )
 
-    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accum_dtype)
+    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
 
     for block_ki in range(block_k, min(block_k + BLOCKS_K_PER_PROG, BLOCKS_K)):
         a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
@@ -188,7 +188,7 @@ def _sfc_matmul_kernel(
         if VNNI > 1:
             b = tl.extra.cpu.vnni_decode(b)
 
-        c = tl.dot(a, b, acc=c, out_dtype=accum_dtype)
+        c = tl.dot(a, b, acc=c, out_dtype=ACCUM_DTYPE)
 
     if not IS_FIRST_K_BLOCK:
         c += ctmp_desc.load([pid, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
@@ -204,12 +204,17 @@ def _sfc_matmul_kernel(
             strides=(1,),
             block_shape=(BLOCK_SIZE_N,),
         )
-        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(accum_dtype)
+        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(ACCUM_DTYPE)
         c += bias[None, :]
 
-    c = POST_OP(c)
+    if POST_OP_HAS_ARG:
+        c = POST_OP(
+            c, block_m, block_n, post_op_arg_ptr, M, N, BLOCK_SIZE_M, BLOCK_SIZE_N
+        )
+    else:
+        c = POST_OP(c)
 
-    c = c.to(dtype).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+    c = c.to(OUT_DTYPE).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
 
     c_desc = tl.make_tensor_descriptor(
         base=c_ptr,
@@ -221,14 +226,8 @@ def _sfc_matmul_kernel(
 
 
 @triton.jit
-def no_post_op(x):
+def _no_post_op(x):
     return x
-
-
-@functools.lru_cache
-def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
-    gilbert = (gilbert_d2xy(i, x, y) for i in range(x * y))
-    return torch.tensor([c for xy in gilbert for c in xy], dtype=dtype, device=device)
 
 
 def pack_weights_for_sfc_matmul(
@@ -259,11 +258,60 @@ def pack_weights_for_sfc_matmul(
     )
 
 
+def _get_accum_dtype(torch_dtype):
+    if torch_dtype in [torch.float16, torch.bfloat16, torch.float32]:
+        return torch.float32
+    elif torch_dtype == torch.int8:
+        return torch.int32
+    else:
+        raise ValueError(f"Unsupported dtype: {torch_dtype}")
+
+
+def _torch_to_triton_dtype(torch_dtype):
+    if torch_dtype == torch.float16:
+        return tl.float16
+    elif torch_dtype == torch.bfloat16:
+        return tl.bfloat16
+    elif torch_dtype == torch.float32:
+        return tl.float32
+    elif torch_dtype == torch.int8:
+        return tl.int8
+    elif torch_dtype == torch.int32:
+        return tl.int32
+    else:
+        raise ValueError(f"Unsupported dtype: {torch_dtype}")
+
+
+@thread_lru_cache()
+def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
+    gilbert = (gilbert_d2xy(i, x, y) for i in range(x * y))
+    return torch.tensor([c for xy in gilbert for c in xy], dtype=dtype, device=device)
+
+
+@thread_lru_cache()
+def _make_intermediate_buffers(M, N, K, in_dtype, accum_dtype, b_is_prepacked):
+    ap_size = M * K * in_dtype.itemsize
+    bp_size = K * N * in_dtype.itemsize if not b_is_prepacked else 0
+    ctmp_size = M * N * accum_dtype.itemsize
+
+    buf = torch.empty(ap_size + bp_size + ctmp_size, dtype=torch.uint8)
+    ap = buf[:ap_size].view(in_dtype).reshape((M, K))
+    bp = (
+        buf[ap_size : ap_size + bp_size].view(in_dtype).reshape((K, N))
+        if not b_is_prepacked
+        else None
+    )
+    ctmp = buf[ap_size + bp_size :].view(accum_dtype).reshape((M, N))
+    return ap, bp, ctmp
+
+
 def sfc_matmul(
     a: torch.Tensor,
     b: torch.Tensor,
     bias=None,
     post_op=None,
+    post_op_arg=None,
+    trunc_output=True,
     b_is_prepacked=False,
     blocking_factor_k=1,
 ) -> torch.Tensor:
@@ -292,19 +340,16 @@ def sfc_matmul(
 
     sfc_map_mk = _make_sfc_tensor(BLOCKS_M, BLOCKS_K)
     sfc_map_kn = _make_sfc_tensor(BLOCKS_K, BLOCKS_N)
+    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
 
-    ap = torch.empty(
-        (BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K), device=a.device, dtype=a.dtype
+    accum_dtype = _get_accum_dtype(a.dtype)
+    out_dtype = a.dtype if trunc_output else accum_dtype
+
+    ap, bp, ctmp = _make_intermediate_buffers(
+        M, N, K, a.dtype, accum_dtype, b_is_prepacked
     )
-
     if b_is_prepacked:
         bp = b
-    else:
-        bp = torch.empty(
-            (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N),
-            device=b.device,
-            dtype=b.dtype,
-        )
 
     num_blocks = max(
         BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
@@ -326,20 +371,7 @@ def sfc_matmul(
         assume_in_bounds=True,
     )
 
-    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
-    c = torch.empty((M, N), device=a.device, dtype=a.dtype)
-    if blocking_factor_k > 1:
-        ctmp = torch.empty(
-            (M, N),
-            device=a.device,
-            dtype=torch.int32 if a.dtype == torch.int8 else torch.float32,
-        )
-    else:
-        ctmp = torch.empty(
-            (1,),
-            device=a.device,
-            dtype=torch.int32 if a.dtype == torch.int8 else torch.float32,
-        )
+    c = torch.empty((M, N), device=a.device, dtype=out_dtype)
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
@@ -348,6 +380,7 @@ def sfc_matmul(
             c,
             ctmp,
             bias,
+            post_op_arg,
             sfc_map_mn,
             M,
             N,
@@ -359,8 +392,11 @@ def sfc_matmul(
             BLOCKING_FACTOR_K=blocking_factor_k,
             IS_FIRST_K_BLOCK=ik == 0,
             IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
+            ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
+            OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
             HAS_BIAS=bias is not None,
-            POST_OP=post_op if post_op is not None else no_post_op,
+            POST_OP=post_op if post_op is not None else _no_post_op,
+            POST_OP_HAS_ARG=post_op_arg is not None,
             assume_in_bounds=True,
         )
 

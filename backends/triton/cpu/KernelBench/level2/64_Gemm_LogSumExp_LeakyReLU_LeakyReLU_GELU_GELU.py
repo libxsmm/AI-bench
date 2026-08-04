@@ -10,14 +10,30 @@ import triton.language as tl
 
 from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
+from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
-batch_size = 2048
+
+@triton.jit
+def _red(val, x):
+    x = tl.exp(x)
+    return val + tl.sum(x, axis=0)
+
+
+@triton.jit
+def _red_epi(val):
+    NEG_SLOPE: tl.constexpr = 0.01
+    val = tl.log(val)  # second part of logsumexp
+    val = tl.where(val >= 0, val, val * NEG_SLOPE)  # leaky relu
+    val = tl.where(val >= 0, val, val * NEG_SLOPE)
+    val = gelu(val)
+    val = gelu(val)
+    return val
+
+
+batch_size = 1024
 in_features = 8192
 out_features = 8192
-scaling_factor = 0.5
-hardtanh_min = -2
-hardtanh_max = 2
 
 
 def get_inputs():
@@ -25,28 +41,13 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_features, out_features, scaling_factor, hardtanh_min, hardtanh_max]
+    return [in_features, out_features]
 
 
 class Model(nn.Module):
-    def __init__(
-        self, in_features, out_features, scaling_factor, hardtanh_min, hardtanh_max
-    ):
+    def __init__(self, in_features, out_features, bias=True):
         super().__init__()
-        self.linear = nn.Linear(in_features, out_features)
-
-        sf = triton.language.constexpr(scaling_factor)
-        ht_min = triton.language.constexpr(hardtanh_min)
-        ht_max = triton.language.constexpr(hardtanh_max)
-
-        @triton.jit
-        def _epilogue(x):
-            x = x * sf
-            x = tl.clamp(x, ht_min, ht_max)
-            x = gelu(x)
-            return x
-
-        self._epilogue_fun = _epilogue
+        self.linear = nn.Linear(in_features, out_features, bias=bias)
         self._weight_packed = None
         self._bias = None
 
@@ -60,11 +61,21 @@ class Model(nn.Module):
             )
             self._bias = self.linear.bias.data.to(dtype=x.dtype)
 
-        return sfc_matmul(
+        res_mm = sfc_matmul(
             x,
             self._weight_packed,
-            bias=self._bias,
-            post_op=self._epilogue_fun,
+            self._bias,
+            trunc_output=False,
             b_is_prepacked=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
+
+        res_red = reduce_last_dim(
+            res_mm,
+            out_dtype=x.dtype,
+            reduction=_red,
+            post_op=_red_epi,
+            keep_dim=True,
+        )
+
+        return res_red

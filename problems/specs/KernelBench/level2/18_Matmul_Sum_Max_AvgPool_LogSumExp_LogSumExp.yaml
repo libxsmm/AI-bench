@@ -14,3 +14,18 @@ ci:
       BATCH_SIZE: 2
       IN_FEATURES: 64
       OUT_FEATURES: 64
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+    atol: .inf  # Mismatch due to higher-precision reduction than reference. Validate with float32 config below.
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 256
+      IN_FEATURES: 1024
+      OUT_FEATURES: 1024

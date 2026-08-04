@@ -17,6 +17,15 @@ ci:
       OUT_FEATURES: 32
       DIVISOR: 2.0
 
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+      DIVISOR: 2.0
+
 # Disabled due to prefetch failure.
 # mlir-gpu-bench:
 #   - params: [X]

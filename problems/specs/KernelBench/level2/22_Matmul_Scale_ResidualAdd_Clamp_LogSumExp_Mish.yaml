@@ -20,3 +20,14 @@ ci:
       SCALE_FACTOR: 2.0
       CLAMP_MIN: -10.0
       CLAMP_MAX: 10.0
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      INPUT_SIZE: 8192
+      HIDDEN_SIZE: 8192
+      SCALE_FACTOR: 2.0
+      CLAMP_MIN: -10.0
+      CLAMP_MAX: 10.0

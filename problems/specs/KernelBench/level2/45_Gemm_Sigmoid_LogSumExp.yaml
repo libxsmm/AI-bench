@@ -16,3 +16,12 @@ ci:
       INPUT_SIZE: 32
       HIDDEN_SIZE: 64
       OUTPUT_SIZE: 16
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 16384
+      INPUT_SIZE: 2048
+      HIDDEN_SIZE: 4096
+      OUTPUT_SIZE: 1024

@@ -18,6 +18,25 @@ ci:
       SCALE: 1.5
     flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
 
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      IN_SIZE: 8192
+      HIDDEN_SIZE: 8192
+      SCALE: 1.5
+    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
+    atol: .inf  # Mismatch due to higher-precision reduction than reference. Validate with float32 config below.
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 256
+      IN_SIZE: 1024
+      HIDDEN_SIZE: 1024
+      SCALE: 1.5
+    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
+
 bench-gpu:
   - params: [X]
     dtype: float16

@@ -16,3 +16,13 @@ ci:
       IN_FEATURES: 32
       OUT_FEATURES: 32
       CONSTANT: 2.0
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 128
+      IN_FEATURES: 16384
+      OUT_FEATURES: 16384
+      CONSTANT: 2.0
+    atol: 0.04  # ReLU-like kernel suspectible to exploding rtol when expected value is zero.
