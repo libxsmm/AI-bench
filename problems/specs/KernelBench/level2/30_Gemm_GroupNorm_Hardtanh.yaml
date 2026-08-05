@@ -20,3 +20,15 @@ ci:
       NUM_GROUPS: 4
       HARDTANH_MIN: -2.0
       HARDTANH_MAX: 2.0
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+      NUM_GROUPS: 16
+      HARDTANH_MIN: -2.0
+      HARDTANH_MAX: 2.0
+    atol: .005

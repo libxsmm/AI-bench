@@ -18,3 +18,14 @@ ci:
       OUT_FEATURES: 32
       NUM_GROUPS: 4
       MULTIPLY_WEIGHT_SHAPE: [32] # TODO: bind these to other dims
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+      NUM_GROUPS: 256
+      MULTIPLY_WEIGHT_SHAPE: [8192] # TODO: bind these to other dims
+    atol: 0.05

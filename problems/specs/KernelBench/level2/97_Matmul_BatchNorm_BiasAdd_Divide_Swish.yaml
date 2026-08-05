@@ -24,6 +24,20 @@ ci:
       DIV_VAL: 1.0
     flop: "8*BATCH*IN_FEAT"
 
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      BN_EPS: 0.00001
+      BN_MOMENTUM: 0.1
+      BIAS_SHAPE: [1]
+      DIV_VAL: 1.0
+    flop: "8*BATCH*IN_FEAT"
+    atol: 0.005
+
 bench-gpu:
   - params: [X]
     dtype: float16

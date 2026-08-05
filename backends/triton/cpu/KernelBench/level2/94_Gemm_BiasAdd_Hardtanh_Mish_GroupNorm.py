@@ -1,0 +1,92 @@
+# ruff: noqa: E731
+# Status: Experimental / uncurated
+# Expectation: Correctness-first, performance not representative
+
+
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+from triton_cpu_utils import groupnorm
+from triton_cpu_utils import mish
+from triton_cpu_utils import pack_weights_for_sfc_matmul
+from triton_cpu_utils import sfc_matmul
+
+
+@triton.jit
+def _epilogue(x, m, n, ptr, M, N, BS_M, BS_N):
+    desc = tl.make_tensor_descriptor(
+        base=ptr,
+        shape=(N,),
+        strides=(1,),
+        block_shape=(BS_N,),
+    )
+    add_val = desc.load([n * BS_N]).to(x.dtype)
+    x += add_val[None, :]
+    x = tl.clamp(x, -1.0, 1.0)
+    x = mish(x)
+    return x
+
+
+batch_size = 1024
+in_features = 8192
+out_features = 8192
+bias_shape = (out_features,)
+num_groups = 256
+
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+
+def get_init_inputs():
+    return [in_features, out_features, bias_shape, num_groups]
+
+
+class Model(nn.Module):
+    def __init__(self, in_features, out_features, bias_shape, num_groups):
+        super().__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+        self.hardtanh = nn.Hardtanh()
+        self.mish = nn.Mish()
+        self.groupnorm = nn.GroupNorm(num_groups=num_groups, num_channels=out_features)
+
+        self.num_groups = num_groups
+        self._weight_packed = None
+        self._bias = None
+        self._bias_extra = None
+
+    def forward(self, x):
+        if self._weight_packed is None:
+            # AMX-optimized block size
+            self._weight_packed = pack_weights_for_sfc_matmul(
+                self.gemm.weight.data.to(dtype=x.dtype),
+                BLOCK_SIZE_N=32,
+                BLOCK_SIZE_K=32,
+            )
+            self._bias = self.gemm.bias.data.to(dtype=x.dtype)
+            self._bias_extra = self.bias.data.to(dtype=x.dtype)
+            assert self.hardtanh.min_val == -1.0 and self.hardtanh.max_val == 1.0, (
+                "Assuming Hardtanh to have min_val=-1.0 and max_val=1.0"
+            )
+            assert self.groupnorm.affine, "GroupNorm must have affine=True"
+
+        res_mm = sfc_matmul(
+            x,
+            self._weight_packed,
+            bias=self._bias,
+            b_is_prepacked=True,
+            post_op=_epilogue,
+            post_op_arg=self._bias_extra,
+            trunc_output=False,
+            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
+        )
+
+        return groupnorm(
+            res_mm,
+            out_dtype=x.dtype,
+            num_groups=self.num_groups,
+            eps=self.groupnorm.eps,
+        )
