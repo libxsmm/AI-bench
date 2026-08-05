@@ -140,6 +140,22 @@ class TestSpecFunctions:
 
         assert flop == 2 * 64 * 64 * 64
 
+    def test_get_flop_formula_with_list_dims(self):
+        """Test FLOP extraction with list-valued dims and indexing."""
+        variant = {
+            ai_hc.VKey.DIMS: {
+                "BATCH": 128,
+                "IN_SIZE": 2048,
+                "LAYER_SIZES": [4096, 512],
+                "OUT_SIZE": 1024,
+            },
+            ai_hc.VKey.FLOP: "2*BATCH*adjacent_prod_sum(IN_SIZE, LAYER_SIZES, OUT_SIZE)",
+        }
+
+        flop = ai_hc.get_flop(variant)
+
+        assert flop == 2 * 128 * (2048 * 4096 + 4096 * 512 + 512 * 1024)
+
     def test_get_flop_missing(self):
         """Test FLOP extraction when missing."""
         variant = {ai_hc.VKey.DIMS: {"N": 64}}
@@ -1175,6 +1191,30 @@ class TestEquations:
         assert eval_eq("(10 + 5) * 2") == 30
         assert eval_eq("2 ** 10") == 1024
 
+    def test_eval_eq_with_variables_and_subscript(self):
+        """Test expressions using variable bindings and list indexing."""
+        from ai_bench.utils import eval_eq
+
+        assert eval_eq(
+            "2*BATCH*(IN_SIZE*LAYER_SIZES[0] + LAYER_SIZES[1])",
+            {"BATCH": 4, "IN_SIZE": 32, "LAYER_SIZES": [16, 8]},
+        ) == 2 * 4 * (32 * 16 + 8)
+
+    def test_eval_eq_with_adjacent_prod_sum(self):
+        """Test helper calls for parameterized width sequences."""
+        from ai_bench.utils import eval_eq
+
+        assert eval_eq(
+            "2*BATCH*adjacent_prod_sum(IN_SIZE, LAYER_SIZES, OUT_SIZE)",
+            {"BATCH": 8, "IN_SIZE": 64, "LAYER_SIZES": [8] * 16, "OUT_SIZE": 64},
+        ) == 2 * 8 * (64 * 8 + 15 * (8 * 8) + 8 * 64)
+
+    def test_eval_eq_with_adjacent_prod_sum_mixed_args(self):
+        """Test helper accepts mixed scalar and list arguments."""
+        from ai_bench.utils import eval_eq
+
+        assert eval_eq("adjacent_prod_sum(4, [5, 6], 7)") == 4 * 5 + 5 * 6 + 6 * 7
+
     def test_eval_eq_negative(self):
         """Test negative numbers."""
         from ai_bench.utils import eval_eq
@@ -1193,6 +1233,12 @@ class TestEquations:
         # TypeError for unsupported operations (e.g., function calls).
         with pytest.raises(TypeError):
             eval_eq("abs(-5)")
+
+        with pytest.raises(TypeError):
+            eval_eq("obj.method()", {"obj": 1})
+
+        with pytest.raises(NameError):
+            eval_eq("M + N", {"M": 1})
 
 
 class TestIntegration:

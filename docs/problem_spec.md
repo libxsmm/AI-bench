@@ -153,7 +153,27 @@ flop: "2*M*N*K"
 mem_bytes: "(M*K + K*N + M*N) * 4" # f32
 ```
 
-Supported operators: `+ - * / **`. No function calls.
+List-valued dims can be indexed, which is useful for parameterized shapes such as MLP layer lists:
+
+```yaml
+flop: "2*BATCH*(IN_SIZE*LAYER_SIZES[0] + LAYER_SIZES[0]*LAYER_SIZES[1])"
+```
+
+More complex logic can be expressed with built-in helpers, e.g.:
+
+```yaml
+flop: "2*BATCH*adjacent_prod_sum(IN_SIZE, LAYER_SIZES, OUT_SIZE)"
+```
+
+Supported operators: `+ - * / **`.  
+List indexing is supported.  
+No arbitrary function calls.
+
+#### Built-in helpers:
+| Helper | Description |
+|---|---|
+| `adjacent_prod_sum(...)` | Flatten scalar and list arguments into one sequence, then sum products of adjacent values. |
+
 
 ### Expanding dims
 
