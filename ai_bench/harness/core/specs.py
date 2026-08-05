@@ -397,11 +397,7 @@ def _eval_variant_formula(variant: dict, key: VKey) -> float | None:
     if isinstance(value, (int, float)):
         return value
 
-    # In case of string equation, evaluate using variant's dimensions.
-    dims = variant[VKey.DIMS]
-    for dim, dim_val in dims.items():
-        value = value.replace(dim, str(dim_val))
-    return utils.eval_eq(value)
+    return utils.eval_eq(value, variant[VKey.DIMS])
 
 
 def get_flop(variant: dict) -> float | None:
