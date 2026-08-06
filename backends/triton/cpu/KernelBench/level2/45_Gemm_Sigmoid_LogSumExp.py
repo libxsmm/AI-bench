@@ -19,13 +19,13 @@ def _mm1_epi(x):
 
 
 @triton.jit
-def _red(val, x):
+def _red(val, x, BLOCK_SIZE_N: tl.constexpr):
     x = tl.exp(x)
     return val + tl.sum(x, axis=0)
 
 
 @triton.jit
-def _red_epi(val):
+def _red_epi(val, nelem):
     return tl.log(val)  # second part of logsumexp
 
 

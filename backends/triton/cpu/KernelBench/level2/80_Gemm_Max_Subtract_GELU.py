@@ -15,7 +15,7 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _max_red(vals, x):
+def _max_red(vals, x, BLOCK_SIZE_N: tl.constexpr):
     return tl.maximum(vals, x)
 
 

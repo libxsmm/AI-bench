@@ -24,9 +24,9 @@ def _reduce_last_dim_kernel(
     m = tl.program_id(0)
     for n in range(0, N, BLOCK_SIZE_N):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        row_val = REDUCTION(row_val, x)
+        row_val = REDUCTION(row_val, x, BLOCK_SIZE_N)
 
-    row_val = POST_OP(row_val)
+    row_val = POST_OP(row_val, N)
 
     tl.store(out_ptr + m, tl.cast(row_val, out_ptr.type.element_ty))
 
@@ -58,9 +58,9 @@ def _reduce_first_dim_kernel(
     n = tl.program_id(0) * BLOCK_SIZE_N
     for m in range(0, M):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        col_vals = REDUCTION(col_vals, x)
+        col_vals = REDUCTION(col_vals, x, BLOCK_SIZE_N)
 
-    col_vals = POST_OP(col_vals)
+    col_vals = POST_OP(col_vals, M)
 
     out_desc.store(
         [0, n], col_vals.to(out_ptr.type.element_ty).reshape([1, BLOCK_SIZE_N])
@@ -73,7 +73,7 @@ def _scalar_zero_init_op(dtype):
 
 
 @triton.jit
-def _no_post_op(x):
+def _no_post_op(x, nelem):
     return x
 
 

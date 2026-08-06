@@ -15,7 +15,7 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _min_red(val, x):
+def _min_red(val, x, BLOCK_SIZE_N: tl.constexpr):
     return tl.minimum(val, tl.min(x))
 
 

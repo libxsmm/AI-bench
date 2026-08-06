@@ -20,6 +20,17 @@ ci:
       SCALE: 2.0
     flop: "BATCH*IN_FEAT*(POOL_KERNEL_SIZE-1) + 2*BATCH*OUT_FEAT*IN_FEAT + BATCH*OUT_FEAT"
 
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 8192
+      OUT_FEAT: 8192
+      POOL_KERNEL_SIZE: 16
+      SCALE: 2.0
+    flop: "BATCH*IN_FEAT*(POOL_KERNEL_SIZE-1) + 2*BATCH*OUT_FEAT*IN_FEAT + BATCH*OUT_FEAT"
+
 bench-gpu:
   - params: [X]
     dtype: float16
