@@ -233,6 +233,11 @@ def _affine_groupnorm_2d_kernel(
         )
 
 
+@triton.jit
+def _no_post_op_gn(x):
+    return x
+
+
 def groupnorm(
     inp,
     out_dtype,
@@ -266,7 +271,7 @@ def groupnorm(
         num_groups,
         eps,
         BLOCK_SIZE_C=BLOCK_SIZE_C,
-        POST_OP=post_op or _no_post_op,
+        POST_OP=post_op or _no_post_op_gn,
         POST_OP_HAS_ARG=post_op_arg is not None,
         assume_in_bounds=True,
     )
