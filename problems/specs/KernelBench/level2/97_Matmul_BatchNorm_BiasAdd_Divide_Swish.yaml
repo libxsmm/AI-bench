@@ -35,7 +35,6 @@ bench-cpu:
       BN_MOMENTUM: 0.1
       BIAS_SHAPE: [1]
       DIV_VAL: 1.0
-    flop: "8*BATCH*IN_FEAT"
     atol: 0.005
 
 bench-gpu:
