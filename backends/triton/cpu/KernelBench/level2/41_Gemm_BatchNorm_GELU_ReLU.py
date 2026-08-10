@@ -15,7 +15,7 @@ from triton_cpu_utils import sfc_matmul
 
 @triton.jit
 def _epilogue(x):
-    # The first op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which degrades to multiplication with 1/sqrt(1 + eps).
+    # The first op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which simplifies to multiplication with 1/sqrt(1 + eps).
     x = tl.maximum(x * 0.999995, 0.0)
     x = gelu(x)
     return x

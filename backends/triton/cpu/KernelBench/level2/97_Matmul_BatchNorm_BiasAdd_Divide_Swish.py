@@ -49,7 +49,7 @@ class Model(nn.Module):
         def _epilogue(x, m, n, ptr, M, N, BS_M, BS_N):
             bias_val = tl.load(ptr).to(x.dtype)
             x += bias_val
-            # After the bias addition, the next op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which degrades to multiplication with 1/sqrt(1 + eps).
+            # After the bias addition, the next op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which simplifies to multiplication with 1/sqrt(1 + eps).
             x = x * 0.999995 / div_val
             x = x * tl.sigmoid(x)
             return x

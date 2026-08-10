@@ -20,7 +20,7 @@ def _epilogue(x, m, n, ptr, M, N, BS_M, BS_N):
         strides=(1,),
         block_shape=(BS_N,),
     )
-    # After the scaling, the next op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which degrades to multiplication with 1/sqrt(1 + eps).
+    # After the scaling, the next op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which simplifies to multiplication with 1/sqrt(1 + eps).
     scale_val = desc.load([n * BS_N]).to(x.dtype) * 0.999995
     x = x * scale_val[None, :]
     return x

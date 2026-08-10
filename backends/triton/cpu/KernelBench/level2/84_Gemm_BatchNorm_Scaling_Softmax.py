@@ -14,7 +14,7 @@ from triton_cpu_utils import softmax
 
 @triton.jit
 def _epilogue(x):
-    # First, we have an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which degrades to multiplication with 1/sqrt(1 + eps).
+    # First, we have an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which simplifies to multiplication with 1/sqrt(1 + eps).
     # Then, we have a scaling operation with a parameter initialized to 1.0.
     return x * 0.999995
 
