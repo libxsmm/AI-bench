@@ -76,16 +76,3 @@ class Model(nn.Module):
             output.stride(1),
         )
         return output
-
-
-batch_size = 32768
-input_shape = (32768,)
-dim = 1
-
-
-def get_inputs():
-    return [torch.rand(batch_size, *input_shape)]
-
-
-def get_init_inputs():
-    return [dim]

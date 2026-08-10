@@ -3,7 +3,6 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
@@ -16,19 +15,6 @@ from triton_cpu_utils import sfc_matmul
 @triton.jit
 def _red(val, block, **kwargs):
     return val + tl.sum(block, axis=0)
-
-
-batch_size = 1024
-in_features = 8192
-out_features = 8192
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features]
 
 
 class Model(nn.Module):

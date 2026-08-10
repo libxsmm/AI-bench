@@ -3,7 +3,6 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
@@ -19,19 +18,6 @@ def _epilogue(x):
     x = tl.maximum(x * 0.999995, 0.0)
     x = gelu(x)
     return x
-
-
-batch_size = 16384
-in_features = 4096
-out_features = 4096
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features]
 
 
 class Model(nn.Module):

@@ -19,22 +19,6 @@ def _epilogue(x):
     return x * 0.999995
 
 
-batch_size = 1024
-in_features = 8192
-out_features = 8192
-bn_eps = 1e-5
-bn_momentum = 0.1
-scale_shape = (1,)
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features, bn_eps, bn_momentum, scale_shape]
-
-
 class Model(nn.Module):
     def __init__(
         self, in_features, out_features, bn_eps=1e-5, bn_momentum=0.1, scale_shape=(1,)

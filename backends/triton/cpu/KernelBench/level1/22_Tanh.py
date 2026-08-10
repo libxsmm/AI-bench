@@ -9,9 +9,6 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-batch_size = 4096
-dim = 393216
-
 
 @triton.autotune(
     configs=[
@@ -59,12 +56,3 @@ class Model(nn.Module):
         _tanh_kernel[grid](x_flat, output_flat, n_elements)
 
         return output_flat.view(x.shape)
-
-
-def get_inputs():
-    x = torch.rand(batch_size, dim, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return []

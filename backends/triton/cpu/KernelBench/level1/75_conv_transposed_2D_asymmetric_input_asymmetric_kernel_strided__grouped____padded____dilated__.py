@@ -330,24 +330,3 @@ class Model(nn.Module):
             self.dilation,
             self.groups,
         )
-
-
-batch_size = 16
-in_channels = 32
-out_channels = 64
-kernel_size = (3, 5)
-height = 128
-width = 256
-stride = (2, 3)
-padding = (1, 2)
-dilation = (2, 1)
-groups = 4
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, dilation, groups]

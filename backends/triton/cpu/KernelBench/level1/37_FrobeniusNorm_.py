@@ -95,18 +95,3 @@ class Model(nn.Module):
         _normalize_kernel[grid_norm](x_flat, output_flat, inv_norm, N)
 
         return output_flat.view(original_shape)
-
-
-batch_size = 16
-features = 64
-dim1 = 256
-dim2 = 256
-
-
-def get_inputs():
-    x = torch.rand(batch_size, features, dim1, dim2, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return []

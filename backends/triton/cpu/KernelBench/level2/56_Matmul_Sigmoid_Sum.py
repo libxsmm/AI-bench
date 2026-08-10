@@ -3,7 +3,6 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
@@ -21,19 +20,6 @@ def _mm_epi(x):
 @triton.jit
 def _red(val, x, **kwargs):
     return val + tl.sum(x, axis=0)
-
-
-batch_size = 128
-input_size = 32768
-hidden_size = 32768
-
-
-def get_inputs():
-    return [torch.rand(batch_size, input_size)]
-
-
-def get_init_inputs():
-    return [input_size, hidden_size]
 
 
 class Model(nn.Module):

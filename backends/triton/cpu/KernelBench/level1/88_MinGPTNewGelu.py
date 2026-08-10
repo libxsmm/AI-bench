@@ -53,15 +53,3 @@ class Model(nn.Module):
         _gelu_kernel[grid](x_flat, output, n_elements)
 
         return output.view(x.shape)
-
-
-batch_size = 8192
-dim = 8192
-
-
-def get_inputs():
-    return [torch.rand(batch_size, dim)]
-
-
-def get_init_inputs():
-    return []

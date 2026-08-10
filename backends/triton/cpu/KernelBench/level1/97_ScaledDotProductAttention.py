@@ -261,20 +261,3 @@ class Model(nn.Module):
         result = O.reshape(B, H, S, D)
 
         return result
-
-
-batch_size = 32
-num_heads = 32
-sequence_length = 512
-embedding_dimension = 1024
-
-
-def get_inputs():
-    Q = torch.rand(batch_size, num_heads, sequence_length, embedding_dimension)
-    K = torch.rand(batch_size, num_heads, sequence_length, embedding_dimension)
-    V = torch.rand(batch_size, num_heads, sequence_length, embedding_dimension)
-    return [Q, K, V]
-
-
-def get_init_inputs():
-    return []

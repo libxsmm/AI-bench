@@ -50,17 +50,3 @@ class Model(nn.Module):
         grid = lambda META: (triton.cdiv(n_elements, META["BLOCK_SIZE"]),)
         scalar_mul_kernel[grid](A, output, scalar_val, n_elements)
         return output
-
-
-M = 16384 * 4
-N = 4096 * 4
-
-
-def get_inputs():
-    A = torch.rand(M, N, dtype=torch.bfloat16)
-    s = 3.14
-    return [A, s]
-
-
-def get_init_inputs():
-    return []

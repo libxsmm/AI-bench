@@ -3,7 +3,6 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
@@ -11,19 +10,6 @@ import triton.language as tl
 from triton_cpu_utils import groupnorm
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
-
-batch_size = 1024
-input_size = 8192
-hidden_size = 8192
-num_groups = 512
-
-
-def get_inputs():
-    return [torch.rand(batch_size, input_size)]
-
-
-def get_init_inputs():
-    return [input_size, hidden_size, num_groups]
 
 
 class Model(nn.Module):

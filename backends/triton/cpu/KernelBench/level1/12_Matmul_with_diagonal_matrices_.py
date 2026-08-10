@@ -84,17 +84,3 @@ class Model(nn.Module):
         )
 
         return C
-
-
-M = 4096
-N = 4096
-
-
-def get_inputs():
-    A = torch.rand(N, dtype=torch.bfloat16)
-    B = torch.rand(N, M, dtype=torch.bfloat16)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

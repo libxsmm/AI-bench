@@ -3,25 +3,11 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
-
-batch_size = 16384
-in_features = 4096
-out_features = 4096
-scaling_factor = 0.5
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features, scaling_factor]
 
 
 class Model(nn.Module):

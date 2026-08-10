@@ -109,21 +109,3 @@ class Model(nn.Module):
         )
 
         return loss_accum / B
-
-
-batch_size = 32768
-input_shape = (8192,)
-dim = 1
-
-
-def get_inputs():
-    scale = torch.rand(())
-    return [
-        torch.rand(batch_size, *input_shape) * scale,
-        torch.rand(batch_size, *input_shape),
-        torch.rand(batch_size, *input_shape),
-    ]
-
-
-def get_init_inputs():
-    return [1.0]

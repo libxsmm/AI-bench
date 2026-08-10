@@ -63,17 +63,3 @@ class Model(nn.Module):
             A.stride(0),
         )
         return C.view(M, 1)
-
-
-M = 256 * 8
-K = 131072 * 8
-
-
-def get_inputs():
-    A = torch.rand(M, K, dtype=torch.bfloat16)
-    B = torch.rand(K, 1, dtype=torch.bfloat16)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

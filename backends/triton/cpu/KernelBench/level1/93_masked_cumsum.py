@@ -74,18 +74,3 @@ class Model(nn.Module):
             out.stride(0),
         )
         return out
-
-
-batch_size = 32768
-input_shape = (32768,)
-dim = 1
-
-
-def get_inputs():
-    x = torch.rand(batch_size, *input_shape)
-    mask = torch.randint(0, 2, x.shape).bool()
-    return [x, mask]
-
-
-def get_init_inputs():
-    return [dim]

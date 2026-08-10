@@ -136,19 +136,3 @@ class Model(nn.Module):
             assume_in_bounds=True,
         )
         return C
-
-
-batch_size = 128
-m = 128 * 4
-k = 256 * 4
-n = 512 * 4
-
-
-def get_inputs():
-    A = torch.rand(batch_size, m, k, dtype=torch.bfloat16)
-    B = torch.rand(batch_size, k, n, dtype=torch.bfloat16)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

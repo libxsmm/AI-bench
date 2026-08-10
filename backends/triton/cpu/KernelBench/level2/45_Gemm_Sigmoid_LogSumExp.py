@@ -3,7 +3,6 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
@@ -27,20 +26,6 @@ def _red(val, x, **kwargs):
 @triton.jit
 def _red_epi(val, **kwargs):
     return tl.log(val)  # second part of logsumexp
-
-
-batch_size = 16384
-input_size = 2048
-hidden_size = 4096
-output_size = 1024
-
-
-def get_inputs():
-    return [torch.rand(batch_size, input_size)]
-
-
-def get_init_inputs():
-    return [input_size, hidden_size, output_size]
 
 
 class Model(nn.Module):

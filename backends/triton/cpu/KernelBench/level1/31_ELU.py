@@ -57,16 +57,3 @@ class Model(nn.Module):
         grid = lambda META: (triton.cdiv(n_elements, META["BLOCK_SIZE"]),)
         elu_kernel[grid](x, out, self.alpha, n_elements)
         return out
-
-
-batch_size = 4096
-dim = 393216
-
-
-def get_inputs():
-    x = torch.rand(batch_size, dim, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [1.0]

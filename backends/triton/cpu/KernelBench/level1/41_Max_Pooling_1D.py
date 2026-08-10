@@ -100,24 +100,3 @@ class Model(nn.Module):
             DILATION=self.dilation,
         )
         return output
-
-
-batch_size = 64
-features = 192
-sequence_length = 65536
-
-kernel_size = 8
-stride = 1
-padding = 4
-dilation = 3
-
-return_indices = False
-
-
-def get_inputs():
-    x = torch.rand(batch_size, features, sequence_length, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [kernel_size, stride, padding, dilation, return_indices]

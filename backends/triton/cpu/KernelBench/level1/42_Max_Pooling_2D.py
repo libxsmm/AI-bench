@@ -108,22 +108,3 @@ class Model(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return maxpool2d(x, self.kernel_size, self.stride, self.padding, self.dilation)
-
-
-batch_size = 32
-channels = 64
-height = 512
-width = 512
-kernel_size = 4
-stride = 1
-padding = 1
-dilation = 1
-
-
-def get_inputs():
-    x = torch.rand(batch_size, channels, height, width, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [kernel_size, stride, padding, dilation]
