@@ -123,18 +123,3 @@ class Model(nn.Module):
         )
 
         return C
-
-
-M = 1024 * 2
-K = 4096 * 2
-N = 2048 * 2
-
-
-def get_inputs():
-    A = torch.rand(M, K, dtype=torch.bfloat16)
-    B = torch.rand(N, K, dtype=torch.bfloat16)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

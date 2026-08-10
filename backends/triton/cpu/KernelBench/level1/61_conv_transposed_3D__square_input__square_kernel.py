@@ -221,21 +221,3 @@ class Model(nn.Module):
         )
 
         return conv_out
-
-
-batch_size = 8
-in_channels = 48
-out_channels = 48
-kernel_size = 3
-depth = 64
-height = 64
-width = 64
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, depth, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size]

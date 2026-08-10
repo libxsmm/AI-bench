@@ -230,21 +230,3 @@ class Model(nn.Module):
         if self.bias is not None:
             y = y + self.bias.to(dtype=torch.float16).view(1, -1, 1, 1, 1)
         return y
-
-
-batch_size = 16
-in_channels = 3
-out_channels = 64
-kernel_size = 3
-depth = 64
-width = 64
-height = 64
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, depth, width, height)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size]

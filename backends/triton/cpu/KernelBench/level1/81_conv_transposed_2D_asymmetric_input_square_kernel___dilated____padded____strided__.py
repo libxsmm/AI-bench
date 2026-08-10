@@ -222,23 +222,3 @@ class Model(nn.Module):
             output = output + self.conv_transpose2d.bias.view(1, -1, 1, 1)
 
         return output
-
-
-batch_size = 16
-in_channels = 32
-out_channels = 64
-kernel_size = 3
-height_in = 64
-width_in = 128
-stride = 5
-padding = 1
-dilation = 2
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, height_in, width_in)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, dilation]

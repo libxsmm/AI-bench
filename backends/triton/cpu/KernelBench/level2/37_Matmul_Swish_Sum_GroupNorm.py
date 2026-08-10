@@ -27,21 +27,6 @@ def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
     return x + extra_bias_val[None, :]
 
 
-batch_size = 32768
-in_features = 1024
-out_features = 4096
-num_groups = 64
-bias_shape = (out_features,)
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features, num_groups, bias_shape]
-
-
 class Model(nn.Module):
     def __init__(self, in_features, out_features, num_groups, bias_shape):
         super().__init__()

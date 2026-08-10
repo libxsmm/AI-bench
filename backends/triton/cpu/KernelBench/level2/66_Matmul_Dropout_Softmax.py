@@ -3,26 +3,12 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
 from triton_cpu_utils import softmax
-
-batch_size = 128
-in_features = 16384
-out_features = 16384
-dropout_p = 0.2
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features, dropout_p]
 
 
 class Model(nn.Module):

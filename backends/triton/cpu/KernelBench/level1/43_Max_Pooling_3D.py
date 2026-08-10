@@ -152,23 +152,3 @@ class Model(nn.Module):
         return maxpool3d_triton(
             x, self.kernel_size, self.stride_pool, self.padding, self.dilation
         )
-
-
-batch_size = 16
-channels = 32
-dim1 = 128
-dim2 = 128
-dim3 = 128
-kernel_size = 3
-stride = 2
-padding = 1
-dilation = 3
-
-
-def get_inputs():
-    x = torch.rand(batch_size, channels, dim1, dim2, dim3, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [kernel_size, stride, padding, dilation]

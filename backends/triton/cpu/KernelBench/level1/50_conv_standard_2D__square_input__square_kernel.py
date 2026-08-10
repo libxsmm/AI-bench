@@ -216,15 +216,3 @@ class Model(nn.Module):
         )
 
         return output
-
-
-batch_size = 256
-num_classes = 1000
-
-
-def get_inputs():
-    return [torch.rand(batch_size, 3, 224, 224, dtype=torch.bfloat16)]
-
-
-def get_init_inputs():
-    return [num_classes]

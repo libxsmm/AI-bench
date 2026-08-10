@@ -3,26 +3,12 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 
 from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
-
-batch_size = 1024
-input_size = 8192
-output_size = 8192
-divisor = 10.0
-
-
-def get_inputs():
-    return [torch.rand(batch_size, input_size)]
-
-
-def get_init_inputs():
-    return [input_size, output_size, divisor]
 
 
 class Model(nn.Module):

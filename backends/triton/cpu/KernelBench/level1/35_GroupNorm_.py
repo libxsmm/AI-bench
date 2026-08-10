@@ -169,19 +169,3 @@ class Model(nn.Module):
             channels_per_group,
         )
         return y
-
-
-batch_size = 16
-features = 64
-num_groups = 8
-dim1 = 256
-dim2 = 256
-
-
-def get_inputs():
-    x = torch.rand(batch_size, features, dim1, dim2, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [features, num_groups]

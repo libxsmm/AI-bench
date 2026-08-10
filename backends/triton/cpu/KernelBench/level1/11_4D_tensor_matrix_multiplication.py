@@ -138,20 +138,3 @@ class Model(nn.Module):
         if A.dtype != torch.bfloat16:
             result = result.to(A.dtype)
         return result
-
-
-b = 8
-i = 256
-j = 512
-l = 256
-k = 768
-
-
-def get_inputs():
-    A = torch.rand(b, i, j, l, dtype=torch.bfloat16)
-    B = torch.rand(l, k, dtype=torch.bfloat16)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

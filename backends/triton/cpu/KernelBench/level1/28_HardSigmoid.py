@@ -50,16 +50,3 @@ class Model(nn.Module):
         grid = lambda META: (triton.cdiv(N, META["BLOCK_SIZE"]),)
         hardsigmoid_kernel[grid](x, out, N)
         return out
-
-
-batch_size = 4096
-dim = 393216
-
-
-def get_inputs():
-    x = torch.rand(batch_size, dim, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return []

@@ -99,21 +99,3 @@ class Model(nn.Module):
         grid = lambda meta: (triton.cdiv(OHOW, meta["BLOCK_SIZE"]), N * C)
         _depthwise_conv2d[grid](x, w, y, C, H, W_dim, OH, OW, OHOW, KH=KH, KW=KW)
         return y
-
-
-batch_size = 16
-in_channels = 64
-kernel_size = 3
-width = 512
-height = 512
-stride = 1
-padding = 0
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, kernel_size, stride, padding]

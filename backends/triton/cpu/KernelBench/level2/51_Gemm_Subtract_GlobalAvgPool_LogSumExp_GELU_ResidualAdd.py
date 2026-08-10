@@ -61,19 +61,6 @@ def _residual_add(col_vec_ptr, orig_mat_ptr, out_mat_ptr, M, K, BS_K: tl.constex
         )
 
 
-batch_size = 2048
-in_features = 8192
-out_features = 8192
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features]
-
-
 class Model(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
         super(Model, self).__init__()

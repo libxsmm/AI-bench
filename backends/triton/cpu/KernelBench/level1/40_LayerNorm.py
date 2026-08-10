@@ -94,18 +94,3 @@ class Model(nn.Module):
             self._eps,
         )
         return y_flat.view(orig_shape)
-
-
-batch_size = 16
-features = 64
-dim1 = 256
-dim2 = 256
-
-
-def get_inputs():
-    x = torch.rand(batch_size, features, dim1, dim2, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs(*args, **kwargs):
-    return [(features, dim1, dim2)]

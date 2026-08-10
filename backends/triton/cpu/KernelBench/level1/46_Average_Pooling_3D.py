@@ -138,22 +138,3 @@ class Model(nn.Module):
         )
 
         return output
-
-
-batch_size = 16
-channels = 32
-depth = 128
-height = 128
-width = 256
-kernel_size = 3
-stride = 2
-padding = 1
-
-
-def get_inputs():
-    x = torch.rand(batch_size, channels, depth, height, width, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [kernel_size, stride, padding]

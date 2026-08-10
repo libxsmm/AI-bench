@@ -259,33 +259,3 @@ class Model(nn.Module):
             output.stride(4),
         )
         return output
-
-
-batch_size = 8
-in_channels = 32
-out_channels = 32
-kernel_size = (3, 5, 7)
-depth = 12
-height = 24
-width = 48
-stride = (2, 2, 2)
-padding = (1, 2, 3)
-output_padding = (1, 1, 1)
-groups = 4
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, depth, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [
-        in_channels,
-        out_channels,
-        kernel_size,
-        stride,
-        padding,
-        output_padding,
-        groups,
-    ]

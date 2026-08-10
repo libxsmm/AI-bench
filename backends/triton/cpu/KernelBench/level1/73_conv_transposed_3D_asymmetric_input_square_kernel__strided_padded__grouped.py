@@ -285,25 +285,3 @@ class Model(nn.Module):
             self.output_padding,
             self.groups,
         )
-
-
-# Test code
-batch_size = 4
-in_channels = 32
-out_channels = 32
-kernel_size = 3
-depth = 32
-height = 64
-width = 128
-stride = 2
-padding = 1
-groups = 4
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, depth, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, stride, padding, groups]

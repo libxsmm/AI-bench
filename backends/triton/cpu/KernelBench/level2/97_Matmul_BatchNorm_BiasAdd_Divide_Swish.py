@@ -11,22 +11,6 @@ import triton.language as tl
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
 
-batch_size = 1024
-in_features = 8192
-out_features = 8192
-bn_eps = 1e-5
-bn_momentum = 0.1
-bias_shape = (1,)
-divide_value = 1.0
-
-
-def get_inputs():
-    return [torch.rand(batch_size, in_features)]
-
-
-def get_init_inputs():
-    return [in_features, out_features, bn_eps, bn_momentum, bias_shape, divide_value]
-
 
 class Model(nn.Module):
     def __init__(

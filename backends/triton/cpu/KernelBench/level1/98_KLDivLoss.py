@@ -9,10 +9,6 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-batch_size = 8192 * 2
-input_shape = (8192 * 2,)
-dim = 1
-
 
 def get_kl_div_configs():
     configs = [
@@ -87,15 +83,3 @@ class Model(nn.Module):
 
     def forward(self, predictions, targets):
         return kernel_function(predictions, targets)
-
-
-def get_inputs():
-    scale = torch.rand(())
-    return [
-        (torch.rand(batch_size, *input_shape) * scale).softmax(dim=-1),
-        torch.rand(batch_size, *input_shape).softmax(dim=-1),
-    ]
-
-
-def get_init_inputs():
-    return []

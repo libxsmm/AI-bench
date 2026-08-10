@@ -180,20 +180,3 @@ class Model(nn.Module):
         )
 
         return y
-
-
-batch_size = 16
-in_channels = 16
-out_channels = 128
-kernel_size = 3
-width = 1024
-height = 1024
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size]

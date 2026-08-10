@@ -144,16 +144,3 @@ class Model(nn.Module):
             assume_in_bounds=True,
         )
         return C
-
-
-N = 4096
-
-
-def get_inputs():
-    A = torch.triu(torch.rand(N, N, dtype=torch.bfloat16))
-    B = torch.triu(torch.rand(N, N, dtype=torch.bfloat16))
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

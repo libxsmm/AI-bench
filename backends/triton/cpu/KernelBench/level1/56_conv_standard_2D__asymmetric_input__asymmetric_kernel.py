@@ -184,20 +184,3 @@ class Model(nn.Module):
         if input_dtype != torch.float16:
             return y.to(dtype=input_dtype)
         return y
-
-
-batch_size = 8
-in_channels = 64
-out_channels = 128
-kernel_size = (5, 7)
-height = 512
-width = 256
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, height, width)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size]

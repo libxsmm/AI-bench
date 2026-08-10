@@ -99,19 +99,3 @@ class Model(nn.Module):
         )
 
         return output
-
-
-batch_size = 16
-channels = 64
-height = 2048
-width = 2048
-kernel_size = 11
-
-
-def get_inputs():
-    x = torch.rand(batch_size, channels, height, width, dtype=torch.bfloat16)
-    return [x]
-
-
-def get_init_inputs():
-    return [kernel_size]

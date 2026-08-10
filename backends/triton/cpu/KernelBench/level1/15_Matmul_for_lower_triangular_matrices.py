@@ -134,18 +134,3 @@ class Model(nn.Module):
             assume_in_bounds=True,
         )
         return C
-
-
-M = 4096
-
-
-def get_inputs():
-    A = torch.rand(M, M, dtype=torch.bfloat16)
-    B = torch.rand(M, M, dtype=torch.bfloat16)
-    A = torch.tril(A)
-    B = torch.tril(B)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

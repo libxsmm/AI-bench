@@ -78,12 +78,6 @@ def _matmul_kernel(
     c_desc.store([pid_m * BLOCK_M, pid_n * BLOCK_N], acc.to(c_ptr.type.element_ty))
 
 
-N = 16
-M = 1024
-K = 2048
-L = 768
-
-
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
@@ -129,13 +123,3 @@ class Model(nn.Module):
         )
 
         return c_flat.reshape(batch, m, l)
-
-
-def get_inputs():
-    A = torch.rand(N, M, K, dtype=torch.bfloat16)
-    B = torch.rand(K, L, dtype=torch.bfloat16)
-    return [A, B]
-
-
-def get_init_inputs():
-    return []

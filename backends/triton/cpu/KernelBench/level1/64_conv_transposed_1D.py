@@ -175,19 +175,3 @@ class Model(nn.Module):
         if self.conv1d_transpose.bias is not None:
             result = result + self.conv1d_transpose.bias.view(1, -1, 1)
         return result
-
-
-batch_size = 64
-in_channels = 128
-out_channels = 128
-kernel_size = 3
-length = 65536
-
-
-def get_inputs():
-    x = torch.rand(batch_size, in_channels, length)
-    return [x]
-
-
-def get_init_inputs():
-    return [in_channels, out_channels, kernel_size]
