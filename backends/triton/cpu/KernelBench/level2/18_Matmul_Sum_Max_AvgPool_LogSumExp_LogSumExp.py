@@ -14,7 +14,7 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _red(val, block, BLOCK_SIZE_N: tl.constexpr):
+def _red(val, block, **kwargs):
     return val + tl.sum(block, axis=0)
 
 

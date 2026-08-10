@@ -16,7 +16,7 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _max_first_dim(vals, x, BLOCK_SIZE_N: tl.constexpr):
+def _max_first_dim(vals, x, **kwargs):
     return tl.maximum(vals, x)
 
 
@@ -49,12 +49,12 @@ def _kernel_first_dim(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
 
 
 @triton.jit
-def _max_last_dim(val, x, BLOCK_SIZE_N: tl.constexpr):
+def _max_last_dim(val, x, **kwargs):
     return tl.maximum(val, tl.max(x))
 
 
 @triton.jit
-def _max_epi_last_dim(val, N):
+def _max_epi_last_dim(val, **kwargs):
     # mean of a single element -> the max_dim=1 benchmark config is a degenerate case that just returns zeros.
     return gelu(val - val)
 

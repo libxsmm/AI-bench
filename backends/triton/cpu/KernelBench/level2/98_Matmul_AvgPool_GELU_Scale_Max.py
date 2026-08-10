@@ -39,7 +39,7 @@ class Model(nn.Module):
         sf_val = tl.constexpr(scale_factor)
 
         @triton.jit
-        def _red(val, x, BLOCK_SIZE_N: tl.constexpr):
+        def _red(val, x, BLOCK_SIZE_N, **kwargs):
             x = x.reshape([BLOCK_SIZE_N // kern_sz, kern_sz])
             xmean = tl.sum(x, axis=1) / kern_sz
             xmean = gelu(xmean) * sf_val

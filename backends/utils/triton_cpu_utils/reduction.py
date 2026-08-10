@@ -24,9 +24,9 @@ def _reduce_last_dim_kernel(
     m = tl.program_id(0)
     for n in range(0, N, BLOCK_SIZE_N):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        row_val = REDUCTION(row_val, x, BLOCK_SIZE_N)
+        row_val = REDUCTION(row_val, x, BLOCK_SIZE_N=BLOCK_SIZE_N)
 
-    row_val = POST_OP(row_val, N)
+    row_val = POST_OP(row_val, N=N)
 
     tl.store(out_ptr + m, tl.cast(row_val, out_ptr.type.element_ty))
 
@@ -58,9 +58,9 @@ def _reduce_first_dim_kernel(
     n = tl.program_id(0) * BLOCK_SIZE_N
     for m in range(0, M):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        col_vals = REDUCTION(col_vals, x, BLOCK_SIZE_N)
+        col_vals = REDUCTION(col_vals, x, BLOCK_SIZE_N=BLOCK_SIZE_N)
 
-    col_vals = POST_OP(col_vals, M)
+    col_vals = POST_OP(col_vals, M=M)
 
     out_desc.store(
         [0, n], col_vals.to(out_ptr.type.element_ty).reshape([1, BLOCK_SIZE_N])
@@ -68,12 +68,7 @@ def _reduce_first_dim_kernel(
 
 
 @triton.jit
-def _scalar_zero_init_op(dtype):
-    return tl.zeros([], dtype=dtype)
-
-
-@triton.jit
-def _no_post_op(x, nelem):
+def _no_post_op(x, **kwargs):
     return x
 
 
@@ -225,17 +220,22 @@ def _affine_groupnorm_2d_kernel(
         x = inp_desc.load([n, g, c]).reshape([BLOCK_SIZE_C])
         y = (x - mean_val) * inv_std_val
         if POST_OP_HAS_ARG:
-            y = POST_OP(y, n, g, c, post_op_arg_ptr, N, C, group_size, BLOCK_SIZE_C)
+            y = POST_OP(
+                y,
+                n=n,
+                g=g,
+                c=c,
+                post_op_arg_ptr=post_op_arg_ptr,
+                N=N,
+                C=C,
+                group_size=group_size,
+                BLOCK_SIZE_C=BLOCK_SIZE_C,
+            )
         else:
             y = POST_OP(y)
         out_desc.store(
             [n, g, c], y.to(out_ptr.type.element_ty).reshape([1, 1, BLOCK_SIZE_C])
         )
-
-
-@triton.jit
-def _no_post_op_gn(x):
-    return x
 
 
 def groupnorm(
@@ -271,7 +271,7 @@ def groupnorm(
         num_groups,
         eps,
         BLOCK_SIZE_C=BLOCK_SIZE_C,
-        POST_OP=post_op or _no_post_op_gn,
+        POST_OP=post_op or _no_post_op,
         POST_OP_HAS_ARG=post_op_arg is not None,
         assume_in_bounds=True,
     )

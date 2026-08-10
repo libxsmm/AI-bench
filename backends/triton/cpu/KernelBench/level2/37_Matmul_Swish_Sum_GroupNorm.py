@@ -14,16 +14,16 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _epilogue(x, m, n, ptr, M, N, BS_M, BS_N):
+def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
     desc = tl.make_tensor_descriptor(
-        base=ptr,
+        base=post_op_arg_ptr,
         shape=(N,),
         strides=(1,),
-        block_shape=(BS_N,),
+        block_shape=(BLOCK_SIZE_N,),
     )
 
     x = tl.sigmoid(x) * x
-    extra_bias_val = desc.load([n * BS_N]).to(x.dtype)
+    extra_bias_val = desc.load([block_n * BLOCK_SIZE_N]).to(x.dtype)
     return x + extra_bias_val[None, :]
 
 

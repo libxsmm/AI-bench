@@ -15,25 +15,25 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _epilogue(x, m, n, ptr, M, N, BS_M, BS_N):
+def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
     desc = tl.make_tensor_descriptor(
-        base=ptr,
+        base=post_op_arg_ptr,
         shape=(N,),
         strides=(1,),
-        block_shape=(BS_N,),
+        block_shape=(BLOCK_SIZE_N,),
     )
-    neg_bias = desc.load([n * BS_N]).to(x.dtype)
+    neg_bias = desc.load([block_n * BLOCK_SIZE_N]).to(x.dtype)
     return x - neg_bias[None, :]
 
 
 @triton.jit
-def _red(val, x, BLOCK_SIZE_N: tl.constexpr):
+def _red(val, x, **kwargs):
     return val + tl.sum(x, axis=0)
 
 
 @triton.jit
-def _red_epi(val, nelem):
-    return gelu(val / nelem)
+def _red_epi(val, N, **kwargs):
+    return gelu(val / N)
 
 
 @triton.jit

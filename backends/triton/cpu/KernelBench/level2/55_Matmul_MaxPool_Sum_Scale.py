@@ -37,13 +37,13 @@ class Model(nn.Module):
         sf_val = tl.constexpr(scale_factor)
 
         @triton.jit
-        def _red(val, x, BLOCK_SIZE_N: tl.constexpr):
+        def _red(val, x, BLOCK_SIZE_N, **kwargs):
             x = x.reshape([BLOCK_SIZE_N // kern_sz, kern_sz])
             xm = tl.max(x, axis=1)
             return val + tl.sum(xm, axis=0)
 
         @triton.jit
-        def _red_epi(val, nelem):
+        def _red_epi(val, **kwargs):
             val *= sf_val
             return val
 

@@ -38,13 +38,13 @@ class Model(nn.Module):
             return x
 
         @triton.jit
-        def _red(val, block, BLOCK_SIZE_N: tl.constexpr):
+        def _red(val, block, **kwargs):
             return val + tl.sum(block, axis=0)
 
         sf_val = tl.constexpr(scaling_factor)
 
         @triton.jit
-        def _red_epilogue(x, nelem):
+        def _red_epilogue(x, **kwargs):
             x *= sf_val
             return x
 

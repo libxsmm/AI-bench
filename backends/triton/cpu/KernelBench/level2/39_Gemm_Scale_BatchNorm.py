@@ -13,15 +13,15 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _epilogue(x, m, n, ptr, M, N, BS_M, BS_N):
+def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
     desc = tl.make_tensor_descriptor(
-        base=ptr,
+        base=post_op_arg_ptr,
         shape=(N,),
         strides=(1,),
-        block_shape=(BS_N,),
+        block_shape=(BLOCK_SIZE_N,),
     )
     # After the scaling, the next op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which simplifies to multiplication with 1/sqrt(1 + eps).
-    scale_val = desc.load([n * BS_N]).to(x.dtype) * 0.999995
+    scale_val = desc.load([block_n * BLOCK_SIZE_N]).to(x.dtype) * 0.999995
     x = x * scale_val[None, :]
     return x
 
