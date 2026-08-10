@@ -24,7 +24,7 @@ bench-cpu:
       BATCH_SIZE: 1024
       IN_FEATURES: 8192
       OUT_FEATURES: 8192
-      MAX_DIM: 1  # degenerate test case
+      MAX_DIM: 1
   - params: [X]
     dtype: float32
     dims:

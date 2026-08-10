@@ -19,7 +19,7 @@ def _mm_epi(x):
 
 
 @triton.jit
-def _red(val, x):
+def _red(val, x, **kwargs):
     return val + tl.sum(x, axis=0)
 
 

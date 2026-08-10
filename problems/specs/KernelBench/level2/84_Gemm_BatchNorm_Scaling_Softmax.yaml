@@ -20,3 +20,14 @@ ci:
       BN_EPS: 0.00001
       BN_MOMENTUM: 0.1
       SCALE_SHAPE: [1]
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+      BN_EPS: 0.00001
+      BN_MOMENTUM: 0.1
+      SCALE_SHAPE: [1]

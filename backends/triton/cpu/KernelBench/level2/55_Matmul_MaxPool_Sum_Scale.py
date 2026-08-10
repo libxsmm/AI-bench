@@ -8,33 +8,15 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
+from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
-from triton_cpu_utils import tanh
 
-
-@triton.jit
-def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
-    desc = tl.make_tensor_descriptor(
-        base=post_op_arg_ptr,
-        shape=(N,),
-        strides=(1,),
-        block_shape=(BLOCK_SIZE_N,),
-    )
-    add_val = desc.load([block_n * BLOCK_SIZE_N]).to(x.dtype)
-    x += add_val[None, :]
-    x *= tl.sigmoid(x)
-    x = tanh(x)
-    x = gelu(x)
-    x = tl.clamp(x, -1.0, 1.0)
-    return x
-
-
-batch_size = 1024
-in_features = 8192
-out_features = 8192
-add_value_shape = (out_features,)
+batch_size = 128
+in_features = 32768
+out_features = 32768
+kernel_size = 2
+scale_factor = 0.5
 
 
 def get_inputs():
@@ -42,18 +24,33 @@ def get_inputs():
 
 
 def get_init_inputs():
-    return [in_features, out_features, add_value_shape]
+    return [in_features, out_features, kernel_size, scale_factor]
 
 
 class Model(nn.Module):
-    def __init__(self, in_features, out_features, add_value_shape):
-        super().__init__()
+    def __init__(self, in_features, out_features, kernel_size, scale_factor):
+        super(Model, self).__init__()
         self.matmul = nn.Linear(in_features, out_features)
-        self.add_value = nn.Parameter(torch.randn(add_value_shape))
+        self.max_pool = nn.MaxPool1d(kernel_size)
+
+        kern_sz = tl.constexpr(kernel_size)
+        sf_val = tl.constexpr(scale_factor)
+
+        @triton.jit
+        def _red(val, x, BLOCK_SIZE_N, **kwargs):
+            x = x.reshape([BLOCK_SIZE_N // kern_sz, kern_sz])
+            xm = tl.max(x, axis=1)
+            return val + tl.sum(xm, axis=0)
+
+        @triton.jit
+        def _red_epi(val, **kwargs):
+            val *= sf_val
+            return val
 
         self._weight_packed = None
         self._bias = None
-        self._add_value = None
+        self._red_fun = _red
+        self._red_epi_fun = _red_epi
 
     def forward(self, x):
         if self._weight_packed is None:
@@ -64,14 +61,19 @@ class Model(nn.Module):
                 BLOCK_SIZE_K=32,
             )
             self._bias = self.matmul.bias.data.to(dtype=x.dtype)
-            self._add_value = self.add_value.data.to(dtype=x.dtype)
 
-        return sfc_matmul(
+        res_mm = sfc_matmul(
             x,
             self._weight_packed,
             bias=self._bias,
-            post_op=_epilogue,
-            post_op_arg=self._add_value,
             b_is_prepacked=True,
+            trunc_output=False,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
+        )
+
+        return reduce_last_dim(
+            res_mm,
+            out_dtype=x.dtype,
+            reduction=self._red_fun,
+            post_op=self._red_epi_fun,
         )

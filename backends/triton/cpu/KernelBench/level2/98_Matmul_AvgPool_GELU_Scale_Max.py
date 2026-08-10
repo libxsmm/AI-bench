@@ -8,57 +8,46 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-from triton_cpu_utils import mish
+from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
-
-@triton.jit
-def _red(val, x, **kwargs):
-    x = tl.exp(x)
-    return val + tl.sum(x, axis=0)
-
-
-@triton.jit
-def _red_epi(val, **kwargs):
-    val = tl.log(val)  # second part of logsumexp
-    return val * mish(val)
-
-
 batch_size = 1024
-input_size = 8192
-hidden_size = 8192
+in_features = 8192
+out_features = 8192
+pool_kernel_size = 16
 scale_factor = 2.0
-clamp_min = -10.0
-clamp_max = 10.0
 
 
 def get_inputs():
-    return [torch.rand(batch_size, input_size)]
+    return [torch.rand(batch_size, in_features)]
 
 
 def get_init_inputs():
-    return [input_size, hidden_size, scale_factor, clamp_min, clamp_max]
+    return [in_features, out_features, pool_kernel_size, scale_factor]
 
 
 class Model(nn.Module):
-    def __init__(self, input_size, hidden_size, scale_factor, clamp_min, clamp_max):
-        super().__init__()
-        self.matmul = nn.Linear(input_size, hidden_size)
+    def __init__(self, in_features, out_features, pool_kernel_size, scale_factor):
+        super(Model, self).__init__()
+        self.matmul = nn.Linear(in_features, out_features)
+        self.avg_pool = nn.AvgPool1d(kernel_size=pool_kernel_size)
+        self.scale_factor = scale_factor
 
-        sf_val = tl.constexpr(scale_factor * 2)
-        clmin_val = tl.constexpr(clamp_min)
-        clmax_val = tl.constexpr(clamp_max)
+        kern_sz = tl.constexpr(pool_kernel_size)
+        sf_val = tl.constexpr(scale_factor)
 
         @triton.jit
-        def _mm_epi(x):
-            return tl.clamp(x * sf_val, clmin_val, clmax_val)
-
-        self._mm_epi_fun = _mm_epi
+        def _red(val, x, BLOCK_SIZE_N, **kwargs):
+            x = x.reshape([BLOCK_SIZE_N // kern_sz, kern_sz])
+            xmean = tl.sum(x, axis=1) / kern_sz
+            xmean = gelu(xmean) * sf_val
+            return tl.maximum(val, tl.max(xmean))
 
         self._weight_packed = None
         self._bias = None
+        self._red_fun = _red
 
     def forward(self, x):
         if self._weight_packed is None:
@@ -73,19 +62,14 @@ class Model(nn.Module):
         res_mm = sfc_matmul(
             x,
             self._weight_packed,
-            self._bias,
-            post_op=self._mm_epi_fun,
-            trunc_output=False,
+            bias=self._bias,
             b_is_prepacked=True,
+            trunc_output=False,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
 
-        res_red = reduce_last_dim(
+        return reduce_last_dim(
             res_mm,
             out_dtype=x.dtype,
-            reduction=_red,
-            post_op=_red_epi,
-            keep_dim=True,
+            reduction=self._red_fun,
         )
-
-        return res_red

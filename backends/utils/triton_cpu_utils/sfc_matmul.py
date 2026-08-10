@@ -209,7 +209,14 @@ def _sfc_matmul_kernel(
 
     if POST_OP_HAS_ARG:
         c = POST_OP(
-            c, block_m, block_n, post_op_arg_ptr, M, N, BLOCK_SIZE_M, BLOCK_SIZE_N
+            c,
+            block_m=block_m,
+            block_n=block_n,
+            post_op_arg_ptr=post_op_arg_ptr,
+            M=M,
+            N=N,
+            BLOCK_SIZE_M=BLOCK_SIZE_M,
+            BLOCK_SIZE_N=BLOCK_SIZE_N,
         )
     else:
         c = POST_OP(c)
@@ -226,7 +233,7 @@ def _sfc_matmul_kernel(
 
 
 @triton.jit
-def _no_post_op(x):
+def _no_post_op(x, **kwargs):
     return x
 
 

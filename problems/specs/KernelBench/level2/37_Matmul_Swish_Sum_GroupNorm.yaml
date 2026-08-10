@@ -18,3 +18,14 @@ ci:
       OUT_FEATURES: 16
       NUM_GROUPS: 4
       BIAS_SHAPE: [16]
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 32768
+      IN_FEATURES: 1024
+      OUT_FEATURES: 4096
+      NUM_GROUPS: 16
+      BIAS_SHAPE: [4096]
+    atol: .02

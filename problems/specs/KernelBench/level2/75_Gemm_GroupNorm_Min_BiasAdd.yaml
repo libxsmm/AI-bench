@@ -18,3 +18,14 @@ ci:
       OUT_FEATURES: 32
       NUM_GROUPS: 4
       BIAS_SHAPE: [1, 32, 1, 1] # TODO: bind these to other dims
+
+bench-cpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
+      NUM_GROUPS: 512
+      BIAS_SHAPE: [1, 8192, 1, 1] # TODO: bind these to other dims
+    atol: 0.05

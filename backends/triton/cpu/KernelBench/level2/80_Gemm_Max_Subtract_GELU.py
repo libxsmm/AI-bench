@@ -11,16 +11,17 @@ import triton.language as tl
 from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import reduce_first_dim
+from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _max_red(vals, x):
+def _max_first_dim(vals, x, **kwargs):
     return tl.maximum(vals, x)
 
 
 @triton.jit
-def _kernel(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
+def _kernel_first_dim(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
     inp_desc = tl.make_tensor_descriptor(
         inp_ptr,
         shape=[1, N],
@@ -47,6 +48,17 @@ def _kernel(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
         out_desc.store([0, n], x.to(out_ptr.type.element_ty).reshape([1, BLOCK_SIZE_N]))
 
 
+@triton.jit
+def _max_last_dim(val, x, **kwargs):
+    return tl.maximum(val, tl.max(x))
+
+
+@triton.jit
+def _max_epi_last_dim(val, **kwargs):
+    # mean of a single element -> the max_dim=1 benchmark config is a degenerate case that just returns zeros.
+    return gelu(val - val)
+
+
 batch_size = 1024
 in_features = 8192
 out_features = 8192
@@ -71,9 +83,6 @@ class Model(nn.Module):
         self._bias = None
 
     def forward(self, x):
-        if self.max_dim == 1:
-            return torch.zeros([batch_size, 1], dtype=x.dtype)
-
         if self._weight_packed is None:
             # AMX-optimized block size
             self._weight_packed = pack_weights_for_sfc_matmul(
@@ -92,22 +101,35 @@ class Model(nn.Module):
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
 
-        res_max = reduce_first_dim(
+        if self.max_dim == 0:
+            res_max = reduce_first_dim(
+                res_mm,
+                out_dtype=res_mm.dtype,  # keep it in f32
+                reduction=_max_first_dim,
+                keep_dim=True,
+            )
+            M, N = res_max.shape
+            BLOCK_SIZE_N = 256  # AVX-512 optimized block size
+            assert M == 1 and N % BLOCK_SIZE_N == 0, (
+                "N must be divisible by BLOCK_SIZE_N"
+            )
+            out = torch.empty((1, N), dtype=x.dtype)
+            _kernel_first_dim[(1,)](
+                res_max,
+                out,
+                N,
+                BLOCK_SIZE_N=BLOCK_SIZE_N,
+                assume_in_bounds=True,
+            )
+            return out
+
+        assert self.max_dim == 1, "max_dim must be either 0 or 1"
+        res_max = reduce_last_dim(
             res_mm,
-            out_dtype=res_mm.dtype,  # keep it in f32
-            reduction=_max_red,
+            out_dtype=x.dtype,
+            reduction=_max_last_dim,
+            post_op=_max_epi_last_dim,
             keep_dim=True,
         )
 
-        M, N = res_max.shape
-        BLOCK_SIZE_N = 256  # AVX-512 optimized block size
-        assert M == 1 and N % BLOCK_SIZE_N == 0, "N must be divisible by BLOCK_SIZE_N"
-        out = torch.empty((1, N), dtype=x.dtype)
-        _kernel[(1,)](
-            res_max,
-            out,
-            N,
-            BLOCK_SIZE_N=BLOCK_SIZE_N,
-            assume_in_bounds=True,
-        )
-        return out
+        return res_max
