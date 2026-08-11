@@ -8,11 +8,14 @@ from lighthouse.execution.target import TargetInfo
 from lighthouse.pipeline import find_pipeline_file
 from lighthouse.pipeline.descriptor import Descriptor
 from lighthouse.pipeline.driver import BackendDriver
-from lighthouse.schedule.xegpu import XeGPUParameterSelector
 from lighthouse.schedule.xegpu import elemwise_schedule
-from lighthouse.schedule.xegpu import mlp_schedule
+from lighthouse.schedule.xegpu import (
+    mlp_schedule,
+    elemwise_schedule,
+    reduction_schedule,
+)
 from lighthouse.schedule.xegpu import xegpu_to_binary
-from lighthouse.utils.mlir import inspect_payload
+from lighthouse.schedule.parameters import ScheduleParameters
 from mlir import ir
 
 from ai_bench.utils import mlir_schedules_dir
@@ -155,87 +158,67 @@ def _compile_pipeline(
         return driver.apply(module)
 
 
-def _infer_xpu_kernel_metadata(
-    module: ir.Module,
-    payload_func_name: str = "main",
-) -> tuple[str, list[dict]]:
-    """Infer schedule kind and params from payload metadata.
-
-    Returns:
-        Tuple of (schedule_kind, schedule_params)
-        schedule_kind in {"mlp", "elemwise", "unsupported"}
-    """
-    payload = inspect_payload(module)
-    func_meta = payload.get(payload_func_name)
-    if not func_meta:
-        return "unsupported", []
-
-    layers = func_meta.get("layers", {})
-    matmuls = layers.get("matmul", [])
-    if matmuls:
-        selector = XeGPUParameterSelector()
-        params = selector.get_parameters_for_layers(matmuls)
-        return "mlp", params
-
-    elemwise_layers = layers.get("elemwise", [])
-    if elemwise_layers:
-        return "elemwise", elemwise_layers
-
-    return "unsupported", []
-
-
-def _compile_xpu_adaptive(
-    module: ir.Module,
-    payload_func_name: str = "main",
-) -> ir.Module:
-    """Lower XPU payload using adaptive Lighthouse schedules."""
-    schedule_kind, schedule_params = _infer_xpu_kernel_metadata(
-        module, payload_func_name=payload_func_name
+@cache
+def _xpu_matmul_params_dir() -> str:
+    """Return the local XeGPU matmul parameter database directory."""
+    return str(
+        Path(__file__).resolve().parents[2]
+        / "backends"
+        / "utils"
+        / "mlir_xpu_utils"
     )
-    logger = _get_logger()
-    logger.info(f"  XPU adaptive schedule: {schedule_kind}")
 
-    if schedule_kind == "unsupported":
-        raise ValueError("Unsupported XPU payload for adaptive schedule")
+
+def _compile_xpu_pipeline(
+    module: ir.Module,
+    pipeline: str | None = None,
+    parameters: ScheduleParameters | None = None,
+    dtype: str | None = None,
+    device_type: str = "cpu",
+) -> ir.Module:
+    """
+    Construct lowering pipeline for XPU target using a specific schedule kind and parameters.
+
+    Args:
+        module: MLIR module coming from PyTorch importer.
+    Returns:
+        MLIR module with lowered IR.
+    """
 
     with module.context, ir.Location.unknown():
-        # Ensure custom Lighthouse transform dialect extensions are loaded in
-        # this payload context before constructing schedules.
-        lh_dialects.register_and_load()
-
-        if schedule_kind == "mlp":
+        # High-level problem specific schedule.
+        payload_func_name = "main"
+        if pipeline == "mlp":
             schedule = mlp_schedule(
-                params=schedule_params,
+                params=parameters,
+                payload_func_name=payload_func_name,
+                device="B70",
+            )
+        elif pipeline == "elemwise":
+            schedule = elemwise_schedule(
+                params=parameters,
+                payload_func_name=payload_func_name,
+            )
+        elif pipeline == "reduction":
+            schedule = reduction_schedule(
+                params=parameters,
                 payload_func_name=payload_func_name,
             )
         else:
-            # Use fixed tile sizes for now.
-            # Assume all elemwise layers will be fused to a single layer.
-            # TODO: Remove when fixed in Lighthouse.
-            layer_params = {
-                "wg_m": 128,
-                "wg_n": 256,
-                "sg_m": 32,
-                "sg_n": 32,
-                "load_m": 8,
-                "load_n": 16,
-            }
-            schedule_params = [layer_params]
-            schedule = elemwise_schedule(
-                params=schedule_params,
-                payload_func_name=payload_func_name,
-            )
-        lower_to_binary = xegpu_to_binary(
-            xegpu_op_level="workgroup",
-            large_register_file=True,
-        )
+            raise ValueError(f"Unsupported XPU schedule kind: {pipeline}")
+        # Full pipeline with a common tail.
+        schedules = [
+            schedule,
+            xegpu_to_binary(
+                xegpu_op_level="workgroup",
+            ),
+        ]
+        # Build the lowering pipeline from the selected YAML descriptor.
+        driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
+        for s in schedules:
+            driver.add_transform(s)
 
-        driver = BackendDriver(
-            module, payload_func_name, result_to_args=False, benchmark=False
-        )
-        driver.add_transform(schedule)
-        driver.add_transform(lower_to_binary)
-
+        # Lower IR.
         return driver.apply(module)
 
 
@@ -265,24 +248,31 @@ def cpu_pipeline(
 
 
 def xpu_pipeline(
-    module: ir.Module, pipeline: str | None = None, dtype: str | None = None
+    module: ir.Module, pipeline: str | None = None, pipeline_parameters: str | None = None, dtype: str | None = None
 ) -> ir.Module:
     """Lower MLIR for an XPU target."""
     logger = _get_logger()
-    if pipeline:
-        try:
-            # Clone module to avoid mutating the original in case of failure.
-            payload = _clone_module(module)
-            return _compile_pipeline(
-                payload,
-                pipeline=pipeline,
-                dtype=dtype,
-                device_type="xpu",
-            )
-        except Exception as e:
-            logger.debug("  XPU default schedule failed; using fallback...")
-            logger.debug(f"  XPU compile error:\n{e}")
-    return _compile_xpu_adaptive(module, payload_func_name="main")
+    if not pipeline or not pipeline_parameters:
+        logger.debug("XPU lowering requires both pipeline and pipeline_parameters.")
+        raise ValueError("XPU lowering requires pipeline and pipeline_parameters.")
+    try:
+        # Prepend parameters file with local parameter database directory.
+        pipeline_parameters = str(Path(_xpu_matmul_params_dir()).joinpath(pipeline_parameters))
+        logger.info(f"  MLIR XPU - schedule kind: {pipeline}")
+        logger.info(f"  MLIR XPU - loading schedule parameters from: {pipeline_parameters}")
+        schedule_parameters = ScheduleParameters.from_json(pipeline_parameters)
+        # Clone module to avoid mutating the original in case of failure.
+        payload = _clone_module(module)
+        return _compile_xpu_pipeline(
+            payload,
+            pipeline=pipeline,
+            parameters=schedule_parameters,
+            dtype=dtype,
+            device_type="xpu",
+        )
+    except Exception as e:
+        logger.debug("  XPU default schedule failed; using fallback...")
+        logger.debug(f"  XPU compile error:\n{e}")
 
 
 def get_cpu_compile_fn(
@@ -292,6 +282,6 @@ def get_cpu_compile_fn(
 
 
 def get_xpu_compile_fn(
-    pipeline: str | None = None, dtype: str | None = None
+    pipeline: str | None = None, pipeline_parameters: str | None = None, dtype: str | None = None
 ) -> Callable[[ir.Module], ir.Module]:
-    return functools.partial(xpu_pipeline, pipeline=pipeline, dtype=dtype)
+    return functools.partial(xpu_pipeline, pipeline=pipeline, pipeline_parameters=pipeline_parameters, dtype=dtype)
