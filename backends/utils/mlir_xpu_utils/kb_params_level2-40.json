@@ -1,0 +1,25 @@
+[
+    {
+        "layer_kind": "matmul",
+        "m": 16384,
+        "n": 4096,
+        "k": 4096,
+        "wg_m": 256,
+        "wg_n": 256,
+        "sg_m": 32,
+        "sg_n": 64,
+        "k_tile": 32,
+        "load_a_m": 32,
+        "load_a_k": 32,
+        "load_b_k": 16,
+        "load_b_n": 16,
+        "prefetch_a_m": 16,
+        "prefetch_a_k": 16,
+        "prefetch_b_k": 16,
+        "prefetch_b_n": 16,
+        "prefetch_a_nb": 1,
+        "prefetch_b_nb": 2,
+        "transpose_a": false,
+        "transpose_b": true
+    }
+]
