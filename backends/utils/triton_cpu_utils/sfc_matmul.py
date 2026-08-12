@@ -296,20 +296,32 @@ def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
 
 
 @thread_lru_cache()
-def _make_intermediate_buffers(M, N, K, in_dtype, accum_dtype, b_is_prepacked):
+def _make_intermediate_buffers(
+    M, N, K, in_dtype, accum_dtype, out_dtype, b_is_prepacked, c_is_owned
+):
     ap_size = M * K * in_dtype.itemsize
     bp_size = K * N * in_dtype.itemsize if not b_is_prepacked else 0
     ctmp_size = M * N * accum_dtype.itemsize
+    c_size = M * N * out_dtype.itemsize if c_is_owned else 0
 
-    buf = torch.empty(ap_size + bp_size + ctmp_size, dtype=torch.uint8)
+    buf = torch.empty(ap_size + bp_size + ctmp_size + c_size, dtype=torch.uint8)
     ap = buf[:ap_size].view(in_dtype).reshape((M, K))
     bp = (
         buf[ap_size : ap_size + bp_size].view(in_dtype).reshape((K, N))
         if not b_is_prepacked
         else None
     )
-    ctmp = buf[ap_size + bp_size :].view(accum_dtype).reshape((M, N))
-    return ap, bp, ctmp
+    ctmp = (
+        buf[ap_size + bp_size : ap_size + bp_size + ctmp_size]
+        .view(accum_dtype)
+        .reshape((M, N))
+    )
+    c = (
+        buf[ap_size + bp_size + ctmp_size :].view(out_dtype).reshape((M, N))
+        if c_is_owned
+        else None
+    )
+    return ap, bp, ctmp, c
 
 
 def sfc_matmul(
@@ -320,6 +332,7 @@ def sfc_matmul(
     post_op_arg=None,
     trunc_output=True,
     b_is_prepacked=False,
+    c_is_owned=False,
     blocking_factor_k=1,
 ) -> torch.Tensor:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
@@ -352,11 +365,13 @@ def sfc_matmul(
     accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
 
-    ap, bp, ctmp = _make_intermediate_buffers(
-        M, N, K, a.dtype, accum_dtype, b_is_prepacked
+    ap, bp, ctmp, c = _make_intermediate_buffers(
+        M, N, K, a.dtype, accum_dtype, out_dtype, b_is_prepacked, c_is_owned
     )
     if b_is_prepacked:
         bp = b
+    if not c_is_owned:
+        c = torch.empty((M, N), device=a.device, dtype=out_dtype)
 
     num_blocks = max(
         BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
@@ -377,8 +392,6 @@ def sfc_matmul(
         B_IS_PREPACKED=b_is_prepacked,
         assume_in_bounds=True,
     )
-
-    c = torch.empty((M, N), device=a.device, dtype=out_dtype)
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
