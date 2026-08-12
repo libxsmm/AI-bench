@@ -11,7 +11,8 @@ class Model(nn.Module):
         scaling_factor (float): Scaling factor to apply after matrix multiplication.
     """
 
-    mlir_pipeline = "matmul"
+    mlir_pipeline = "mlp"
+    pipeline_parameters = "kb_params_level2-40.json"
 
     def __init__(self, in_features, out_features, scaling_factor):
         super(Model, self).__init__()

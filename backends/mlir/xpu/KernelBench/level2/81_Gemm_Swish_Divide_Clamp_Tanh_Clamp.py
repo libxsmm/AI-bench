@@ -7,7 +7,8 @@ class Model(nn.Module):
     Simple model that performs a gemm, swish, divide, clamp, tanh, and clamp operations.
     """
 
-    mlir_pipeline = "matmul"
+    mlir_pipeline = "mlp"
+    pipeline_parameters = "kb_params_level2-81.json"
 
     def __init__(self, in_features, out_features, bias=True):
         super(Model, self).__init__()
