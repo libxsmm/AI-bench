@@ -413,7 +413,9 @@ class KernelRunner:
                 model_dtype = ai_hc.get_variant_dtype(variant)
                 if self.is_xpu():
                     compile_fn = ai_mlir.get_xpu_compile_fn(
-                        pipeline=mlir_pipeline, pipeline_parameters=pipeline_parameters, dtype=model_dtype
+                        pipeline=mlir_pipeline,
+                        pipeline_parameters=pipeline_parameters,
+                        dtype=model_dtype,
                     )
                     backend = ai_mlir.gpu_backend(compile_fn, device=self.device)
                 else:

@@ -3,19 +3,15 @@ from functools import cache
 from pathlib import Path
 from typing import Callable
 
-import lighthouse.dialects as lh_dialects
 from lighthouse.execution.target import TargetInfo
 from lighthouse.pipeline import find_pipeline_file
 from lighthouse.pipeline.descriptor import Descriptor
 from lighthouse.pipeline.driver import BackendDriver
-from lighthouse.schedule.xegpu import elemwise_schedule
-from lighthouse.schedule.xegpu import (
-    mlp_schedule,
-    elemwise_schedule,
-    reduction_schedule,
-)
-from lighthouse.schedule.xegpu import xegpu_to_binary
 from lighthouse.schedule.parameters import ScheduleParameters
+from lighthouse.schedule.xegpu import elemwise_schedule
+from lighthouse.schedule.xegpu import mlp_schedule
+from lighthouse.schedule.xegpu import reduction_schedule
+from lighthouse.schedule.xegpu import xegpu_to_binary
 from mlir import ir
 
 from ai_bench.utils import mlir_schedules_dir
@@ -162,10 +158,7 @@ def _compile_pipeline(
 def _xpu_matmul_params_dir() -> str:
     """Return the local XeGPU matmul parameter database directory."""
     return str(
-        Path(__file__).resolve().parents[2]
-        / "backends"
-        / "utils"
-        / "mlir_xpu_utils"
+        Path(__file__).resolve().parents[2] / "backends" / "utils" / "mlir_xpu_utils"
     )
 
 
@@ -248,7 +241,10 @@ def cpu_pipeline(
 
 
 def xpu_pipeline(
-    module: ir.Module, pipeline: str | None = None, pipeline_parameters: str | None = None, dtype: str | None = None
+    module: ir.Module,
+    pipeline: str | None = None,
+    pipeline_parameters: str | None = None,
+    dtype: str | None = None,
 ) -> ir.Module:
     """Lower MLIR for an XPU target."""
     logger = _get_logger()
@@ -257,9 +253,13 @@ def xpu_pipeline(
         raise ValueError("XPU lowering requires pipeline and pipeline_parameters.")
     try:
         # Prepend parameters file with local parameter database directory.
-        pipeline_parameters = str(Path(_xpu_matmul_params_dir()).joinpath(pipeline_parameters))
+        pipeline_parameters = str(
+            Path(_xpu_matmul_params_dir()).joinpath(pipeline_parameters)
+        )
         logger.info(f"  MLIR XPU - schedule kind: {pipeline}")
-        logger.info(f"  MLIR XPU - loading schedule parameters from: {pipeline_parameters}")
+        logger.info(
+            f"  MLIR XPU - loading schedule parameters from: {pipeline_parameters}"
+        )
         schedule_parameters = ScheduleParameters.from_json(pipeline_parameters)
         # Clone module to avoid mutating the original in case of failure.
         payload = _clone_module(module)
@@ -282,6 +282,13 @@ def get_cpu_compile_fn(
 
 
 def get_xpu_compile_fn(
-    pipeline: str | None = None, pipeline_parameters: str | None = None, dtype: str | None = None
+    pipeline: str | None = None,
+    pipeline_parameters: str | None = None,
+    dtype: str | None = None,
 ) -> Callable[[ir.Module], ir.Module]:
-    return functools.partial(xpu_pipeline, pipeline=pipeline, pipeline_parameters=pipeline_parameters, dtype=dtype)
+    return functools.partial(
+        xpu_pipeline,
+        pipeline=pipeline,
+        pipeline_parameters=pipeline_parameters,
+        dtype=dtype,
+    )

@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Sequence
 import os
-from pathlib import Path
 import warnings
 
 import lighthouse.ingress.torch.compile as lh_compile
@@ -131,7 +130,6 @@ class GPUBackend(CPUBackend):
         **kwargs,
     ):
         assert device.type in ("cuda", "rocm", "xpu"), "Expected a GPU device"
-        logger = setup_logger()
         if device.type == "xpu":
             shared_libs = list(shared_libs)
             shared_libs.append("libmlir_levelzero_runtime.so")
