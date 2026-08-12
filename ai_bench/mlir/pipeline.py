@@ -251,28 +251,23 @@ def xpu_pipeline(
     if not pipeline or not pipeline_parameters:
         logger.debug("XPU lowering requires both pipeline and pipeline_parameters.")
         raise ValueError("XPU lowering requires pipeline and pipeline_parameters.")
-    try:
-        # Prepend parameters file with local parameter database directory.
-        pipeline_parameters = str(
-            Path(_xpu_matmul_params_dir()).joinpath(pipeline_parameters)
-        )
-        logger.info(f"  MLIR XPU - schedule kind: {pipeline}")
-        logger.info(
-            f"  MLIR XPU - loading schedule parameters from: {pipeline_parameters}"
-        )
-        schedule_parameters = ScheduleParameters.from_json(pipeline_parameters)
-        # Clone module to avoid mutating the original in case of failure.
-        payload = _clone_module(module)
-        return _compile_xpu_pipeline(
-            payload,
-            pipeline=pipeline,
-            parameters=schedule_parameters,
-            dtype=dtype,
-            device_type="xpu",
-        )
-    except Exception as e:
-        logger.debug("  XPU default schedule failed; using fallback...")
-        logger.debug(f"  XPU compile error:\n{e}")
+
+    # Prepend parameters file with local parameter database directory.
+    pipeline_parameters = str(
+        Path(_xpu_matmul_params_dir()).joinpath(pipeline_parameters)
+    )
+    logger.info(f"  MLIR XPU - schedule kind: {pipeline}")
+    logger.info(f"  MLIR XPU - loading schedule parameters from: {pipeline_parameters}")
+    schedule_parameters = ScheduleParameters.from_json(pipeline_parameters)
+    # Clone module to avoid mutating the original in case of failure.
+    payload = _clone_module(module)
+    return _compile_xpu_pipeline(
+        payload,
+        pipeline=pipeline,
+        parameters=schedule_parameters,
+        dtype=dtype,
+        device_type="xpu",
+    )
 
 
 def get_cpu_compile_fn(
