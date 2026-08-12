@@ -18,16 +18,15 @@ ci:
       OUT_SIZE: 16
     flop: "2*BATCH*adjacent_prod_sum(IN_SIZE, LAYER_SIZES, OUT_SIZE)"
 
-# Disabled due to upstream changes.
-# mlir-gpu-bench:
-#   - params: [X]
-#     dtype: bfloat16
-#     dims:
-#       BATCH: 128
-#       IN_SIZE: 16384
-#       LAYER_SIZES: [16384, 16384]
-#       OUT_SIZE: 8192
-#     flop: "2*BATCH*adjacent_prod_sum(IN_SIZE, LAYER_SIZES, OUT_SIZE)"
+mlir-gpu-bench:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 128
+      IN_SIZE: 16384
+      LAYER_SIZES: [16384, 16384]
+      OUT_SIZE: 8192
+    flop: "2*BATCH*adjacent_prod_sum(IN_SIZE, LAYER_SIZES, OUT_SIZE)"
 
 bench-gpu:
   - params: [X]

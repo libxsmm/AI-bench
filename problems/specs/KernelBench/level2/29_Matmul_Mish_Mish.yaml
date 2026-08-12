@@ -30,11 +30,10 @@ bench-cpu:
       IN_FEATURES: 1024
       OUT_FEATURES: 1024
 
-# Disabled due to prefetch failure.
-# mlir-gpu-bench:
-#   - params: [X]
-#     dtype: bfloat16
-#     dims:
-#       BATCH_SIZE: 1024
-#       IN_FEATURES: 8192
-#       OUT_FEATURES: 8192
+mlir-gpu-bench:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      IN_FEATURES: 8192
+      OUT_FEATURES: 8192
