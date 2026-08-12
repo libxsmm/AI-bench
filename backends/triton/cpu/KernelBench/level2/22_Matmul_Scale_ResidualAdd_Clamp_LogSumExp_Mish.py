@@ -60,6 +60,7 @@ class Model(nn.Module):
             post_op=self._mm_epi_fun,
             trunc_output=False,
             b_is_prepacked=True,
+            c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
 
