@@ -212,7 +212,8 @@ def _compile_xpu_pipeline(
             ),
         ]
         # Build the lowering pipeline from the selected YAML descriptor.
-        driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
+        # 'benchmark' emits the '__benchmark' wrapper used by JITFunction.benchmark.
+        driver = BackendDriver(module, "main", result_to_args=False, benchmark=True)
         for s in schedules:
             driver.add_transform(s)
 

@@ -286,6 +286,7 @@ class KernelRunner:
                 rep=self.rep,
                 min_cache_nuke_mib=self.min_cache_nuke_mib,
                 device=self.device,
+                jit_backend=getattr(self, "mlir_backend", None),
             )
 
         # Statistics - FLOPs.
@@ -428,6 +429,7 @@ class KernelRunner:
                     dynamic=False,
                     backend=backend,
                 )
+                self.mlir_backend = backend
 
             args = ai_hc.get_inputs(variant, spec_inputs, device=self.device)
 

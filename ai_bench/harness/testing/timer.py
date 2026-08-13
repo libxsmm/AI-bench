@@ -85,8 +85,49 @@ def time_cpu(
     return torch.mean(times).item()
 
 
+def time_gpu_jit(
+    fn: Callable, args: tuple, jit_backend, warmup: int = 25, rep: int = 100
+) -> float:
+    """Measure execution time inside Lighthouse's compiled MLIR module.
+
+    The timing loop runs within the '__benchmark' wrapper emitted by the lowering
+    pipeline, so per-call host overhead (output buffer allocation, memref descriptor
+    creation, symbol lookup) is excluded from the measurement.
+
+    Args:
+        fn: Function to measure (the compiled torch model)
+        args: Arguments to pass to the function
+        jit_backend: Lighthouse MLIR backend that compiled the model
+        warmup: Warmup iterations
+        rep: Measurement iterations
+    Returns:
+        Mean runtime in microseconds
+    """
+    # The JITFunction only exists once Dynamo has invoked the backend.
+    fn(*args)
+    jit_fn = jit_backend.jit_function
+
+    # Model parameters are passed ahead of the inputs, matching the FX graph signature.
+    params = list(fn.parameters()) if hasattr(fn, "parameters") else []
+    secs = jit_fn.benchmark(*params, *args, nruns=rep, nwarmup=warmup)
+
+    # Wrapper reports seconds per iteration.
+    times = torch.tensor(secs * 1e6, dtype=torch.float)
+
+    # Trim extremes if there are enough measurements.
+    if len(times) >= 10:
+        times = torch.sort(times).values[1:-1]
+
+    return torch.mean(times).item()
+
+
 def time_gpu(
-    device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
+    device: torch.device,
+    fn: Callable,
+    args: tuple,
+    warmup: int = 25,
+    rep: int = 100,
+    jit_backend=None,
 ) -> float:
     """Measure execution time of the provided function on GPU.
 
@@ -99,6 +140,7 @@ def time_gpu(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
+        jit_backend: Optional Lighthouse MLIR backend used for in-module timing
     Returns:
         Mean runtime in microseconds
     """
@@ -106,6 +148,12 @@ def time_gpu(
     assert current_device == device.type, (
         f"Invalid accelerator {current_device}, expected {device.type}"
     )
+
+    # --- Alternative timing: measure inside the compiled MLIR module. ---
+    # Comment out this block to fall back to the event-based timing below.
+    if jit_backend is not None:
+        return time_gpu_jit(fn, args, jit_backend, warmup=warmup, rep=rep)
+    # --- End alternative timing. ---
 
     # Buffer used to flush L2 cache between kernel runs.
     cache_size = 256 * 1024 * 1024
@@ -168,6 +216,7 @@ def time(
     rep: int = 100,
     min_cache_nuke_mib: int = 0,
     device: torch.device | None = None,
+    jit_backend=None,
 ) -> float:
     """Measure execution time of the provided function.
     Args:
@@ -177,6 +226,7 @@ def time(
         rep: Measurement iterations
         min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU, or 0 to disable
         device: Device type to use
+        jit_backend: Optional Lighthouse MLIR backend used for in-module timing
     Returns:
         Mean runtime in microseconds
     """
@@ -185,5 +235,7 @@ def time(
             fn, args, warmup=warmup, rep=rep, min_cache_nuke_mib=min_cache_nuke_mib
         )
     if device.type == "xpu" or device.type == "cuda":
-        return time_gpu(device, fn, args, warmup=warmup, rep=rep)
+        return time_gpu(
+            device, fn, args, warmup=warmup, rep=rep, jit_backend=jit_backend
+        )
     raise ValueError(f"Unsupported device for timing: {device.type}")
