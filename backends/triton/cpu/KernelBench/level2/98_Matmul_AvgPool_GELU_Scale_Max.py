@@ -41,7 +41,7 @@ class Model(nn.Module):
 
         self._weight_packed = None
         self._bias = None
-        self._red1_fun = _red_block
+        self._red_block_fun = _red_block
 
     def forward(self, x):
         if self._weight_packed is None:
@@ -59,8 +59,8 @@ class Model(nn.Module):
             bias=self._bias,
             b_is_prepacked=True,
             reduce_last_dim=True,
-            reduction_init_op=_red_init,
-            reduction_block_op=self._red1_fun,
+            reduction_init_val=_red_init,
+            reduction_block_op=self._red_block_fun,
             reduction_combine_op=_red_combine,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )

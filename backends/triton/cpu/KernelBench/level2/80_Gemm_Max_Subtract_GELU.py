@@ -15,6 +15,11 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
+def _max_init_val(dtype, BLOCK_SIZE_N, **kwargs):
+    return tl.full([BLOCK_SIZE_N], float("-inf"), dtype=dtype)
+
+
+@triton.jit
 def _max_first_dim(vals, x, **kwargs):
     return tl.maximum(vals, x)
 
@@ -48,9 +53,9 @@ def _kernel_first_dim(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
 
 
 @triton.jit
-def _max_epi_last_dim(**kwargs):
+def _max_epi_last_dim(val, **kwargs):
     # mean of a single element -> the max_dim=1 benchmark config is a degenerate case that just returns zeros.
-    return 0.0
+    return val * 0.0
 
 
 class Model(nn.Module):
@@ -86,7 +91,8 @@ class Model(nn.Module):
             res_max = reduce_first_dim(
                 res_mm,
                 out_dtype=res_mm.dtype,  # keep it in f32
-                reduction=_max_first_dim,
+                init_val=_max_init_val,
+                reduction_op=_max_first_dim,
                 keep_dim=True,
             )
             M, N = res_max.shape

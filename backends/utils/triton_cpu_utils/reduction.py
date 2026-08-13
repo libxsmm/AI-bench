@@ -10,7 +10,8 @@ def _reduce_last_dim_kernel(
     M,
     N,
     BLOCK_SIZE_N: tl.constexpr,
-    REDUCTION: tl.constexpr,
+    INIT_VAL: tl.constexpr,
+    REDUCTION_OP: tl.constexpr,
     POST_OP: tl.constexpr,
 ):
     inp_desc = tl.make_tensor_descriptor(
@@ -20,11 +21,11 @@ def _reduce_last_dim_kernel(
         block_shape=[1, BLOCK_SIZE_N],
     )
 
-    row_val = tl.zeros([], dtype=inp_ptr.type.element_ty)
+    row_val = INIT_VAL(dtype=inp_ptr.type.element_ty)
     m = tl.program_id(0)
     for n in range(0, N, BLOCK_SIZE_N):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        row_val = REDUCTION(row_val, x, BLOCK_SIZE_N=BLOCK_SIZE_N)
+        row_val = REDUCTION_OP(row_val, x, BLOCK_SIZE_N=BLOCK_SIZE_N)
 
     row_val = POST_OP(row_val, N=N)
 
@@ -38,7 +39,8 @@ def _reduce_first_dim_kernel(
     M,
     N,
     BLOCK_SIZE_N: tl.constexpr,
-    REDUCTION: tl.constexpr,
+    INIT_VAL: tl.constexpr,
+    REDUCTION_OP: tl.constexpr,
     POST_OP: tl.constexpr,
 ):
     inp_desc = tl.make_tensor_descriptor(
@@ -54,11 +56,11 @@ def _reduce_first_dim_kernel(
         block_shape=[1, BLOCK_SIZE_N],
     )
 
-    col_vals = tl.zeros([BLOCK_SIZE_N], dtype=inp_ptr.type.element_ty)
+    col_vals = INIT_VAL(dtype=inp_ptr.type.element_ty, BLOCK_SIZE_N=BLOCK_SIZE_N)
     n = tl.program_id(0) * BLOCK_SIZE_N
     for m in range(0, M):
         x = inp_desc.load([m, n]).reshape([BLOCK_SIZE_N])
-        col_vals = REDUCTION(col_vals, x, BLOCK_SIZE_N=BLOCK_SIZE_N)
+        col_vals = REDUCTION_OP(col_vals, x, BLOCK_SIZE_N=BLOCK_SIZE_N)
 
     col_vals = POST_OP(col_vals, M=M)
 
@@ -72,7 +74,19 @@ def _no_post_op(x, **kwargs):
     return x
 
 
-def reduce_last_dim(inp, out_dtype, reduction, post_op=None, keep_dim=False):
+@triton.jit
+def _default_init_val_last_dim(dtype, **kwargs):
+    return tl.zeros([], dtype=dtype)
+
+
+@triton.jit
+def _default_init_val_first_dim(dtype, BLOCK_SIZE_N, **kwargs):
+    return tl.zeros([BLOCK_SIZE_N], dtype=dtype)
+
+
+def reduce_last_dim(
+    inp, out_dtype, reduction_op, init_val=None, post_op=None, keep_dim=False
+):
     assert inp.ndim == 2, "Input tensor must be 2D"
     M, N = inp.shape
     out_shape = (M, 1) if keep_dim else (M,)
@@ -85,14 +99,17 @@ def reduce_last_dim(inp, out_dtype, reduction, post_op=None, keep_dim=False):
         M,
         N,
         BLOCK_SIZE_N=BLOCK_SIZE_N,
-        REDUCTION=reduction,
+        INIT_VAL=init_val or _default_init_val_last_dim,
+        REDUCTION_OP=reduction_op,
         POST_OP=post_op or _no_post_op,
         assume_in_bounds=True,
     )
     return out
 
 
-def reduce_first_dim(inp, out_dtype, reduction, post_op=None, keep_dim=False):
+def reduce_first_dim(
+    inp, out_dtype, reduction_op, init_val=None, post_op=None, keep_dim=False
+):
     assert inp.ndim == 2, "Input tensor must be 2D"
     M, N = inp.shape
     out_shape = (1, N) if keep_dim else (N,)
@@ -105,7 +122,8 @@ def reduce_first_dim(inp, out_dtype, reduction, post_op=None, keep_dim=False):
         M,
         N,
         BLOCK_SIZE_N=BLOCK_SIZE_N,
-        REDUCTION=reduction,
+        INIT_VAL=init_val or _default_init_val_first_dim,
+        REDUCTION_OP=reduction_op,
         POST_OP=post_op or _no_post_op,
         assume_in_bounds=True,
     )

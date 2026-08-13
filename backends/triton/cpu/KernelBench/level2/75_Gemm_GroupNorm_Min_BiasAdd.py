@@ -15,6 +15,11 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
+def _min_init_val(dtype, **kwargs):
+    return tl.full([], float("inf"), dtype=dtype)
+
+
+@triton.jit
 def _min_red(val, x, **kwargs):
     return tl.minimum(val, tl.min(x))
 
@@ -74,8 +79,8 @@ class Model(nn.Module):
             x,
             self._weight_packed,
             bias=self._bias,
-            b_is_prepacked=True,
             trunc_output=False,
+            b_is_prepacked=True,
             c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
@@ -91,7 +96,8 @@ class Model(nn.Module):
         res_red = reduce_last_dim(
             res_gn,
             out_dtype=res_gn.dtype,
-            reduction=_min_red,
+            init_val=_min_init_val,
+            reduction_op=_min_red,
             keep_dim=True,
         )
 

@@ -529,12 +529,10 @@ def sfc_matmul(
             ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
             OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
             HAS_BIAS=bias is not None,
-            POST_OP=post_op if post_op is not None else _no_post_op,
+            POST_OP=post_op or _no_post_op,
             POST_OP_HAS_ARG=post_op_arg is not None,
             REDUCE_LAST_DIM=reduce_last_dim,
-            REDUCTION_BLOCK_OP=reduction_block_op
-            if reduction_block_op is not None
-            else _default_reduction_op,
+            REDUCTION_BLOCK_OP=reduction_block_op or _default_reduction_op,
             assume_in_bounds=True,
         )
 
@@ -546,15 +544,9 @@ def sfc_matmul(
             N,
             BLOCK_SIZE_M=BLOCK_SIZE_M,
             BLOCK_SIZE_N=BLOCK_SIZE_N,
-            REDUCTION_INIT_VAL=reduction_init_val
-            if reduction_init_val is not None
-            else _default_init_val,
-            REDUCTION_COMBINE_OP=reduction_combine_op
-            if reduction_combine_op is not None
-            else _default_combine_op,
-            REDUCTION_POST_OP=reduction_post_op
-            if reduction_post_op is not None
-            else _no_post_op,
+            REDUCTION_INIT_VAL=reduction_init_val or _default_init_val,
+            REDUCTION_COMBINE_OP=reduction_combine_op or _default_combine_op,
+            REDUCTION_POST_OP=reduction_post_op or _no_post_op,
             assume_in_bounds=True,
         )
 
