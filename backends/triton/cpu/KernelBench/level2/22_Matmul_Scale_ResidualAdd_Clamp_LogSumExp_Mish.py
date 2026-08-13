@@ -9,14 +9,12 @@ import triton.language as tl
 
 from triton_cpu_utils import mish
 from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _red(val, x, **kwargs):
-    x = tl.exp(x)
-    return val + tl.sum(x, axis=0)
+def _red_block(block, **kwargs):
+    return tl.sum(tl.exp(block), axis=1)
 
 
 @triton.jit
@@ -53,23 +51,15 @@ class Model(nn.Module):
             )
             self._bias = self.matmul.bias.data.to(dtype=x.dtype)
 
-        res_mm = sfc_matmul(
+        return sfc_matmul(
             x,
             self._weight_packed,
             self._bias,
             post_op=self._mm_epi_fun,
-            trunc_output=False,
+            reduce_last_dim=True,
+            reduction_block_op=_red_block,
+            reduction_post_op=_red_epi,
+            keep_dim=True,
             b_is_prepacked=True,
-            c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
-
-        res_red = reduce_last_dim(
-            res_mm,
-            out_dtype=x.dtype,
-            reduction=_red,
-            post_op=_red_epi,
-            keep_dim=True,
-        )
-
-        return res_red

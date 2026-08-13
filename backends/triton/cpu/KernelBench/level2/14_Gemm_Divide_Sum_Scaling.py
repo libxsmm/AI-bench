@@ -9,8 +9,13 @@ import triton
 import triton.language as tl
 
 from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
+
+
+@triton.jit
+def _gemm_epilogue(x):
+    x /= 2.0
+    return x
 
 
 class Model(nn.Module):
@@ -19,15 +24,6 @@ class Model(nn.Module):
         self.weight = nn.Parameter(torch.randn(hidden_size, input_size))
         self.scaling_factor = scaling_factor
 
-        @triton.jit
-        def _gemm_epilogue(x):
-            x /= 2.0
-            return x
-
-        @triton.jit
-        def _red(val, block, **kwargs):
-            return val + tl.sum(block, axis=0)
-
         sf_val = tl.constexpr(scaling_factor)
 
         @triton.jit
@@ -35,8 +31,6 @@ class Model(nn.Module):
             x *= sf_val
             return x
 
-        self._gemm_epilogue_fun = _gemm_epilogue
-        self._red_fun = _red
         self._red_epilogue_fun = _red_epilogue
         self._weight_packed = None
 
@@ -49,22 +43,13 @@ class Model(nn.Module):
                 BLOCK_SIZE_K=32,
             )
 
-        res_mm = sfc_matmul(
+        return sfc_matmul(
             x,
             self._weight_packed,
-            trunc_output=False,
-            post_op=self._gemm_epilogue_fun,
+            post_op=_gemm_epilogue,
+            reduce_last_dim=True,
+            reduction_post_op=self._red_epilogue_fun,
+            keep_dim=True,
             b_is_prepacked=True,
-            c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
-
-        res_red = reduce_last_dim(
-            res_mm,
-            out_dtype=x.dtype,
-            reduction=self._red_fun,
-            post_op=self._red_epilogue_fun,
-            keep_dim=True,
-        )
-
-        return res_red
