@@ -8,7 +8,7 @@ source ${SCRIPT_DIR}/common.sh
 
 # Deduce LLVM installation directory
 LLVMROOT=${HOME}/installs/llvm
-LLVM_VERSION=$(llvm_version)
+llvm_version
 LLVM_INSTALL_DIR=${LLVMROOT}/${LLVM_VERSION}
 LLVM_INSTALL_DIR=$(add_device_extensions ${LLVM_INSTALL_DIR} ${GPU})
 

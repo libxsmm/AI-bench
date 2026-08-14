@@ -41,21 +41,19 @@ echo_run() {
 
 # Get the LLVM version for this build
 llvm_version() {
-  # parse version SHA from pyproject.toml file, expected line format:
-  # "mlir-python-bindings==20251118+99630eb1b"
-  local PYPROJECT_FILE=$(git_root)/pyproject.toml
-  if [ ! -f "${PYPROJECT_FILE}" ]; then
-    echo "ERROR: cannot find ${PYPROJECT_FILE}!"
-    exit 1
-  fi
-  local PARSED_SHA=$(grep -oP 'mlir-python-bindings==\d+\+\K[a-f0-9]+' "${PYPROJECT_FILE}")
+  # Ensure 'uv' is available
+  pip install --upgrade --user uv >/dev/null 2>&1
+  AI_BENCH_UV=${HOME}/.local/bin/uv
+
+  # parse version SHA from uv dependencies, expected line format
+  # mlir-python-bindings vDATE+SHA like:
+  #   "mlir-python-bindings v20251118+99630eb1b"
+  local PARSED_SHA=$(${AI_BENCH_UV} tree 2>&1 | grep -oP 'mlir-python-bindings v\d+\+\K[a-f0-9]+')
   if [ ! "${PARSED_SHA}" ]; then
-    echo "ERROR: cannot parse LLVM version from ${PYPROJECT_FILE}!"
+    echo "ERROR: cannot parse LLVM version from uv tree!"
     exit 1
   fi
   LLVM_VERSION="${PARSED_SHA}"
-
-  echo "${LLVM_VERSION}"
 }
 
 # Add known device extension suffixes to a base string
