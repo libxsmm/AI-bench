@@ -9,13 +9,16 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 
 | | PyTorch | Triton | Helion | MLIR | Gluon | SYCL |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **CPU** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **XPU** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **CPU** | ✅ | ✅<sup>1</sup> | ❌ | ✅<sup>2</sup> | ❌ | ❌ |
+| **XPU** | ✅ | ✅ | ✅ | ✅<sup>2</sup>* | ✅ | ✅ |
 | **CUDA** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 
-_NOTE_: MLIR XPU requires **custom** LLVM build with Intel GPU support enabled.  
+<sup>1</sup> via [triton-lang/triton-cpu](https://github.com/triton-lang/triton-cpu)  
+<sup>2</sup> via [llvm/lighthouse](https://github.com/llvm/lighthouse)
+
+*_NOTE_: MLIR XPU requires **custom** LLVM build with Intel GPU support enabled.  
 Override `PYTHONPATH` to point to `mlir_core` packages and ensure LLVM libs can be found.  
 See Lighthouse [XeGPU example](https://github.com/llvm/lighthouse/blob/main/examples/xegpu/README.md) for more details.
 
