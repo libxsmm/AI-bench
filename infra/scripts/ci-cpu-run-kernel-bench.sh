@@ -109,9 +109,13 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TRITON}" ]]; then
   export LD_LIBRARY_PATH=${TRITON_PACKAGE_PATH}/_C:${LD_LIBRARY_PATH}
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
-  BENCH_FLAGS="${BENCH_FLAGS} --mlir --variant mlir-cpu-bench"
+  BENCH_FLAGS="${BENCH_FLAGS} --mlir"
   MLIR_PACKAGE_PATH=$(${AI_BENCH_UV} run python -c "import mlir; print(mlir.__path__[0])")
   export AIBENCH_MLIR_LIB_PATH=${MLIR_PACKAGE_PATH}/_mlir_libs/libmlir_c_runner_utils.so
+fi
+
+if [[ -n "${AIBENCH_VARIANT}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --variant ${AIBENCH_VARIANT}"
 fi
 
 ${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}

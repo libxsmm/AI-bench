@@ -104,6 +104,10 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_HELION}" ]]; then
   export HELION_AUTOTUNE_LOG_LEVEL=0
 fi
 
+if [[ -n "${AIBENCH_VARIANT}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --variant ${AIBENCH_VARIANT}"
+fi
+
 ${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}
 EXIT_CODE=$?
 

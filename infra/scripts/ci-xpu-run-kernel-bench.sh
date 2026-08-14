@@ -108,7 +108,11 @@ fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
   GPU=intel source ${SCRIPTS_DIR}/../ci-llvm/setup_llvm_env.sh
   echo "LLVM: ${LLVM_INSTALL_DIR}"
-  BENCH_FLAGS="${BENCH_FLAGS} --mlir --variant mlir-gpu-bench"
+  BENCH_FLAGS="${BENCH_FLAGS} --mlir"
+fi
+
+if [[ -n "${AIBENCH_VARIANT}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --variant ${AIBENCH_VARIANT}"
 fi
 
 ${AI_BENCH_UV} run ai-bench ${BENCH_FLAGS}
