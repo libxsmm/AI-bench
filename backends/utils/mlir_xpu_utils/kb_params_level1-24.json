@@ -1,0 +1,9 @@
+[
+    {
+        "layer_kind": "reduction",
+        "wg_rows": 64,
+        "sg_rows": 8,
+        "subgroup_size": 16,
+        "reduction_step_size": 32
+    }
+]

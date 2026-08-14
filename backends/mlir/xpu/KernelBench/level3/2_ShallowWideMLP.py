@@ -2,7 +2,8 @@ import torch.nn as nn
 
 
 class Model(nn.Module):
-    mlir_pipeline = "matmul"
+    mlir_pipeline = "mlp"
+    pipeline_parameters = "kb_params_level3-2.json"
 
     def __init__(self, input_size, hidden_layer_sizes, output_size):
         """

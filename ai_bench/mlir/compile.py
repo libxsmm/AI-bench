@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Sequence
 import os
-from pathlib import Path
 import warnings
 
 import lighthouse.ingress.torch.compile as lh_compile
@@ -21,30 +20,6 @@ def _get_xpu_shared_ir_context() -> ir.Context:
     if _XPU_SHARED_IR_CONTEXT is None:
         _XPU_SHARED_IR_CONTEXT = ir.Context()
     return _XPU_SHARED_IR_CONTEXT
-
-
-# TODO: Add proper discovery to 'finder' module if params need to be kept locally.
-def _xpu_matmul_params_file() -> str:
-    """Return the local XeGPU matmul parameter database path."""
-    return str(
-        Path(__file__).resolve().parents[2]
-        / "backends"
-        / "utils"
-        / "mlir_xpu_utils"
-        / "matmul_params.json"
-    )
-
-
-# TODO: Fix configuration in Lighthouse.
-def _override_lighthouse_xpu_param_db(logger) -> None:
-    """Point Lighthouse XeGPU parameter selector to AI-bench's local JSON DB."""
-    from lighthouse.schedule.xegpu import xegpu_parameter_selector
-
-    json_file = _xpu_matmul_params_file()
-    if not Path(json_file).exists():
-        raise FileNotFoundError(f"Missing XPU matmul params file: {json_file}")
-    xegpu_parameter_selector.DEFAULT_JSON_FILE = json_file
-    logger.info(f"  MLIR XPU - Using matmul params: {json_file}")
 
 
 class CPUBackend(lh_compile.MLIRBackend):
@@ -155,9 +130,7 @@ class GPUBackend(CPUBackend):
         **kwargs,
     ):
         assert device.type in ("cuda", "rocm", "xpu"), "Expected a GPU device"
-        logger = setup_logger()
         if device.type == "xpu":
-            _override_lighthouse_xpu_param_db(logger)
             shared_libs = list(shared_libs)
             shared_libs.append("libmlir_levelzero_runtime.so")
             if ir_context is None:

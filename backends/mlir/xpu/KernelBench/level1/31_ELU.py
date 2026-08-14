@@ -9,7 +9,8 @@ class Model(nn.Module):
     """
 
     # Currently, there is no dedicated XPU eltwise pipeline.
-    mlir_pipeline = None
+    mlir_pipeline = "elemwise"
+    pipeline_parameters = "kb_params_level1-31.json"
 
     def __init__(self, alpha: float = 1.0):
         """

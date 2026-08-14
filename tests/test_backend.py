@@ -1016,7 +1016,7 @@ class Model(torch.nn.Module):
         fake_mlir.get_cpu_compile_fn.assert_not_called()
         fake_mlir.cpu_backend.assert_not_called()
         fake_mlir.get_xpu_compile_fn.assert_called_once_with(
-            pipeline="matmul", dtype="bfloat16"
+            pipeline="matmul", pipeline_parameters=None, dtype="bfloat16"
         )
         fake_mlir.gpu_backend.assert_called_once_with(
             "xpu-compile-fn", device=torch.device("xpu")

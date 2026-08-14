@@ -1,0 +1,11 @@
+[
+    {
+        "layer_kind": "elemwise",
+        "wg_m": 128,
+        "wg_n": 256,
+        "sg_m": 32,
+        "sg_n": 32,
+        "load_m": 8,
+        "load_n": 16
+    }
+]

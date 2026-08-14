@@ -18,3 +18,11 @@ simple-cpu:
     dims:
       BATCH_SIZE: 128
       DIM: 512
+
+mlir-gpu-bench:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 32768
+      DIM: 65536  # original 65535 shape cannot be tiled evenly
+    mem_bytes: "(2*BATCH_SIZE*DIM) * 4" # f32

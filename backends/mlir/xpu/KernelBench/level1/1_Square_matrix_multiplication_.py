@@ -7,7 +7,8 @@ class Model(nn.Module):
     Simple model that performs a single square matrix multiplication (C = A * B)
     """
 
-    mlir_pipeline = "matmul"
+    mlir_pipeline = "mlp"
+    pipeline_parameters = "kb_params_level1-1.json"
 
     def __init__(self):
         super(Model, self).__init__()

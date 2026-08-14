@@ -7,7 +7,8 @@ class Model(nn.Module):
     Model that performs a matrix multiplication, subtraction, multiplication, and ReLU activation.
     """
 
-    mlir_pipeline = "matmul"
+    mlir_pipeline = "mlp"
+    pipeline_parameters = "kb_params_level2-9.json"
 
     def __init__(self, in_features, out_features, subtract_value, multiply_value):
         super(Model, self).__init__()
