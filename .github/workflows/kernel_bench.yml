@@ -10,6 +10,14 @@ on:
         options:
           - bench
           - ci
+      AIBENCH_WARMUP:
+        description: "Warmup iterations"
+        type: number
+        default: 10
+      AIBENCH_REP:
+        description: "Timed iterations"
+        type: number
+        default: 50
       DEVICE_CPU:
         description: "Device: CPU"
         type: boolean
@@ -18,6 +26,13 @@ on:
         description: "Device: Intel GPU"
         type: boolean
         default: true
+      XPU_NODE:
+        description: "XPU node partition"
+        type: choice
+        default: 'b50'
+        options:
+          - b50
+          - b70
       DEVICE_CUDA:
         description: "Device: Nvidia GPU"
         type: boolean
@@ -58,7 +73,7 @@ jobs:
 
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
-            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   CPU-PyTorch-Compile:
     runs-on: pcl-tiergarten
@@ -72,7 +87,7 @@ jobs:
         env:
           TORCHINDUCTOR_MAX_AUTOTUNE: 1
         run: "${{ env.SRUN }} --partition=emr --time=0:30:00 --constraint=\"notrb\" -- \
-            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
 
   CPU-Triton:
     runs-on: pcl-tiergarten
@@ -84,7 +99,7 @@ jobs:
 
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:30:00 --constraint=\"notrb\" -- \
-            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   CPU-MLIR:
     runs-on: pcl-tiergarten
@@ -96,7 +111,7 @@ jobs:
 
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:15:00 --constraint=\"notrb\" -- \
-            '${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b mlir'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b mlir'"
 
   XPU-PyTorch:
     runs-on: pcl-tiergarten
@@ -106,9 +121,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc Pro B50
-        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
+      - name: Intel Arc Pro (selected)
+        run: "${{ env.SRUN }} --partition=${{ inputs.XPU_NODE }} --time=0:30:00 -- \
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   XPU-PyTorch-Compile:
     runs-on: pcl-tiergarten
@@ -118,9 +133,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc Pro B50
-        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
+      - name: Intel Arc Pro (selected)
+        run: "${{ env.SRUN }} --partition=${{ inputs.XPU_NODE }} --time=0:30:00 -- \
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch-compile'"
 
   XPU-Triton:
     runs-on: pcl-tiergarten
@@ -130,9 +145,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc Pro B50
-        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
+      - name: Intel Arc Pro (selected)
+        run: "${{ env.SRUN }} --partition=${{ inputs.XPU_NODE }} --time=0:30:00 -- \
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   XPU-Helion:
     runs-on: pcl-tiergarten
@@ -142,9 +157,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc Pro B50
-        run: "${{ env.SRUN }} --partition=b50 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
+      - name: Intel Arc Pro (selected)
+        run: "${{ env.SRUN }} --partition=${{ inputs.XPU_NODE }} --time=0:30:00 -- \
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
 
   XPU-Check-LLVM:
     if: |
@@ -161,9 +176,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Intel Arc Pro B50
-        run: "${{ env.SRUN }} --partition=b50 --time=0:30:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b mlir'"
+      - name: Intel Arc Pro (selected)
+        run: "${{ env.SRUN }} --partition=${{ inputs.XPU_NODE }} --time=0:30:00 -- \
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-xpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b mlir'"
 
   CUDA-PyTorch:
     runs-on: pcl-tiergarten
@@ -175,7 +190,7 @@ jobs:
 
       - name: Nvidia H100
         run: "${{ env.SRUN }} --partition=h100 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b torch'"
 
   CUDA-Triton:
     runs-on: pcl-tiergarten
@@ -187,7 +202,7 @@ jobs:
 
       - name: Nvidia H100
         run: "${{ env.SRUN }} --partition=h100 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
 
   CUDA-Helion:
     runs-on: pcl-tiergarten
@@ -199,4 +214,4 @@ jobs:
 
       - name: Nvidia H100
         run: "${{ env.SRUN }} --partition=h100 --time=0:15:00 -- \
-            '${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} ${{ github.workspace }}/infra/scripts/ci-cuda-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b helion'"
