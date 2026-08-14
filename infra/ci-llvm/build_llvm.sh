@@ -14,7 +14,7 @@ mkdir -p ${LLVMROOT}
 
 # LLVM setup
 echo "--- LLVM"
-LLVM_VERSION=$(llvm_version)
+llvm_version
 
 echo "LLVM version: ${LLVM_VERSION}"
 

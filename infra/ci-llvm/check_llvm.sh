@@ -13,7 +13,8 @@ LLVMROOT=${HOME}/installs/llvm
 mkdir -p ${LLVMROOT}
 
 # Find LLVM_VERSION
-LLVM_VERSION=$(llvm_version)
+llvm_version
+echo "LLVM_VERSION: ${LLVM_VERSION}"
 LLVM_INSTALL_DIR=${LLVMROOT}/${LLVM_VERSION}
 LLVM_INSTALL_DIR=$(add_device_extensions ${LLVM_INSTALL_DIR} ${GPU})
 
