@@ -190,6 +190,7 @@ class KernelRunner:
 
         print_fn(f"Backend: {self.backend}, Device: {self.device}")
         print_fn(f"Problem spec: {self.spec_type}")
+        print_fn(f"Warmups: {self.warmup} Reps: {self.rep}")
         self.print_info_legend(print_fn)
         print_fn("-" * 60)
 
