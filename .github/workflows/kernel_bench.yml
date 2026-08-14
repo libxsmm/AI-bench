@@ -19,7 +19,7 @@ on:
         type: number
         default: 50
       AIBENCH_VARIANT:
-        description: "Problem variant (optional)"
+        description: "Problem spec variant (optional)"
         type: string
         default: ''
       DEVICE_CPU:
