@@ -115,9 +115,6 @@ conflicts = [
     { extra = "triton-cpu" },
   ],
 ]
-override-dependencies = [
-  "mlir-python-bindings==20260728+5e91f5d57",
-]
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
