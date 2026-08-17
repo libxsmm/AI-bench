@@ -537,6 +537,10 @@ def sfc_matmul(
         )
 
     if reduce_last_dim:
+        if M % 256 == 0:
+            # Go a bit wider
+            BLOCK_SIZE_M = 256
+            BLOCKS_M = M // BLOCK_SIZE_M
         _finish_reduction_kernel[(BLOCKS_M,)](
             cred,
             c,
