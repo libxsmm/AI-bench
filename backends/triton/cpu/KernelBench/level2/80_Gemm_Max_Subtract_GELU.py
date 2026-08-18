@@ -11,8 +11,12 @@ import triton.language as tl
 from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import reduce_first_dim
-from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
+
+
+@triton.jit
+def _max_init_val(dtype, BLOCK_SIZE_N, **kwargs):
+    return tl.full([BLOCK_SIZE_N], float("-inf"), dtype=dtype)
 
 
 @triton.jit
@@ -49,14 +53,9 @@ def _kernel_first_dim(inp_ptr, out_ptr, N, BLOCK_SIZE_N: tl.constexpr):
 
 
 @triton.jit
-def _max_last_dim(val, x, **kwargs):
-    return tl.maximum(val, tl.max(x))
-
-
-@triton.jit
 def _max_epi_last_dim(val, **kwargs):
     # mean of a single element -> the max_dim=1 benchmark config is a degenerate case that just returns zeros.
-    return gelu(val - val)
+    return val * 0.0
 
 
 class Model(nn.Module):
@@ -78,21 +77,22 @@ class Model(nn.Module):
             )
             self._bias = self.linear.bias.data.to(dtype=x.dtype)
 
-        res_mm = sfc_matmul(
-            x,
-            self._weight_packed,
-            bias=self._bias,
-            trunc_output=False,
-            b_is_prepacked=True,
-            c_is_owned=True,
-            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
-        )
-
         if self.max_dim == 0:
+            res_mm = sfc_matmul(
+                x,
+                self._weight_packed,
+                bias=self._bias,
+                trunc_output=False,
+                b_is_prepacked=True,
+                c_is_owned=True,
+                blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
+            )
+
             res_max = reduce_first_dim(
                 res_mm,
                 out_dtype=res_mm.dtype,  # keep it in f32
-                reduction=_max_first_dim,
+                init_val=_max_init_val,
+                reduction_op=_max_first_dim,
                 keep_dim=True,
             )
             M, N = res_max.shape
@@ -111,12 +111,13 @@ class Model(nn.Module):
             return out
 
         assert self.max_dim == 1, "max_dim must be either 0 or 1"
-        res_max = reduce_last_dim(
-            res_mm,
-            out_dtype=x.dtype,
-            reduction=_max_last_dim,
-            post_op=_max_epi_last_dim,
+        return sfc_matmul(
+            x,
+            self._weight_packed,
+            bias=self._bias,
+            reduce_last_dim=True,
+            reduction_post_op=_max_epi_last_dim,
             keep_dim=True,
+            b_is_prepacked=True,
+            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
-
-        return res_max

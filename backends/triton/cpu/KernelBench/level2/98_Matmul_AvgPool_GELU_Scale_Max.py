@@ -9,8 +9,17 @@ import triton.language as tl
 
 from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
+
+
+@triton.jit
+def _red_init(dtype, BLOCK_SIZE_M, **kwargs):
+    return tl.full([BLOCK_SIZE_M], float("-inf"), dtype=dtype)
+
+
+@triton.jit
+def _red_combine(a, b, **kwargs):
+    return tl.maximum(a, b)
 
 
 class Model(nn.Module):
@@ -24,15 +33,15 @@ class Model(nn.Module):
         sf_val = tl.constexpr(scale_factor)
 
         @triton.jit
-        def _red(val, x, BLOCK_SIZE_N, **kwargs):
-            x = x.reshape([BLOCK_SIZE_N // kern_sz, kern_sz])
-            xmean = tl.sum(x, axis=1) / kern_sz
+        def _red_block(block, BLOCK_SIZE_M, BLOCK_SIZE_N, **kwargs):
+            block = block.reshape([BLOCK_SIZE_M, BLOCK_SIZE_N // kern_sz, kern_sz])
+            xmean = tl.sum(block, axis=2) / kern_sz
             xmean = gelu(xmean) * sf_val
-            return tl.maximum(val, tl.max(xmean))
+            return tl.max(xmean, axis=1)
 
         self._weight_packed = None
         self._bias = None
-        self._red_fun = _red
+        self._red_block_fun = _red_block
 
     def forward(self, x):
         if self._weight_packed is None:
@@ -44,18 +53,14 @@ class Model(nn.Module):
             )
             self._bias = self.matmul.bias.data.to(dtype=x.dtype)
 
-        res_mm = sfc_matmul(
+        return sfc_matmul(
             x,
             self._weight_packed,
             bias=self._bias,
+            reduce_last_dim=True,
+            reduction_init_val=_red_init,
+            reduction_block_op=self._red_block_fun,
+            reduction_combine_op=_red_combine,
             b_is_prepacked=True,
-            trunc_output=False,
-            c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
-        )
-
-        return reduce_last_dim(
-            res_mm,
-            out_dtype=x.dtype,
-            reduction=self._red_fun,
         )

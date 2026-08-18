@@ -9,7 +9,6 @@ import triton
 
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils import sfc_matmul
-from triton_cpu_utils import softmax
 
 
 @triton.jit
@@ -45,15 +44,12 @@ class Model(nn.Module):
             assert self.bn.affine, "BatchNorm must have affine=True"
 
         # eval()-mode BatchNorm1d and scaling with 1.0 merged into epilogue, see above.
-        res_mm = sfc_matmul(
+        return sfc_matmul(
             x,
             self._weight_packed,
             bias=self._bias,
-            b_is_prepacked=True,
             post_op=_epilogue,
-            trunc_output=False,
-            c_is_owned=True,
+            softmax_last_dim=True,
+            b_is_prepacked=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
-
-        return softmax(res_mm, out_dtype=x.dtype)

@@ -8,7 +8,6 @@ import triton
 import triton.language as tl
 
 from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
 
@@ -22,10 +21,10 @@ class Model(nn.Module):
         sf_val = tl.constexpr(scale_factor)
 
         @triton.jit
-        def _red(val, x, BLOCK_SIZE_N, **kwargs):
-            x = x.reshape([BLOCK_SIZE_N // kern_sz, kern_sz])
-            xm = tl.max(x, axis=1)
-            return val + tl.sum(xm, axis=0)
+        def _red_block(block, BLOCK_SIZE_M, BLOCK_SIZE_N, **kwargs):
+            block = block.reshape([BLOCK_SIZE_M, BLOCK_SIZE_N // kern_sz, kern_sz])
+            xm = tl.max(block, axis=2)
+            return tl.sum(xm, axis=1)
 
         @triton.jit
         def _red_epi(val, **kwargs):
@@ -34,7 +33,7 @@ class Model(nn.Module):
 
         self._weight_packed = None
         self._bias = None
-        self._red_fun = _red
+        self._red_block_fun = _red_block
         self._red_epi_fun = _red_epi
 
     def forward(self, x):
@@ -47,19 +46,13 @@ class Model(nn.Module):
             )
             self._bias = self.matmul.bias.data.to(dtype=x.dtype)
 
-        res_mm = sfc_matmul(
+        return sfc_matmul(
             x,
             self._weight_packed,
             bias=self._bias,
+            reduce_last_dim=True,
+            reduction_block_op=self._red_block_fun,
+            reduction_post_op=self._red_epi_fun,
             b_is_prepacked=True,
-            trunc_output=False,
-            c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
-        )
-
-        return reduce_last_dim(
-            res_mm,
-            out_dtype=x.dtype,
-            reduction=self._red_fun,
-            post_op=self._red_epi_fun,
         )

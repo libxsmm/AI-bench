@@ -10,7 +10,6 @@ import triton.language as tl
 
 from triton_cpu_utils import gelu
 from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import reduce_last_dim
 from triton_cpu_utils import sfc_matmul
 
 
@@ -24,11 +23,6 @@ def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
     )
     neg_bias = desc.load([block_n * BLOCK_SIZE_N]).to(x.dtype)
     return x - neg_bias[None, :]
-
-
-@triton.jit
-def _red(val, x, **kwargs):
-    return val + tl.sum(x, axis=0)
 
 
 @triton.jit
@@ -86,20 +80,15 @@ class Model(nn.Module):
             x,
             self._weight_packed,
             bias=self._bias,
-            b_is_prepacked=True,
             post_op=_epilogue,
             post_op_arg=self._neg_bias,
+            reduce_last_dim=True,
+            reduction_post_op=_red_epi,
+            keep_dim=True,
             trunc_output=False,
+            b_is_prepacked=True,
             c_is_owned=True,
             blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
-        )
-
-        res_mean = reduce_last_dim(
-            res_mm,
-            out_dtype=res_mm.dtype,
-            reduction=_red,
-            post_op=_red_epi,
-            keep_dim=True,
         )
 
         # The logsumexp after the first reduction is a no-op, so we fuse the gelu right away.
@@ -108,7 +97,7 @@ class Model(nn.Module):
         BLOCK_SIZE_K = 256
         assert x.shape[1] % BLOCK_SIZE_K == 0, "K must be divisible by BLOCK_SIZE_K"
         _residual_add[(x.shape[0],)](
-            col_vec_ptr=res_mean,
+            col_vec_ptr=res_mm,
             orig_mat_ptr=x,
             out_mat_ptr=res,
             M=x.shape[0],

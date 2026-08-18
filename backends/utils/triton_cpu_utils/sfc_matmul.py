@@ -124,6 +124,7 @@ def _sfc_matmul_kernel(
     b_ptr,
     c_ptr,
     ctmp_ptr,
+    cred_ptr,
     bias_ptr,
     post_op_arg_ptr,
     sfc_map_ptr,
@@ -142,6 +143,9 @@ def _sfc_matmul_kernel(
     HAS_BIAS: tl.constexpr,
     POST_OP: tl.constexpr,
     POST_OP_HAS_ARG: tl.constexpr,
+    REDUCE_LAST_DIM: tl.constexpr,
+    REDUCTION_BLOCK_OP: tl.constexpr,
+    SOFTMAX_LAST_DIM: tl.constexpr,
 ):
     VNNI: tl.constexpr = 32 // b_ptr.type.element_ty.primitive_bitwidth
 
@@ -169,12 +173,12 @@ def _sfc_matmul_kernel(
         block_shape=(1, 1, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
     )
 
-    if BLOCKING_FACTOR_K > 1:
+    if BLOCKING_FACTOR_K > 1 or SOFTMAX_LAST_DIM:
         ctmp_desc = tl.make_tensor_descriptor(
             base=ctmp_ptr,
-            shape=(BLOCKS_M * BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
-            strides=(BLOCK_SIZE_M * BLOCK_SIZE_N, BLOCK_SIZE_N, 1),
-            block_shape=(1, BLOCK_SIZE_M, BLOCK_SIZE_N),
+            shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
+            strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_M * BLOCK_SIZE_N, BLOCK_SIZE_N, 1),
+            block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
         )
 
     c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
@@ -191,10 +195,14 @@ def _sfc_matmul_kernel(
         c = tl.dot(a, b, acc=c, out_dtype=ACCUM_DTYPE)
 
     if not IS_FIRST_K_BLOCK:
-        c += ctmp_desc.load([pid, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
+        c += ctmp_desc.load([block_m, block_n, 0, 0]).reshape(
+            (BLOCK_SIZE_M, BLOCK_SIZE_N)
+        )
 
     if not IS_LAST_K_BLOCK:
-        ctmp_desc.store([pid, 0, 0], c.reshape((1, BLOCK_SIZE_M, BLOCK_SIZE_N)))
+        ctmp_desc.store(
+            [block_m, block_n, 0, 0], c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+        )
         return
 
     if HAS_BIAS:
@@ -221,6 +229,42 @@ def _sfc_matmul_kernel(
     else:
         c = POST_OP(c)
 
+    if REDUCE_LAST_DIM:
+        cred = REDUCTION_BLOCK_OP(
+            c, BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N
+        )
+        cred_desc = tl.make_tensor_descriptor(
+            base=cred_ptr,
+            shape=(BLOCKS_N, M),
+            strides=(M, 1),
+            block_shape=(1, BLOCK_SIZE_M),
+        )
+        # Transposed write to intermediate buffer for final reduction
+        cred = cred.reshape((1, BLOCK_SIZE_M))
+        cred_desc.store([block_n, block_m * BLOCK_SIZE_M], cred)
+        return
+
+    if SOFTMAX_LAST_DIM:
+        # Write the unnormalized GEMM result to the ctmp buffer
+        corig = c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+        ctmp_desc.store([block_m, block_n, 0, 0], corig)
+
+        cmax = tl.max(c, axis=1)
+        cexp = tl.exp(c - cmax[:, None])
+        cexpsum = tl.sum(cexp, axis=1)
+        cred = tl.interleave(cmax, cexpsum)
+        cred_desc = tl.make_tensor_descriptor(
+            base=cred_ptr,
+            shape=(BLOCKS_N, 2 * M),
+            strides=(2 * M, 1),
+            block_shape=(1, 2 * BLOCK_SIZE_M),
+        )
+        # Transposed write of block stats to intermediate buffer for final normalization
+        cred = cred.reshape((1, 2 * BLOCK_SIZE_M))
+        cred_desc.store([block_n, block_m * 2 * BLOCK_SIZE_M], cred)
+        return
+
+    # Normal writeback to output tensor
     c = c.to(OUT_DTYPE).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
 
     c_desc = tl.make_tensor_descriptor(
@@ -233,8 +277,119 @@ def _sfc_matmul_kernel(
 
 
 @triton.jit
+def _finish_reduction_kernel(
+    inp_ptr,
+    out_ptr,
+    M,
+    N,
+    BLOCK_SIZE_M: tl.constexpr,
+    BLOCK_SIZE_N: tl.constexpr,
+    REDUCTION_INIT_VAL: tl.constexpr,
+    REDUCTION_COMBINE_OP: tl.constexpr,
+    REDUCTION_POST_OP: tl.constexpr,
+):
+    BLOCKS_N = N // BLOCK_SIZE_N
+    inp_desc = tl.make_tensor_descriptor(
+        base=inp_ptr,
+        shape=(BLOCKS_N, M),
+        strides=(M, 1),
+        block_shape=(1, BLOCK_SIZE_M),
+    )
+    m = tl.program_id(0) * BLOCK_SIZE_M
+    column_vals = REDUCTION_INIT_VAL(inp_ptr.type.element_ty, BLOCK_SIZE_M=BLOCK_SIZE_M)
+    for block_n in range(BLOCKS_N):
+        block = inp_desc.load([block_n, m]).reshape((BLOCK_SIZE_M,))
+        column_vals = REDUCTION_COMBINE_OP(column_vals, block)
+
+    out_desc = tl.make_tensor_descriptor(
+        base=out_ptr,
+        shape=(M,),
+        strides=(1,),
+        block_shape=(BLOCK_SIZE_M,),
+    )
+    column_vals = REDUCTION_POST_OP(column_vals, M=M, N=N)
+    out_desc.store([m], column_vals.to(out_ptr.type.element_ty))
+
+
+@triton.jit
+def _finish_softmax_kernel(
+    ctmp_ptr,
+    stat_ptr,
+    c_ptr,
+    M,
+    N,
+    BLOCK_SIZE_M: tl.constexpr,
+    BLOCK_SIZE_N: tl.constexpr,
+):
+    BLOCKS_M = M // BLOCK_SIZE_M
+    BLOCKS_N = N // BLOCK_SIZE_N
+
+    block_m = tl.program_id(axis=0)
+
+    stat_desc = tl.make_tensor_descriptor(
+        base=stat_ptr,
+        shape=(BLOCKS_N, 2 * M),
+        strides=(2 * M, 1),
+        block_shape=(1, 2 * BLOCK_SIZE_M),
+    )
+
+    # Note: Intermediate buffer is transposed: [N_BLOCKS, 2 * M]
+    col_max = tl.full([BLOCK_SIZE_M], float("-inf"), dtype=ctmp_ptr.type.element_ty)
+    col_sum = tl.zeros([BLOCK_SIZE_M], dtype=ctmp_ptr.type.element_ty)
+    for block_n in range(BLOCKS_N):
+        block_stats = stat_desc.load([block_n, block_m * 2 * BLOCK_SIZE_M]).reshape(
+            (BLOCK_SIZE_M, 2)
+        )
+        block_max, block_sum = tl.split(block_stats)
+        new_max = tl.maximum(col_max, block_max)
+        col_sum = col_sum * tl.exp(col_max - new_max) + block_sum * tl.exp(
+            block_max - new_max
+        )
+        col_max = new_max
+
+    ctmp_desc = tl.make_tensor_descriptor(
+        base=ctmp_ptr,
+        shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
+        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_M * BLOCK_SIZE_N, BLOCK_SIZE_N, 1),
+        block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
+    )
+
+    c_desc = tl.make_tensor_descriptor(
+        base=c_ptr,
+        shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
+        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_N, N, 1),
+        block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
+    )
+
+    for block_n in range(BLOCKS_N):
+        c = ctmp_desc.load([block_m, block_n, 0, 0]).reshape(
+            (BLOCK_SIZE_M, BLOCK_SIZE_N)
+        )
+        csoft = tl.exp(c - col_max[:, None]) / col_sum[:, None]
+        csoft = csoft.to(c_ptr.type.element_ty).reshape(
+            (1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N)
+        )
+        c_desc.store([block_m, block_n, 0, 0], csoft)
+
+
+@triton.jit
 def _no_post_op(x, **kwargs):
     return x
+
+
+@triton.jit
+def _default_init_val(dtype, BLOCK_SIZE_M, **kwargs):
+    return tl.zeros((BLOCK_SIZE_M,), dtype=dtype)
+
+
+@triton.jit
+def _default_reduction_op(x, **kwargs):
+    return x.sum(axis=1)
+
+
+@triton.jit
+def _default_combine_op(a, b, **kwargs):
+    return a + b
 
 
 def pack_weights_for_sfc_matmul(
@@ -297,14 +452,36 @@ def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
 
 @thread_lru_cache()
 def _make_intermediate_buffers(
-    M, N, K, in_dtype, accum_dtype, out_dtype, b_is_prepacked, c_is_owned
+    M,
+    N,
+    K,
+    BLOCK_SIZE_N,
+    in_dtype,
+    accum_dtype,
+    out_dtype,
+    reduce_last_dim,
+    softmax_last_dim,
+    b_is_prepacked,
+    c_is_owned,
 ):
+    BLOCKS_N = N // BLOCK_SIZE_N
+    OUT_N = 1 if reduce_last_dim else N
+
     ap_size = M * K * in_dtype.itemsize
     bp_size = K * N * in_dtype.itemsize if not b_is_prepacked else 0
     ctmp_size = M * N * accum_dtype.itemsize
-    c_size = M * N * out_dtype.itemsize if c_is_owned else 0
+    cred_size = (
+        M * BLOCKS_N * accum_dtype.itemsize
+        if reduce_last_dim
+        else 2 * M * BLOCKS_N * accum_dtype.itemsize
+        if softmax_last_dim
+        else 0
+    )
+    c_size = M * OUT_N * out_dtype.itemsize if c_is_owned else 0
 
-    buf = torch.empty(ap_size + bp_size + ctmp_size + c_size, dtype=torch.uint8)
+    buf = torch.empty(
+        ap_size + bp_size + ctmp_size + cred_size + c_size, dtype=torch.uint8
+    )
     ap = buf[:ap_size].view(in_dtype).reshape((M, K))
     bp = (
         buf[ap_size : ap_size + bp_size].view(in_dtype).reshape((K, N))
@@ -316,12 +493,27 @@ def _make_intermediate_buffers(
         .view(accum_dtype)
         .reshape((M, N))
     )
+    cred = (
+        buf[ap_size + bp_size + ctmp_size : ap_size + bp_size + ctmp_size + cred_size]
+        .view(accum_dtype)
+        .reshape((BLOCKS_N, M))  # Transpose intentional
+        if reduce_last_dim
+        else buf[
+            ap_size + bp_size + ctmp_size : ap_size + bp_size + ctmp_size + cred_size
+        ]
+        .view(accum_dtype)
+        .reshape((BLOCKS_N, 2 * M))  # Transpose intentional
+        if softmax_last_dim
+        else None
+    )
     c = (
-        buf[ap_size + bp_size + ctmp_size :].view(out_dtype).reshape((M, N))
+        buf[ap_size + bp_size + ctmp_size + cred_size :]
+        .view(out_dtype)
+        .reshape((M, OUT_N))
         if c_is_owned
         else None
     )
-    return ap, bp, ctmp, c
+    return ap, bp, ctmp, cred, c
 
 
 def sfc_matmul(
@@ -330,6 +522,13 @@ def sfc_matmul(
     bias=None,
     post_op=None,
     post_op_arg=None,
+    reduce_last_dim=False,
+    reduction_init_val=None,
+    reduction_block_op=None,
+    reduction_combine_op=None,
+    reduction_post_op=None,
+    keep_dim=False,
+    softmax_last_dim=False,
     trunc_output=True,
     b_is_prepacked=False,
     c_is_owned=False,
@@ -341,6 +540,10 @@ def sfc_matmul(
     M, K = a.shape
     K2, N = b.shape
     assert K == K2, f"Incompatible K dimensions: {K} vs {K2}"
+
+    assert not (reduce_last_dim and softmax_last_dim), (
+        "Cannot reduce and softmax at the same time"
+    )
 
     # AMX
     BLOCK_SIZE_M = 32
@@ -365,13 +568,28 @@ def sfc_matmul(
     accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
 
-    ap, bp, ctmp, c = _make_intermediate_buffers(
-        M, N, K, a.dtype, accum_dtype, out_dtype, b_is_prepacked, c_is_owned
+    ap, bp, ctmp, cred, c = _make_intermediate_buffers(
+        M,
+        N,
+        K,
+        BLOCK_SIZE_N,
+        a.dtype,
+        accum_dtype,
+        out_dtype,
+        reduce_last_dim,
+        softmax_last_dim,
+        b_is_prepacked,
+        c_is_owned,
     )
     if b_is_prepacked:
         bp = b
     if not c_is_owned:
-        c = torch.empty((M, N), device=a.device, dtype=out_dtype)
+        if not reduce_last_dim:
+            c = torch.empty((M, N), device=a.device, dtype=out_dtype)
+        elif keep_dim:
+            c = torch.empty((M, 1), device=a.device, dtype=out_dtype)
+        else:
+            c = torch.empty((M,), device=a.device, dtype=out_dtype)
 
     num_blocks = max(
         BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
@@ -399,6 +617,7 @@ def sfc_matmul(
             bp,
             c,
             ctmp,
+            cred,
             bias,
             post_op_arg,
             sfc_map_mn,
@@ -415,8 +634,41 @@ def sfc_matmul(
             ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
             OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
             HAS_BIAS=bias is not None,
-            POST_OP=post_op if post_op is not None else _no_post_op,
+            POST_OP=post_op or _no_post_op,
             POST_OP_HAS_ARG=post_op_arg is not None,
+            REDUCE_LAST_DIM=reduce_last_dim,
+            REDUCTION_BLOCK_OP=reduction_block_op or _default_reduction_op,
+            SOFTMAX_LAST_DIM=softmax_last_dim,
+            assume_in_bounds=True,
+        )
+
+    if reduce_last_dim:
+        if M % 256 == 0:
+            # Go a bit wider
+            BLOCK_SIZE_M = 256
+            BLOCKS_M = M // BLOCK_SIZE_M
+        _finish_reduction_kernel[(BLOCKS_M,)](
+            cred,
+            c,
+            M,
+            N,
+            BLOCK_SIZE_M=BLOCK_SIZE_M,
+            BLOCK_SIZE_N=BLOCK_SIZE_N,
+            REDUCTION_INIT_VAL=reduction_init_val or _default_init_val,
+            REDUCTION_COMBINE_OP=reduction_combine_op or _default_combine_op,
+            REDUCTION_POST_OP=reduction_post_op or _no_post_op,
+            assume_in_bounds=True,
+        )
+
+    if softmax_last_dim:
+        _finish_softmax_kernel[(BLOCKS_M,)](
+            ctmp,
+            cred,
+            c,
+            M,
+            N,
+            BLOCK_SIZE_M=BLOCK_SIZE_M,
+            BLOCK_SIZE_N=BLOCK_SIZE_N,
             assume_in_bounds=True,
         )
 
