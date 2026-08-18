@@ -245,6 +245,10 @@ def _sfc_matmul_kernel(
         return
 
     if SOFTMAX_LAST_DIM:
+        # Write the unnormalized GEMM result to the ctmp buffer
+        corig = c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+        ctmp_desc.store([block_m, block_n, 0, 0], corig)
+
         cmax = tl.max(c, axis=1)
         cexp = tl.exp(c - cmax[:, None])
         cexpsum = tl.sum(cexp, axis=1)
@@ -255,13 +259,9 @@ def _sfc_matmul_kernel(
             strides=(2 * M, 1),
             block_shape=(1, 2 * BLOCK_SIZE_M),
         )
-        # Transposed write of block stats to intermediate buffer for final normalization.
+        # Transposed write of block stats to intermediate buffer for final normalization
         cred = cred.reshape((1, 2 * BLOCK_SIZE_M))
         cred_desc.store([block_n, block_m * 2 * BLOCK_SIZE_M], cred)
-
-        # Also write the unnormalized GEMM result to the ctmp buffer for final normalization.
-        c = c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
-        ctmp_desc.store([block_m, block_n, 0, 0], c)
         return
 
     # Normal writeback to output tensor
