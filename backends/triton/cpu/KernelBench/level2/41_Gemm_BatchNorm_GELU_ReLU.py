@@ -7,9 +7,8 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
+from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import gelu
-from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
@@ -28,26 +27,18 @@ class Model(nn.Module):
             out_features,
         )
 
-        self._weight_packed = None
-        self._bias = None
+        self._matmul_helper = None
 
     def forward(self, x):
-        if self._weight_packed is None:
-            # AMX-optimized block size
-            self._weight_packed = pack_weights_for_sfc_matmul(
+        if self._matmul_helper is None:
+            self._matmul_helper = SFCMatmulHelper(
                 self.gemm.weight.data.to(dtype=x.dtype),
-                BLOCK_SIZE_N=32,
-                BLOCK_SIZE_K=32,
+                self.gemm.bias.data.to(dtype=x.dtype),
             )
-            self._bias = self.gemm.bias.data.to(dtype=x.dtype)
             assert self.bn.affine, "BatchNorm must have affine=True"
 
         # eval()-mode BatchNorm1d merged into epilogue, see above.
-        return sfc_matmul(
+        return self._matmul_helper(
             x,
-            self._weight_packed,
-            bias=self._bias,
             post_op=_epilogue,
-            b_is_prepacked=True,
-            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
