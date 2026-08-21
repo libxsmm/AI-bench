@@ -545,6 +545,9 @@ def sfc_matmul(
     b_is_prepacked=False,
     c_is_owned=False,
     blocking_factor_k=1,
+    BLOCK_SIZE_M=32,
+    BLOCK_SIZE_N=32,
+    BLOCK_SIZE_K=32,
 ) -> torch.Tensor:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
@@ -556,11 +559,6 @@ def sfc_matmul(
     assert not (reduce_last_dim and softmax_last_dim), (
         "Cannot reduce and softmax at the same time"
     )
-
-    # AMX
-    BLOCK_SIZE_M = 32
-    BLOCK_SIZE_N = 32
-    BLOCK_SIZE_K = 32
 
     # TODO: Currently masked load is not supported yet.
     assert (
@@ -686,3 +684,74 @@ def sfc_matmul(
         )
 
     return c
+
+
+class SFCMatmulHelper:
+    def __init__(self, weights: torch.Tensor, bias: torch.Tensor = None):
+        self.BLOCK_SIZE_M, self.BLOCK_SIZE_N, self.BLOCK_SIZE_K = self.get_block_sizes(
+            weights.dtype
+        )
+        self.weights = pack_weights_for_sfc_matmul(
+            weights, self.BLOCK_SIZE_N, self.BLOCK_SIZE_K
+        )
+        self.bias = bias
+
+    @staticmethod
+    def get_block_sizes(dtype: torch.dtype):
+        caps = torch.cpu.get_capabilities()
+        if dtype == torch.bfloat16:
+            if caps["amx_bf16"]:
+                return 32, 32, 32
+            if caps["avx512_bf16"]:
+                return 4, 64, 2
+            if caps["avx_ne_convert"]:
+                return 2, 32, 2
+        elif dtype == torch.int8:
+            if caps["amx_int8"]:
+                return 32, 32, 64
+            if caps["avx_vnni_int8"]:
+                return 2, 32, 4
+        elif dtype == torch.float32:
+            if caps["avx512_f"]:
+                return 16, 16, 1
+            if caps["avx2"]:
+                return 8, 8, 1
+
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    def __call__(
+        self,
+        a: torch.Tensor,
+        post_op=None,
+        post_op_arg=None,
+        reduce_last_dim=False,
+        reduction_init_val=None,
+        reduction_block_op=None,
+        reduction_combine_op=None,
+        reduction_post_op=None,
+        keep_dim=False,
+        softmax_last_dim=False,
+        trunc_output=True,
+        c_is_owned=False,
+    ) -> torch.Tensor:
+        return sfc_matmul(
+            a=a,
+            b=self.weights,
+            bias=self.bias,
+            post_op=post_op,
+            post_op_arg=post_op_arg,
+            reduce_last_dim=reduce_last_dim,
+            reduction_init_val=reduction_init_val,
+            reduction_block_op=reduction_block_op,
+            reduction_combine_op=reduction_combine_op,
+            reduction_post_op=reduction_post_op,
+            keep_dim=keep_dim,
+            softmax_last_dim=softmax_last_dim,
+            trunc_output=trunc_output,
+            b_is_prepacked=True,
+            c_is_owned=c_is_owned,
+            blocking_factor_k=triton.next_power_of_2(max(1, a.shape[1] // 4096)),
+            BLOCK_SIZE_M=self.BLOCK_SIZE_M,
+            BLOCK_SIZE_N=self.BLOCK_SIZE_N,
+            BLOCK_SIZE_K=self.BLOCK_SIZE_K,
+        )
