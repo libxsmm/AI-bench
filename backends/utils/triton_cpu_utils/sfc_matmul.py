@@ -703,14 +703,14 @@ class SFCMatmulHelper:
             if caps["amx_bf16"]:
                 return 32, 32, 32
             if caps["avx512_bf16"]:
-                return 4, 64, 2
+                return 32, 64, 2
             if caps["avx_ne_convert"]:
-                return 2, 32, 2
+                return 32, 32, 2
         elif dtype == torch.int8:
             if caps["amx_int8"]:
                 return 32, 32, 64
             if caps["avx_vnni_int8"]:
-                return 2, 32, 4
+                return 32, 32, 4
         elif dtype == torch.float32:
             if caps["avx512_f"]:
                 return 16, 16, 1
