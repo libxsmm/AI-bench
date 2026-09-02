@@ -13,12 +13,12 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _red_init(dtype, BLOCK_SIZE_M, **kwargs):
+def _red_init(dtype, BLOCK_SIZE_M):
     return tl.full([BLOCK_SIZE_M], float("-inf"), dtype=dtype)
 
 
 @triton.jit
-def _red_combine(a, b, **kwargs):
+def _red_combine(a, b):
     return tl.maximum(a, b)
 
 
@@ -33,7 +33,7 @@ class Model(nn.Module):
         sf_val = tl.constexpr(scale_factor)
 
         @triton.jit
-        def _red_block(block, BLOCK_SIZE_M, BLOCK_SIZE_N, **kwargs):
+        def _red_block(block, BLOCK_SIZE_M, BLOCK_SIZE_N):
             block = block.reshape([BLOCK_SIZE_M, BLOCK_SIZE_N // kern_sz, kern_sz])
             xmean = tl.sum(block, axis=2) / kern_sz
             xmean = gelu(xmean) * sf_val

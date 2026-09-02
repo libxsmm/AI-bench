@@ -30,7 +30,9 @@ class Model(nn.Module):
         div_val = tl.constexpr(divide_value)
 
         @triton.jit
-        def _epilogue(x, post_op_arg_ptr, **kwargs):
+        def _epilogue(
+            x, block_m, block_n, post_op_arg_ptr, M, N, BLOCK_SIZE_M, BLOCK_SIZE_N
+        ):
             bias_val = tl.load(post_op_arg_ptr).to(x.dtype)
             x += bias_val
             # After the bias addition, the next op is an untrained BatchNorm1d in eval mode, with affine=True and eps=1e-5, which simplifies to multiplication with 1/sqrt(1 + eps).

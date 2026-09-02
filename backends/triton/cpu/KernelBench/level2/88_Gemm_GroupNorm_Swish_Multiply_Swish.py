@@ -14,7 +14,7 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _norm_epilogue(x, g, c, post_op_arg_ptr, C, group_size, BLOCK_SIZE_C, **kwargs):
+def _norm_epilogue(x, n, g, c, post_op_arg_ptr, N, C, group_size, BLOCK_SIZE_C):
     desc = tl.make_tensor_descriptor(
         post_op_arg_ptr,
         shape=[C],

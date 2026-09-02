@@ -15,12 +15,12 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _min_init_val(dtype, **kwargs):
+def _min_init_val(dtype):
     return tl.full([], float("inf"), dtype=dtype)
 
 
 @triton.jit
-def _min_red(val, x, **kwargs):
+def _min_red(val, x, BLOCK_SIZE_N):
     return tl.minimum(val, tl.min(x))
 
 
