@@ -13,12 +13,12 @@ from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
-def _red_block(block, **kwargs):
+def _red_block(block, BLOCK_SIZE_M, BLOCK_SIZE_N):
     return tl.sum(tl.exp(block), axis=1)
 
 
 @triton.jit
-def _red_epi(val, **kwargs):
+def _red_epi(val, M, N):
     NEG_SLOPE: tl.constexpr = 0.01
     val = tl.log(val)  # second part of logsumexp
     val = tl.where(val >= 0, val, val * NEG_SLOPE)  # leaky relu

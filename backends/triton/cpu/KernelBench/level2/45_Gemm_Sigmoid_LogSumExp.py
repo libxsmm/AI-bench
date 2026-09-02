@@ -17,12 +17,12 @@ def _mm1_epi(x):
 
 
 @triton.jit
-def _red_block(block, **kwargs):
+def _red_block(block, BLOCK_SIZE_M, BLOCK_SIZE_N):
     return tl.sum(tl.exp(block), axis=1)
 
 
 @triton.jit
-def _red_epi(val, **kwargs):
+def _red_epi(val, M, N):
     return tl.log(val)  # second part of logsumexp
 
 

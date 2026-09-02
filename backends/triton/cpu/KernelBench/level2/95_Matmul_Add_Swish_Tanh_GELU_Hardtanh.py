@@ -15,7 +15,7 @@ from triton_cpu_utils import tanh
 
 
 @triton.jit
-def _epilogue(x, block_n, post_op_arg_ptr, N, BLOCK_SIZE_N, **kwargs):
+def _epilogue(x, block_m, block_n, post_op_arg_ptr, M, N, BLOCK_SIZE_M, BLOCK_SIZE_N):
     desc = tl.make_tensor_descriptor(
         base=post_op_arg_ptr,
         shape=(N,),

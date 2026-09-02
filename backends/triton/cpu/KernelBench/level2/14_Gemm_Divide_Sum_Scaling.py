@@ -27,7 +27,7 @@ class Model(nn.Module):
         sf_val = tl.constexpr(scaling_factor)
 
         @triton.jit
-        def _red_epilogue(x, **kwargs):
+        def _red_epilogue(x, M, N):
             x *= sf_val
             return x
 
