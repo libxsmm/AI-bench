@@ -785,7 +785,9 @@ class SFCMatmulHelper:
             pack_a="amx" in self.target,
             b_is_prepacked=True,
             c_is_owned=c_is_owned,
-            blocking_factor_k=triton.next_power_of_2(max(1, a.shape[1] // 4096)),
+            blocking_factor_k=triton.next_power_of_2(max(1, a.shape[1] // 4096))
+            if "amx" in self.target
+            else triton.next_power_of_2(max(1, a.shape[1] // 1024)),
             BLOCK_SIZE_M=self.BLOCK_SIZE_M,
             BLOCK_SIZE_N=self.BLOCK_SIZE_N,
             BLOCK_SIZE_K=self.BLOCK_SIZE_K,
