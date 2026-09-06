@@ -70,17 +70,22 @@ def _reduce_first_dim_kernel(
 
 
 @triton.jit
-def _no_post_op(x, **kwargs):
+def _no_post_op_last_dim(x, N):
     return x
 
 
 @triton.jit
-def _default_init_val_last_dim(dtype, **kwargs):
+def _default_init_val_last_dim(dtype):
     return tl.zeros([], dtype=dtype)
 
 
 @triton.jit
-def _default_init_val_first_dim(dtype, BLOCK_SIZE_N, **kwargs):
+def _no_post_op_first_dim(x, M):
+    return x
+
+
+@triton.jit
+def _default_init_val_first_dim(dtype, BLOCK_SIZE_N):
     return tl.zeros([BLOCK_SIZE_N], dtype=dtype)
 
 
@@ -101,7 +106,7 @@ def reduce_last_dim(
         BLOCK_SIZE_N=BLOCK_SIZE_N,
         INIT_VAL=init_val or _default_init_val_last_dim,
         REDUCTION_OP=reduction_op,
-        POST_OP=post_op or _no_post_op,
+        POST_OP=post_op or _no_post_op_last_dim,
         assume_in_bounds=True,
     )
     return out
@@ -124,7 +129,7 @@ def reduce_first_dim(
         BLOCK_SIZE_N=BLOCK_SIZE_N,
         INIT_VAL=init_val or _default_init_val_first_dim,
         REDUCTION_OP=reduction_op,
-        POST_OP=post_op or _no_post_op,
+        POST_OP=post_op or _no_post_op_first_dim,
         assume_in_bounds=True,
     )
     return out
@@ -256,6 +261,16 @@ def _affine_groupnorm_2d_kernel(
         )
 
 
+@triton.jit
+def _no_post_op_norm(y):
+    return y
+
+
+@triton.jit
+def _no_post_op_with_args(y, n, g, c, post_op_arg_ptr, N, C, group_size, BLOCK_SIZE_C):
+    return y
+
+
 def groupnorm(
     inp,
     out_dtype,
@@ -289,7 +304,8 @@ def groupnorm(
         num_groups,
         eps,
         BLOCK_SIZE_C=BLOCK_SIZE_C,
-        POST_OP=post_op or _no_post_op,
+        POST_OP=post_op
+        or (_no_post_op_norm if post_op_arg is None else _no_post_op_with_args),
         POST_OP_HAS_ARG=post_op_arg is not None,
         assume_in_bounds=True,
     )
