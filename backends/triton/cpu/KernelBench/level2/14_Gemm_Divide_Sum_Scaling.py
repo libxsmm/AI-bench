@@ -8,8 +8,7 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import sfc_matmul
+from triton_cpu_utils import SFCMatmulHelper
 
 
 @triton.jit
@@ -32,24 +31,18 @@ class Model(nn.Module):
             return x
 
         self._red_epilogue_fun = _red_epilogue
-        self._weight_packed = None
+        self._matmul_helper = None
 
     def forward(self, x):
-        if self._weight_packed is None:
-            # AMX-optimized block size
-            self._weight_packed = pack_weights_for_sfc_matmul(
+        if self._matmul_helper is None:
+            self._matmul_helper = SFCMatmulHelper(
                 self.weight.data.to(dtype=x.dtype),
-                BLOCK_SIZE_N=32,
-                BLOCK_SIZE_K=32,
             )
 
-        return sfc_matmul(
+        return self._matmul_helper(
             x,
-            self._weight_packed,
             post_op=_gemm_epilogue,
             reduce_last_dim=True,
             reduction_post_op=self._red_epilogue_fun,
             keep_dim=True,
-            b_is_prepacked=True,
-            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )

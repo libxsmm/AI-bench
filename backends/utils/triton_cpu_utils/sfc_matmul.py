@@ -31,7 +31,8 @@ def _block_pack_kernel(
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
-    B_IS_PREPACKED: tl.constexpr = False,
+    PACK_A: tl.constexpr,
+    PACK_B: tl.constexpr,
 ):
     VNNI: tl.constexpr = 32 // b_in_ptr.type.element_ty.primitive_bitwidth
 
@@ -42,70 +43,85 @@ def _block_pack_kernel(
     BLOCKS_K = K // BLOCK_SIZE_K
 
     # Block-pack A
-    if pid < BLOCKS_M * BLOCKS_K:
-        block_m = tl.load(a_sfc_map_ptr + 2 * pid)
-        block_k = tl.load(a_sfc_map_ptr + 2 * pid + 1)
+    if PACK_A:
+        if pid < BLOCKS_M * BLOCKS_K:
+            block_m = tl.load(a_sfc_map_ptr + 2 * pid)
+            block_k = tl.load(a_sfc_map_ptr + 2 * pid + 1)
 
-        a_in_desc = tl.make_tensor_descriptor(
-            base=a_in_ptr,
-            shape=(M, K),
-            strides=(K, 1),
-            block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
-        )
-        a_out_desc = tl.make_tensor_descriptor(
-            base=a_out_ptr,
-            shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
-            strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_M * BLOCK_SIZE_K, BLOCK_SIZE_K, 1),
-            block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
-        )
+            a_in_desc = tl.make_tensor_descriptor(
+                base=a_in_ptr,
+                shape=(M, K),
+                strides=(K, 1),
+                block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
+            )
+            a_out_desc = tl.make_tensor_descriptor(
+                base=a_out_ptr,
+                shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
+                strides=(
+                    BLOCK_SIZE_M * K,
+                    BLOCK_SIZE_M * BLOCK_SIZE_K,
+                    BLOCK_SIZE_K,
+                    1,
+                ),
+                block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
+            )
 
-        block = a_in_desc.load(
-            (block_m * BLOCK_SIZE_M, block_k * BLOCK_SIZE_K)
-        ).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K))
-        a_out_desc.store((block_m, block_k, 0, 0), block)
+            block = a_in_desc.load(
+                (block_m * BLOCK_SIZE_M, block_k * BLOCK_SIZE_K)
+            ).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K))
+            a_out_desc.store((block_m, block_k, 0, 0), block)
 
     # Block-and-VNNI-pack B
-    if B_IS_PREPACKED:
-        return
-    if pid < BLOCKS_K * BLOCKS_N:
-        block_k = tl.load(b_sfc_map_ptr + 2 * pid)
-        block_n = tl.load(b_sfc_map_ptr + 2 * pid + 1)
+    if PACK_B:
+        if pid < BLOCKS_K * BLOCKS_N:
+            block_k = tl.load(b_sfc_map_ptr + 2 * pid)
+            block_n = tl.load(b_sfc_map_ptr + 2 * pid + 1)
 
-        b_in_desc = tl.make_tensor_descriptor(
-            base=b_in_ptr, shape=(K, N), strides=(N, 1), block_shape=(1, BLOCK_SIZE_N)
-        )
-        b_out_desc = tl.make_tensor_descriptor(
-            base=b_out_ptr,
-            shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
-            strides=(
-                BLOCK_SIZE_N * K,
-                BLOCK_SIZE_K * BLOCK_SIZE_N,
-                BLOCK_SIZE_N * VNNI,
-                1,
-            ),
-            block_shape=(1, 1, 1, BLOCK_SIZE_N * VNNI),
-        )
-        for i in tl.range(0, BLOCK_SIZE_K // VNNI):
-            row1 = b_in_desc.load(
-                (block_k * BLOCK_SIZE_K + i * VNNI, block_n * BLOCK_SIZE_N)
-            ).reshape((BLOCK_SIZE_N,))
-            if VNNI > 1:
-                row2 = b_in_desc.load(
-                    (block_k * BLOCK_SIZE_K + i * VNNI + 1, block_n * BLOCK_SIZE_N)
-                ).reshape((BLOCK_SIZE_N,))
-                if VNNI > 2:
-                    row3 = b_in_desc.load(
-                        (block_k * BLOCK_SIZE_K + i * VNNI + 2, block_n * BLOCK_SIZE_N)
-                    ).reshape((BLOCK_SIZE_N,))
-                    row4 = b_in_desc.load(
-                        (block_k * BLOCK_SIZE_K + i * VNNI + 3, block_n * BLOCK_SIZE_N)
-                    ).reshape((BLOCK_SIZE_N,))
-                    row1 = tl.ravel(tl.join(row1, row3))
-                    row2 = tl.ravel(tl.join(row2, row4))
-                row1 = tl.ravel(tl.join(row1, row2))
-            b_out_desc.store(
-                (block_n, block_k, i, 0), row1.reshape((1, 1, 1, BLOCK_SIZE_N * VNNI))
+            b_in_desc = tl.make_tensor_descriptor(
+                base=b_in_ptr,
+                shape=(K, N),
+                strides=(N, 1),
+                block_shape=(1, BLOCK_SIZE_N),
             )
+            b_out_desc = tl.make_tensor_descriptor(
+                base=b_out_ptr,
+                shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
+                strides=(
+                    BLOCK_SIZE_N * K,
+                    BLOCK_SIZE_K * BLOCK_SIZE_N,
+                    BLOCK_SIZE_N * VNNI,
+                    1,
+                ),
+                block_shape=(1, 1, 1, BLOCK_SIZE_N * VNNI),
+            )
+            for i in tl.range(0, BLOCK_SIZE_K // VNNI):
+                row1 = b_in_desc.load(
+                    (block_k * BLOCK_SIZE_K + i * VNNI, block_n * BLOCK_SIZE_N)
+                ).reshape((BLOCK_SIZE_N,))
+                if VNNI > 1:
+                    row2 = b_in_desc.load(
+                        (block_k * BLOCK_SIZE_K + i * VNNI + 1, block_n * BLOCK_SIZE_N)
+                    ).reshape((BLOCK_SIZE_N,))
+                    if VNNI > 2:
+                        row3 = b_in_desc.load(
+                            (
+                                block_k * BLOCK_SIZE_K + i * VNNI + 2,
+                                block_n * BLOCK_SIZE_N,
+                            )
+                        ).reshape((BLOCK_SIZE_N,))
+                        row4 = b_in_desc.load(
+                            (
+                                block_k * BLOCK_SIZE_K + i * VNNI + 3,
+                                block_n * BLOCK_SIZE_N,
+                            )
+                        ).reshape((BLOCK_SIZE_N,))
+                        row1 = tl.ravel(tl.join(row1, row3))
+                        row2 = tl.ravel(tl.join(row2, row4))
+                    row1 = tl.ravel(tl.join(row1, row2))
+                b_out_desc.store(
+                    (block_n, block_k, i, 0),
+                    row1.reshape((1, 1, 1, BLOCK_SIZE_N * VNNI)),
+                )
 
 
 # Matmul kernel using the space curve filling approach in
@@ -135,6 +151,7 @@ def _sfc_matmul_kernel(
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
+    A_IS_PACKED: tl.constexpr,
     BLOCKING_FACTOR_K: tl.constexpr,
     IS_FIRST_K_BLOCK: tl.constexpr,
     IS_LAST_K_BLOCK: tl.constexpr,
@@ -159,12 +176,20 @@ def _sfc_matmul_kernel(
     block_n = tl.load(sfc_map_ptr + 2 * pid + 1)
     block_k = ik * BLOCKS_K_PER_PROG
 
-    a_desc = tl.make_tensor_descriptor(
-        base=a_ptr,
-        shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
-        strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_M * BLOCK_SIZE_K, BLOCK_SIZE_K, 1),
-        block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
-    )
+    if A_IS_PACKED:
+        a_desc = tl.make_tensor_descriptor(
+            base=a_ptr,
+            shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
+            strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_M * BLOCK_SIZE_K, BLOCK_SIZE_K, 1),
+            block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
+        )
+    else:
+        a_desc = tl.make_tensor_descriptor(
+            base=a_ptr,
+            shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
+            strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_K, K, 1),
+            block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
+        )
 
     b_desc = tl.make_tensor_descriptor(
         base=b_ptr,
@@ -473,13 +498,14 @@ def _make_intermediate_buffers(
     out_dtype,
     reduce_last_dim,
     softmax_last_dim,
+    pack_a,
     b_is_prepacked,
     c_is_owned,
 ):
     BLOCKS_N = N // BLOCK_SIZE_N
     OUT_N = 1 if reduce_last_dim else N
 
-    ap_size = M * K * in_dtype.itemsize
+    ap_size = M * K * in_dtype.itemsize if pack_a else 0
     bp_size = K * N * in_dtype.itemsize if not b_is_prepacked else 0
     ctmp_size = M * N * accum_dtype.itemsize
     cred_size = (
@@ -494,7 +520,7 @@ def _make_intermediate_buffers(
     buf = torch.empty(
         ap_size + bp_size + ctmp_size + cred_size + c_size, dtype=torch.uint8
     )
-    ap = buf[:ap_size].view(in_dtype).reshape((M, K))
+    ap = buf[:ap_size].view(in_dtype).reshape((M, K)) if pack_a else None
     bp = (
         buf[ap_size : ap_size + bp_size].view(in_dtype).reshape((K, N))
         if not b_is_prepacked
@@ -542,9 +568,13 @@ def sfc_matmul(
     keep_dim=False,
     softmax_last_dim=False,
     trunc_output=True,
+    pack_a=True,
     b_is_prepacked=False,
     c_is_owned=False,
     blocking_factor_k=1,
+    BLOCK_SIZE_M=32,
+    BLOCK_SIZE_N=32,
+    BLOCK_SIZE_K=32,
 ) -> torch.Tensor:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
@@ -556,11 +586,6 @@ def sfc_matmul(
     assert not (reduce_last_dim and softmax_last_dim), (
         "Cannot reduce and softmax at the same time"
     )
-
-    # AMX
-    BLOCK_SIZE_M = 32
-    BLOCK_SIZE_N = 32
-    BLOCK_SIZE_K = 32
 
     # TODO: Currently masked load is not supported yet.
     assert (
@@ -590,9 +615,12 @@ def sfc_matmul(
         out_dtype,
         reduce_last_dim,
         softmax_last_dim,
+        pack_a,
         b_is_prepacked,
         c_is_owned,
     )
+    if not pack_a:
+        ap = a
     if b_is_prepacked:
         bp = b
     if not c_is_owned:
@@ -603,25 +631,28 @@ def sfc_matmul(
         else:
             c = torch.empty((M,), device=a.device, dtype=out_dtype)
 
-    num_blocks = max(
-        BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
-    )
-    _block_pack_kernel[(num_blocks,)](
-        a,
-        ap,
-        sfc_map_mk,
-        b,
-        bp,
-        sfc_map_kn,
-        M,
-        N,
-        K,
-        BLOCK_SIZE_M=BLOCK_SIZE_M,
-        BLOCK_SIZE_N=BLOCK_SIZE_N,
-        BLOCK_SIZE_K=BLOCK_SIZE_K,
-        B_IS_PREPACKED=b_is_prepacked,
-        assume_in_bounds=True,
-    )
+    if pack_a or not b_is_prepacked:
+        num_blocks = max(
+            BLOCKS_M * BLOCKS_K if pack_a else 0,
+            BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0,
+        )
+        _block_pack_kernel[(num_blocks,)](
+            a,
+            ap,
+            sfc_map_mk,
+            b,
+            bp,
+            sfc_map_kn,
+            M,
+            N,
+            K,
+            BLOCK_SIZE_M=BLOCK_SIZE_M,
+            BLOCK_SIZE_N=BLOCK_SIZE_N,
+            BLOCK_SIZE_K=BLOCK_SIZE_K,
+            PACK_A=pack_a,
+            PACK_B=not b_is_prepacked,
+            assume_in_bounds=True,
+        )
 
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
@@ -639,7 +670,8 @@ def sfc_matmul(
             ik,
             BLOCK_SIZE_M=BLOCK_SIZE_M,
             BLOCK_SIZE_N=BLOCK_SIZE_N,
-            BLOCK_SIZE_K=BLOCK_SIZE_K,  #
+            BLOCK_SIZE_K=BLOCK_SIZE_K,
+            A_IS_PACKED=pack_a,
             BLOCKING_FACTOR_K=blocking_factor_k,
             IS_FIRST_K_BLOCK=ik == 0,
             IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
@@ -686,3 +718,77 @@ def sfc_matmul(
         )
 
     return c
+
+
+class SFCMatmulHelper:
+    def __init__(self, weights: torch.Tensor, bias: torch.Tensor = None):
+        self.target, self.BLOCK_SIZE_M, self.BLOCK_SIZE_N, self.BLOCK_SIZE_K = (
+            self.get_block_sizes(weights.dtype)
+        )
+        self.weights = pack_weights_for_sfc_matmul(
+            weights, self.BLOCK_SIZE_N, self.BLOCK_SIZE_K
+        )
+        self.bias = bias
+
+    @staticmethod
+    def get_block_sizes(dtype: torch.dtype):
+        caps = torch.cpu.get_capabilities()
+        if dtype == torch.bfloat16:
+            if caps["amx_bf16"]:
+                return "amx_bf16", 32, 32, 32
+            if caps["avx512_bf16"]:
+                return "avx512_bf16", 32, 64, 2
+            if caps["avx_ne_convert"]:
+                return "avx_ne_convert", 32, 32, 2
+        elif dtype == torch.int8:
+            if caps["amx_int8"]:
+                return "amx_int8", 32, 32, 64
+            if caps["avx_vnni_int8"]:
+                return "avx_vnni_int8", 32, 32, 4
+        elif dtype == torch.float32:
+            if caps["avx512_f"]:
+                return "avx512_f", 16, 16, 1
+            if caps["avx2"]:
+                return "avx2", 8, 8, 1
+
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+    def __call__(
+        self,
+        a: torch.Tensor,
+        post_op=None,
+        post_op_arg=None,
+        reduce_last_dim=False,
+        reduction_init_val=None,
+        reduction_block_op=None,
+        reduction_combine_op=None,
+        reduction_post_op=None,
+        keep_dim=False,
+        softmax_last_dim=False,
+        trunc_output=True,
+        c_is_owned=False,
+    ) -> torch.Tensor:
+        return sfc_matmul(
+            a=a,
+            b=self.weights,
+            bias=self.bias,
+            post_op=post_op,
+            post_op_arg=post_op_arg,
+            reduce_last_dim=reduce_last_dim,
+            reduction_init_val=reduction_init_val,
+            reduction_block_op=reduction_block_op,
+            reduction_combine_op=reduction_combine_op,
+            reduction_post_op=reduction_post_op,
+            keep_dim=keep_dim,
+            softmax_last_dim=softmax_last_dim,
+            trunc_output=trunc_output,
+            pack_a="amx" in self.target,
+            b_is_prepacked=True,
+            c_is_owned=c_is_owned,
+            blocking_factor_k=triton.next_power_of_2(max(1, a.shape[1] // 4096))
+            if "amx" in self.target
+            else triton.next_power_of_2(max(1, a.shape[1] // 1024)),
+            BLOCK_SIZE_M=self.BLOCK_SIZE_M,
+            BLOCK_SIZE_N=self.BLOCK_SIZE_N,
+            BLOCK_SIZE_K=self.BLOCK_SIZE_K,
+        )
