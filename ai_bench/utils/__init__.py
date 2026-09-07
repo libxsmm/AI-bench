@@ -2,6 +2,7 @@ from .equations import eval_ast
 from .equations import eval_eq
 from .finder import ConfigurationError
 from .finder import configure
+from .finder import cutile_kernels_dir
 from .finder import gluon_kernels_dir
 from .finder import helion_kernels_dir
 from .finder import kernel_bench_dir
@@ -23,6 +24,7 @@ __all__ = [
     "configure",
     "count_torch_flop",
     "count_torch_memory_bytes",
+    "cutile_kernels_dir",
     "eval_ast",
     "eval_eq",
     "gluon_kernels_dir",

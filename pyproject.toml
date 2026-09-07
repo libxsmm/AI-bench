@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "AI-bench"
 dynamic = ["version"]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 description = "AI kernel benchmarking harness"
 readme = "README.md"
 license = {text = "MIT"}
@@ -59,10 +59,10 @@ cuda = [
   "torchvision==0.28.0",
   "helion==1.4.0",
 ]
-mlir = [
-  "lighthouse[ingress_torch_mlir]",
-  "ml-dtypes",
-]
+#mlir = [
+#  "lighthouse[ingress_torch_mlir]",
+#  "ml-dtypes",
+#]
 # If triton-cpu build fails with a stale LLVM path, clear caches:
 #   rm -r ~/.triton/llvm
 #   rm -r ~/.cache/uv/git-v0/checkouts/*/[triton rev hash]/build
@@ -75,6 +75,22 @@ triton-cpu = [
   "cmake>=3.20,<4.0",
   "ninja>=1.11.1",
   "nanobind==2.10.2",
+  "pybind11>=2.13.1",
+  "lit",
+]
+cutile-cpu = [
+  "torch==2.13.0+cpu",
+  "cuda-tile",
+  "numpy",
+  "triton",
+  "cutile-cpu-utils", # Local kernel helper package (see: backends/utils).
+  # Build dependencies for cuda-tile and triton, which use the project environment.
+  "setuptools==80.10.2",
+  "wheel",
+  "cmake>=3.24,<4.0",
+  "ninja>=1.11.1",
+  "nanobind>=2.9,<3",
+  "pybind11>=2.13.1",
   "lit",
 ]
 
@@ -101,6 +117,7 @@ filterwarnings = [
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
+no-build-isolation-package = ["cuda-tile", "triton"]
 conflicts = [
   # Restrict to one device to avoid incompatible dependencies.
   [
@@ -114,14 +131,32 @@ conflicts = [
     { extra = "cuda" },
     { extra = "triton-cpu" },
   ],
+  # CuTile CPU is compatible with Triton CPU, but not GPU device extras.
+  [
+    { extra = "xpu" },
+    { extra = "cuda" },
+    { extra = "cutile-cpu" },
+  ],
 ]
+
+[tool.uv.extra-build-variables.cuda-tile]
+CUTILE_BUILD_VARIANT = "cpu"
+
+[tool.uv.extra-build-variables.triton]
+TRITON_APPEND_CMAKE_ARGS = "-DTRITON_CODEGEN_BACKENDS=cpu"
+TRITON_BUILD_WITH_CLANG_LLD = "1"
+LLVM_TARGETS = "Native"
+LLVM_PROJECTS = "mlir;llvm"
+LLVM_DISTRIBUTION_COMPONENTS = "llvm-headers;llvm-libraries;cmake-exports;mlir-headers;mlir-libraries;mlir-cmake-exports;llc;opt;llvm-config;mlir-tblgen;mlir-translate"
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "6a16563" }
+triton = { git = "https://github.com/intel-sandbox/users.fschlimb.triton-cpu", rev = "d4e39fae7975abf1533db351273b2c2ba0e7ed70" }
+cuda-tile = { git = "https://github.com/fschlimb/cutile-python", branch = "bench" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "bc1da11" }
 mlir-python-bindings = { index = "eudsl" }
 triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }
+cutile-cpu-utils = { path = "backends/utils/cutile_cpu_utils", editable = true }
 
 [[tool.uv.index]]
 name = "pytorch"

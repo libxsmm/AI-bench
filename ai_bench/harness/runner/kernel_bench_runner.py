@@ -89,6 +89,10 @@ class KernelBenchRunner(KernelRunner):
             self.kernels = (
                 ai_utils.triton_kernels_dir() / self.device.type / "KernelBench"
             )
+        elif self.backend == ai_hc.Backend.CUTILE:
+            self.kernels = (
+                ai_utils.cutile_kernels_dir() / self.device.type / "KernelBench"
+            )
         elif self.backend == ai_hc.Backend.HELION:
             self.kernels = (
                 ai_utils.helion_kernels_dir() / self.device.type / "KernelBench"

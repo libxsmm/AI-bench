@@ -46,6 +46,15 @@ class TestConfiguration:
 
         assert finder.triton_kernels_dir() == triton_dir
 
+    def test_configure_cutile_kernels_dir(self, tmp_path):
+        """Test configuring CuTile kernels directory."""
+        cutile_dir = tmp_path / "cutile"
+        cutile_dir.mkdir()
+
+        finder.configure(cutile_kernels_dir=cutile_dir)
+
+        assert finder.cutile_kernels_dir() == cutile_dir
+
     def test_configure_helion_kernels_dir(self, tmp_path):
         """Test configuring Helion kernels directory."""
         helion_dir = tmp_path / "helion"
@@ -127,6 +136,7 @@ class TestEnvironmentVariables:
             "AIBENCH_SPECS_DIR",
             "AIBENCH_KERNELS_DIR",
             "AIBENCH_TRITON_KERNELS_DIR",
+            "AIBENCH_CUTILE_KERNELS_DIR",
             "AIBENCH_HELION_KERNELS_DIR",
             "AIBENCH_MLIR_KERNELS_DIR",
             "AIBENCH_MLIR_SCHEDULES_DIR",
@@ -168,6 +178,15 @@ class TestEnvironmentVariables:
         os.environ["AIBENCH_TRITON_KERNELS_DIR"] = str(triton_dir)
 
         assert finder.triton_kernels_dir() == triton_dir
+
+    def test_cutile_kernels_from_env_var(self, tmp_path):
+        """Test CuTile kernels path from environment variable."""
+        cutile_dir = tmp_path / "cutile"
+        cutile_dir.mkdir()
+
+        os.environ["AIBENCH_CUTILE_KERNELS_DIR"] = str(cutile_dir)
+
+        assert finder.cutile_kernels_dir() == cutile_dir
 
     def test_helion_kernels_from_env_var(self, tmp_path):
         """Test Helion kernels path from environment variable."""
