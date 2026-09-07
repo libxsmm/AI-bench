@@ -48,15 +48,15 @@ Repository = "https://github.com/libxsmm/AI-bench"
 
 [project.optional-dependencies]
 cpu = [
-  "torch==2.13.0+cpu",
+  "torch==2.14.0+cpu",
 ]
 xpu = [
-  "torch==2.13.0+xpu",
+  "torch==2.14.0+xpu",
   "helion==1.4.0",
 ]
 cuda = [
-  "torch==2.13.0+cu130",
-  "torchvision==0.28.0",
+  "torch==2.14.0+cu130",
+  "torchvision==0.29.0",
   "helion==1.4.0",
 ]
 mlir = [
