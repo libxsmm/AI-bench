@@ -5,19 +5,20 @@
 [![KernelBench Perf](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml/badge.svg)](https://github.com/libxsmm/AI-bench/actions/workflows/kernel_bench.yml)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
-A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, Helion, MLIR, Helion-MLIR, Gluon, SYCL) and devices (CPU, XPU, CUDA).
+A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, CuTile, Helion, MLIR, Helion-MLIR, Gluon, SYCL) and devices (CPU, XPU, CUDA).
 
-| | PyTorch | Triton | Helion | MLIR | Helion-MLIR | Gluon | SYCL |
+| | PyTorch | Triton | CuTile | Helion | MLIR | Helion-MLIR | Gluon | SYCL |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **CPU** | ✅ | ✅<sup>1</sup> | ❌ | ✅<sup>2</sup> | ✅<sup>2, 3</sup> | ❌ | ❌ |
-| **XPU** | ✅ | ✅ | ✅ | ✅<sup>2</sup>* | ❌ | ✅ | ✅ |
-| **CUDA** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **CPU** | ✅ | ✅<sup>1</sup> | ✅<sup>4</sup> | ❌ | ✅<sup>2</sup> | ✅<sup>2, 3</sup> | ❌ | ❌ |
+| **XPU** | ✅ | ✅ | ❌ | ✅ | ✅<sup>2</sup>* | ❌ | ✅ | ✅ |
+| **CUDA** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ✅ - Supported ⚠️ - Partially implemented ❌ - Unsupported
 
 <sup>1</sup> via [triton-lang/triton-cpu](https://github.com/triton-lang/triton-cpu)  
 <sup>2</sup> via [llvm/lighthouse](https://github.com/llvm/lighthouse)  
 <sup>3</sup> via [libxsmm/helion-mlir-backend](https://github.com/libxsmm/helion-mlir-backend)
+<sup>4</sup> via Intel cutile
 
 *_NOTE_: MLIR XPU requires **custom** LLVM build with Intel GPU support enabled.  
 Override `PYTHONPATH` to point to `mlir_core` packages and ensure LLVM libs can be found.  
@@ -51,6 +52,9 @@ uv sync --extra cuda
 # CPU + Triton-CPU backend (builds Triton from source)
 uv sync --extra cpu --extra triton-cpu
 
+# CPU + CuTile backend (builds CuTile, Triton CPU, and LLVM/MLIR from source)
+uv sync --extra cutile-cpu
+
 # CPU + MLIR backend
 uv sync --extra cpu --extra mlir
 
@@ -73,6 +77,9 @@ ai-bench
 
 # Triton on CPU
 ai-bench --triton
+
+# CuTile on CPU
+ai-bench --cutile
 
 # MLIR on CPU
 ai-bench --mlir
@@ -134,6 +141,9 @@ ai-bench-compare --problem level1/1_Square_matrix_multiplication_
 
 # Compare PyTorch and Triton backends on XPU
 ai-bench-compare --problem level2/99_Matmul_GELU_Softmax --backend pytorch triton --xpu
+
+# Compare PyTorch and CuTile on CPU
+ai-bench-compare --problem level1/1_Square_matrix_multiplication_ --backends pytorch cutile
 
 # Compare only bfloat16 variants
 ai-bench-compare --problem level1/1_Square_matrix_multiplication_ --dtype bfloat16
@@ -229,6 +239,7 @@ Notes legend:
 | `--xpu` | Run on Intel XPU (default: CPU) |
 | `--cuda` | Run on Nvidia GPU (default: CPU) |
 | `--triton` | Use Triton backend (default: PyTorch eager) |
+| `--cutile` | Use CuTile backend (default: PyTorch eager) |
 | `--torch-compile` | Use PyTorch compile mode (default: PyTorch eager) |
 | `--helion` | Use Helion backend (default: PyTorch eager) |
 | `--helion-mlir` | Use Helion-MLIR backend (default: PyTorch eager) |
@@ -246,6 +257,7 @@ Notes legend:
 | `--specs-dir PATH` | Path to specs directory (CLI only) |
 | `--kernels-dir PATH` | Path to kernels directory (CLI only) |
 | `--triton-kernels-dir PATH` | Path to Triton kernels directory (CLI only) |
+| `--cutile-kernels-dir PATH` | Path to CuTile kernels directory (CLI only) |
 | `--helion-kernels-dir PATH` | Path to Helion kernels directory (CLI only) |
 | `--helion-mlir-kernels-dir PATH` | Path to Helion-MLIR kernels directory (CLI only) |
 | `--mlir-kernels-dir PATH` | Path to MLIR kernels directory (CLI only) |

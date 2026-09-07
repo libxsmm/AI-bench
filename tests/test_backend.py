@@ -22,6 +22,7 @@ class TestBackendEnum:
         assert ai_hc.Backend.PYTORCH == "pytorch"
         assert ai_hc.Backend.PYTORCH_COMPILE == "pytorch-compile"
         assert ai_hc.Backend.TRITON == "triton"
+        assert ai_hc.Backend.CUTILE == "cutile"
         assert ai_hc.Backend.HELION == "helion"
         assert ai_hc.Backend.MLIR == "mlir"
         assert ai_hc.Backend.HELION_MLIR == "helion-mlir"
@@ -35,6 +36,7 @@ class TestBackendEnum:
         assert ai_hc.Backend.PYTORCH in backends
         assert ai_hc.Backend.PYTORCH_COMPILE in backends
         assert ai_hc.Backend.TRITON in backends
+        assert ai_hc.Backend.CUTILE in backends
         assert ai_hc.Backend.HELION in backends
         assert ai_hc.Backend.MLIR in backends
         assert ai_hc.Backend.HELION_MLIR in backends
@@ -46,6 +48,7 @@ class TestBackendEnum:
         assert ai_hc.Backend("pytorch") == ai_hc.Backend.PYTORCH
         assert ai_hc.Backend("pytorch-compile") == ai_hc.Backend.PYTORCH_COMPILE
         assert ai_hc.Backend("triton") == ai_hc.Backend.TRITON
+        assert ai_hc.Backend("cutile") == ai_hc.Backend.CUTILE
         assert ai_hc.Backend("helion") == ai_hc.Backend.HELION
         assert ai_hc.Backend("mlir") == ai_hc.Backend.MLIR
         assert ai_hc.Backend("helion-mlir") == ai_hc.Backend.HELION_MLIR
@@ -277,6 +280,20 @@ class TestKernelBenchRunnerInit:
         assert "triton" in str(kb_runner.kernels)
 
     @mock.patch("os.path.isdir")
+    def test_init_cutile_backend(self, mock_isdir):
+        """Test runner initialization with CuTile backend."""
+        mock_isdir.return_value = True
+
+        kb_runner = runner.KernelBenchRunner(
+            spec_type=ai_hc.SpecKey.V_CI,
+            device=torch.device("cpu"),
+            backend=ai_hc.Backend.CUTILE,
+        )
+
+        assert kb_runner.backend == ai_hc.Backend.CUTILE
+        assert "cutile" in str(kb_runner.kernels)
+
+    @mock.patch("os.path.isdir")
     def test_init_helion_backend(self, mock_isdir):
         """Test runner initialization with Helion backend."""
         mock_isdir.return_value = True
@@ -436,6 +453,7 @@ class TestKernelBenchRunnerInit:
             ai_hc.Backend.MLIR,
             ai_hc.Backend.HELION_MLIR,
             ai_hc.Backend.TRITON,
+            ai_hc.Backend.CUTILE,
             ai_hc.Backend.HELION,
             ai_hc.Backend.GLUON,
             ai_hc.Backend.SYCL,
