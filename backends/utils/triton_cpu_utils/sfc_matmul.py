@@ -113,11 +113,18 @@ def _block_pack_kernel(
 # implementation from https://github.com/jakubcerveny/gilbert
 #
 # Each program computes a single output tile with the 2D coordinates derived
-# from the precomputed SFC mapping. If `BLOCKING_FACTOR_K == 1`, then program
-# handles all `BLOCKS_K = K // BLOCK_SIZE_K` blocks along the common dimension,
-# otherwise the program performs a partial accumulation of the K blocks in the
-# half-open interval:
-#    [ ik * (BLOCKS_K // BLOCKING_FACTOR_K), (ik + 1) * (BLOCKS_K // BLOCKING_FACTOR_K) )
+# from the precomputed SFC mapping. If `BLOCKING_FACTOR_K == 1`, then the
+# program handles all
+#   `BLOCKS_K = K // BLOCK_SIZE_K`
+# blocks along the common dimension,  otherwise the program performs a partial
+# accumulation of
+#   `BLOCKS_K_PER_PROG = ⌈BLOCKS_K / BLOCKING_FACTOR_K⌉`
+# blocks, starting at
+#   `ik * BLOCKS_K_PER_PROG`
+# and ending at
+#   `min((ik + 1) * BLOCKS_K_PER_PROG, BLOCKS_K)`
+# The partial accumulation is stored in `c_tmp_ptr` and will be loaded and
+# accumulated in the next iteration of the outer loop.
 @triton.jit
 def _sfc_matmul_kernel(
     a_ptr,
