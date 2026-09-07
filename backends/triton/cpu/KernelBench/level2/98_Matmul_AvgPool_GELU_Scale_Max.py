@@ -7,9 +7,8 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
+from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import gelu
-from triton_cpu_utils import pack_weights_for_sfc_matmul
-from triton_cpu_utils import sfc_matmul
 
 
 @triton.jit
@@ -39,28 +38,20 @@ class Model(nn.Module):
             xmean = gelu(xmean) * sf_val
             return tl.max(xmean, axis=1)
 
-        self._weight_packed = None
-        self._bias = None
+        self._matmul_helper = None
         self._red_block_fun = _red_block
 
     def forward(self, x):
-        if self._weight_packed is None:
-            # AMX-optimized block size
-            self._weight_packed = pack_weights_for_sfc_matmul(
+        if self._matmul_helper is None:
+            self._matmul_helper = SFCMatmulHelper(
                 self.matmul.weight.data.to(dtype=x.dtype),
-                BLOCK_SIZE_N=32,
-                BLOCK_SIZE_K=32,
+                self.matmul.bias.data.to(dtype=x.dtype),
             )
-            self._bias = self.matmul.bias.data.to(dtype=x.dtype)
 
-        return sfc_matmul(
+        return self._matmul_helper(
             x,
-            self._weight_packed,
-            bias=self._bias,
             reduce_last_dim=True,
             reduction_init_val=_red_init,
             reduction_block_op=self._red_block_fun,
             reduction_combine_op=_red_combine,
-            b_is_prepacked=True,
-            blocking_factor_k=triton.next_power_of_2(max(1, x.shape[1] // 4096)),
         )
