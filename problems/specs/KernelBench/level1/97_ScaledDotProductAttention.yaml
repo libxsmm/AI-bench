@@ -28,3 +28,12 @@ simple-cpu:
       NUM_HEADS: 32
       SEQUENCE_LENGTH: 64
       EMBEDDING_DIMENSION: 128
+
+mlir-gpu-bench:
+  - params: [Q, K, V]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 32
+      NUM_HEADS: 32
+      SEQUENCE_LENGTH: 512
+      EMBEDDING_DIMENSION: 64

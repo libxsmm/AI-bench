@@ -1,0 +1,30 @@
+[
+    {
+        "layer_kind": "attention",
+        "batch_size": 32,
+        "n_head": 32,
+        "n_ctx": 512,
+        "d_head": 64,
+        "wg_tile": [
+            1,
+            1,
+            128
+        ],
+        "sg_rows": 16,
+        "subgroup_size": 16,
+        "reduction_tile": 64,
+        "q_load_tile": [
+            16,
+            32
+        ],
+        "v_load_tile": [
+            32,
+            32
+        ],
+        "prefetch_tile": [
+            16,
+            32
+        ],
+        "nb_prefetch": 1
+    }
+]

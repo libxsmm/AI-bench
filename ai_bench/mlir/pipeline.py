@@ -9,6 +9,7 @@ from lighthouse.pipeline.descriptor import Descriptor
 from lighthouse.pipeline.driver import BackendDriver
 from lighthouse.schedule.parameters import ScheduleParameters
 from lighthouse.schedule.xegpu import elemwise_schedule
+from lighthouse.schedule.xegpu import fused_attention_schedule
 from lighthouse.schedule.xegpu import mlp_schedule
 from lighthouse.schedule.xegpu import reduction_schedule
 from lighthouse.schedule.xegpu import xegpu_to_binary
@@ -196,6 +197,10 @@ def _compile_xpu_pipeline(
             schedule = reduction_schedule(
                 params=parameters,
                 payload_func_name=payload_func_name,
+            )
+        elif pipeline == "attention":
+            schedule = fused_attention_schedule(
+                params=parameters,
             )
         else:
             raise ValueError(f"Unsupported XPU schedule kind: {pipeline}")
