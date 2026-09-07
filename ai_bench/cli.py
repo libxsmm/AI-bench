@@ -35,6 +35,9 @@ Examples:
   # Run with Triton backend
   ai-bench --xpu --bench --triton
 
+  # Run with CuTile backend on CPU
+  ai-bench --bench --cutile
+
   # Run with Helion backend
   ai-bench --xpu --bench --helion
 
@@ -128,6 +131,12 @@ Environment file (.env) example:
         help="Path to Triton kernels directory (default: auto-detect or AIBENCH_TRITON_KERNELS_DIR)",
     )
     path_group.add_argument(
+        "--cutile-kernels-dir",
+        type=Path,
+        default=None,
+        help="Path to CuTile kernels directory (default: auto-detect or AIBENCH_CUTILE_KERNELS_DIR)",
+    )
+    path_group.add_argument(
         "--helion-kernels-dir",
         type=Path,
         default=None,
@@ -176,6 +185,12 @@ Environment file (.env) example:
         action="store_true",
         default=False,
         help="Use Triton backend",
+    )
+    backend_exclusive.add_argument(
+        "--cutile",
+        action="store_true",
+        default=False,
+        help="Use CuTile backend",
     )
     backend_exclusive.add_argument(
         "--torch-compile",
@@ -294,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
         args.specs_dir
         or args.kernels_dir
         or args.triton_kernels_dir
+        or args.cutile_kernels_dir
         or args.helion_kernels_dir
         or args.mlir_kernels_dir
         or args.gluon_kernels_dir
@@ -303,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
             specs_dir=args.specs_dir,
             kernels_dir=args.kernels_dir,
             triton_kernels_dir=args.triton_kernels_dir,
+            cutile_kernels_dir=args.cutile_kernels_dir,
             helion_kernels_dir=args.helion_kernels_dir,
             mlir_kernels_dir=args.mlir_kernels_dir,
             gluon_kernels_dir=args.gluon_kernels_dir,
@@ -320,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
     # Determine backend
     if args.triton:
         backend = core.Backend.TRITON
+    elif args.cutile:
+        backend = core.Backend.CUTILE
     elif args.helion:
         backend = core.Backend.HELION
     elif args.torch_compile:

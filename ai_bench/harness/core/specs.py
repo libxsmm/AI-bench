@@ -77,6 +77,7 @@ class Backend(StrEnum):
     PYTORCH = "pytorch"
     PYTORCH_COMPILE = "pytorch-compile"
     TRITON = "triton"
+    CUTILE = "cutile"
     HELION = "helion"
     MLIR = "mlir"
     GLUON = "gluon"
