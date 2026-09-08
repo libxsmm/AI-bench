@@ -118,7 +118,7 @@ conflicts = [
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "e453f53" }
+triton = { git = "https://github.com/jopperm/triton-cpu.git", rev = "d77663c" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "0375e8b" }
 mlir-python-bindings = { index = "eudsl" }
 triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }
