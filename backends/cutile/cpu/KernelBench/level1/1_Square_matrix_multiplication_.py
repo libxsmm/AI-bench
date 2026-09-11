@@ -17,7 +17,4 @@ class Model(nn.Module):
         self._prepared = None
 
     def forward(self, A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
-        # if self._prepared is None:
-        #     self._prepared = prepare_sfc_matmul(A, B)   
-        # return self._prepared()
         return sfc_matmul(A, B, options={"assume_in_bounds": True})
