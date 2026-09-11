@@ -34,3 +34,16 @@ simple-cpu:
       STRIDE: 1
       PADDING: 1
       DILATION: 1
+
+bench-cpu:
+  - params: [x]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 16
+      CHANNELS: 132
+      HEIGHT: 32
+      WIDTH: 32
+      KERNEL_SIZE: 8
+      STRIDE: 1
+      PADDING: 1
+      DILATION: 1
