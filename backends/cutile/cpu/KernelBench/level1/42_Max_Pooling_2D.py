@@ -42,7 +42,7 @@ def maxpool2d_kernel(x, output, H: ConstInt, W: ConstInt, OH: ConstInt, OW: Cons
                 start = base + ih * W + pid_ow * BLOCK_W - PADDING + kw * DILATION
                 values = x_view.load(start).astype(ct.float32)
                 max_value = ct.maximum(max_value, ct.where(valid, values, float("-inf")))
-    ct.scatter(output, pid_bc * OH * OW + rows * OW + cols, ct.astype(max_value, output.dtype))
+    ct.scatter(output, pid_bc * OH * OW + rows * OW + cols, ct.astype(max_value, output.dtype), mask=valid_out)
 
 
 def maxpool2d(x, kernel_size, stride, padding, dilation):

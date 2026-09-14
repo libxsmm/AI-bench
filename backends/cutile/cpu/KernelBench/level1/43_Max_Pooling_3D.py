@@ -28,6 +28,9 @@ def maxpool3d_kernel(x, output, B: ConstInt, C: ConstInt, D: ConstInt, H: ConstI
     od = pid_dh // OH
     oh = pid_dh % OH
     cols = pid_ow * BLOCK_W + ct.arange(BLOCK_W, dtype=torch.int32)
+    ow_start = pid_ow * BLOCK_W
+    ow_offs = ow_start + ct.arange(BLOCK_W, dtype=torch.int32)
+    mask_ow = ow_offs < OW
     base = batch * C * D * H * W + channel * D * H * W
     x_view = x.tiled_view(
         BLOCK_W,
@@ -52,7 +55,7 @@ def maxpool3d_kernel(x, output, B: ConstInt, C: ConstInt, D: ConstInt, H: ConstI
                             values = ct.where(valid, ct.gather(x, base + d * H * W + h * W + w), float("-inf")).astype(ct.float32)
                         max_value = ct.maximum(max_value, values)
     output_base = batch * C * OD * OH * OW + channel * OD * OH * OW + od * OH * OW + oh * OW
-    ct.scatter(output, output_base + cols, ct.astype(max_value, output.dtype))
+    ct.scatter(output, output_base + cols, ct.astype(max_value, output.dtype), mask=mask_ow)
 
 
 def maxpool3d(x, kernel_size, stride, padding, dilation):

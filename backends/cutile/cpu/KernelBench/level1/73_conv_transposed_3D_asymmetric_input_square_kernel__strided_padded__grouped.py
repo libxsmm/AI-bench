@@ -91,19 +91,19 @@ class Model(nn.Module):
         if isinstance(kernel_size, int): kernel_size = (kernel_size, kernel_size, kernel_size)
         self.conv = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding, groups=groups, bias=bias, dilation=dilation)
     def forward(self, x):
-        x = x.to(torch.float16).contiguous()
+        x = x.contiguous()
         B, C_IN, D_IN, H_IN, W_IN = x.shape
         KD, KH, KW = self.conv.kernel_size
         STRIDE_D, STRIDE_H, STRIDE_W = self.conv.stride
         PAD_D, PAD_H, PAD_W = self.conv.padding
-        D_OUT = (D_IN - 1) * STRIDE_D - 2 * PAD_D + KD + self.conv.output_padding[0]
-        H_OUT = (H_IN - 1) * STRIDE_H - 2 * PAD_H + KH + self.conv.output_padding[1]
-        W_OUT = (W_IN - 1) * STRIDE_W - 2 * PAD_W + KW + self.conv.output_padding[2]
+        D_OUT = (D_IN - 1) * STRIDE_D - 2 * PAD_D + KD
+        H_OUT = (H_IN - 1) * STRIDE_H - 2 * PAD_H + KH
+        W_OUT = (W_IN - 1) * STRIDE_W - 2 * PAD_W + KW
         C_OUT = self.conv.out_channels
         C_IN_PG = C_IN // self.conv.groups
         C_OUT_PG = C_OUT // self.conv.groups
-        weight = self.conv.weight.to(dtype=torch.float16).contiguous()
-        output = torch.empty((B, C_OUT, D_OUT, H_OUT, W_OUT), device=x.device, dtype=torch.float16)
+        weight = self.conv.weight.to(dtype=x.dtype).contiguous()
+        output = torch.empty((B, C_OUT, D_OUT, H_OUT, W_OUT), device=x.device, dtype=x.dtype)
         with cpu.compile_options({"assume_in_bounds": False}):
             ct.launch(None, (B, C_OUT, ct.cdiv(D_OUT * H_OUT * W_OUT, 32)), _conv_transpose3d_kernel, (x, weight, output, B, C_IN, C_OUT, D_IN, H_IN, W_IN, D_OUT, H_OUT, W_OUT, KD, KH, KW, STRIDE_D, STRIDE_H, STRIDE_W, PAD_D, PAD_H, PAD_W, self.conv.groups, C_IN_PG, C_OUT_PG, 32))
         return output

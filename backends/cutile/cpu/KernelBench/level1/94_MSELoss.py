@@ -31,16 +31,6 @@ def mse_row_kernel(pred, target, rows, B: ConstInt, N: ConstInt, BLOCK_SIZE: Con
     ct.store(rows, index=(row,), tile=total)
 
 
-@ct.kernel
-def mean_kernel(values, output, B: ConstInt, BLOCK_SIZE: ConstInt):
-    offsets = ct.arange(BLOCK_SIZE, dtype=torch.int32)
-    total = 0.0
-    for block in range(ct.cdiv(B, BLOCK_SIZE)):
-        indices = block * BLOCK_SIZE + offsets
-        total += ct.sum(ct.where(indices < B, ct.gather(values, indices), 0.0), axis=0)
-    ct.store(output, index=(0,), tile=total / B)
-
-
 class Model(nn.Module):
     def __init__(self, *args, **kwargs):
         super(Model, self).__init__()
@@ -50,8 +40,5 @@ class Model(nn.Module):
         targets = targets.contiguous()
         B, N = predictions.shape
         rows = torch.empty(B, device=predictions.device, dtype=torch.float32)
-        output = torch.empty(1, device=predictions.device, dtype=torch.float32)
         mse_row_kernel(None, (predictions.view(-1), targets.view(-1), rows, B, N))
-        with cpu.compile_options({"assume_in_bounds": B % 128 == 0}):
-            ct.launch(None, (1,), mean_kernel, (rows, output, B, 128))
-        return output[0]
+        return torch.sum(rows) / (B * N)
