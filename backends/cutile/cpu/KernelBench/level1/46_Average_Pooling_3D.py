@@ -29,6 +29,9 @@ def avg_pool3d_kernel(x, output, B: ConstInt, C: ConstInt, D: ConstInt, H: Const
     channel = tmp % C
     batch = tmp // C
     cols = pid_ow * BLOCK_W + ct.arange(BLOCK_W, dtype=torch.int32)
+    ow_start = pid_ow * BLOCK_W
+    ow_offsets = ow_start + ct.arange(BLOCK_W, dtype=torch.int32)
+    mask_ow = ow_offsets < OW
     base = batch * C * D * H * W + channel * D * H * W
     acc = ct.full((BLOCK_W,), 0.0, dtype=ct.float32)
     for kd in range(KERNEL_SIZE):
@@ -42,7 +45,7 @@ def avg_pool3d_kernel(x, output, B: ConstInt, C: ConstInt, D: ConstInt, H: Const
                         valid = (cols < OW) & (w >= 0) & (w < W)
                         acc += ct.where(valid, ct.gather(x, base + d * H * W + h * W + w), 0.0).astype(ct.float32)
     out_base = batch * C * OD * OH * OW + channel * OD * OH * OW + od * OH * OW + oh * OW
-    ct.scatter(output, out_base + cols, ct.astype(acc / (KERNEL_SIZE * KERNEL_SIZE * KERNEL_SIZE), ct.bfloat16))
+    ct.scatter(output, out_base + cols, ct.astype(acc / (KERNEL_SIZE * KERNEL_SIZE * KERNEL_SIZE), ct.bfloat16), mask=mask_ow)
 
 
 class Model(nn.Module):

@@ -51,8 +51,5 @@ class Model(nn.Module):
         targets = targets.contiguous()
         B, N = predictions.shape
         rows = torch.empty(B, device=predictions.device, dtype=torch.float32)
-        output = torch.empty(1, device=predictions.device, dtype=torch.float32)
         huber_row_kernel(None, (predictions.view(-1), targets.view(-1), rows, B, N))
-        with cpu.compile_options({"assume_in_bounds": B % 128 == 0}):
-            ct.launch(None, (1,), mean_kernel, (rows, output, B, 128))
-        return output[0]
+        return rows.sum() / predictions.numel()

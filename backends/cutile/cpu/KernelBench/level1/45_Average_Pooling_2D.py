@@ -24,6 +24,8 @@ def avg_pool2d_kernel(x, output, H: ConstInt, W: ConstInt, OH: ConstInt, OW: Con
     pid_oh = ct.bid(1)
     pid_ow = ct.bid(2)
     cols = pid_ow * BLOCK_W + ct.arange(BLOCK_W, dtype=torch.int32)
+    ow_offsets = pid_ow * BLOCK_W + ct.arange(BLOCK_W, dtype=torch.int32)
+    ow_mask = ow_offsets < OW
     base = pid_nc * H * W
     acc = ct.full((BLOCK_W,), 0.0, dtype=ct.float32)
     for kh in range(KERNEL_SIZE):
@@ -31,7 +33,7 @@ def avg_pool2d_kernel(x, output, H: ConstInt, W: ConstInt, OH: ConstInt, OW: Con
         for kw in range(KERNEL_SIZE):
             iw = cols * STRIDE + kw
             acc += ct.where(cols < OW, ct.gather(x, base + ih * W + iw), 0.0).astype(ct.float32)
-    ct.scatter(output, pid_nc * OH * OW + pid_oh * OW + cols, ct.astype(acc / (KERNEL_SIZE * KERNEL_SIZE), output.dtype))
+    ct.scatter(output, pid_nc * OH * OW + pid_oh * OW + cols, ct.astype(acc / (KERNEL_SIZE * KERNEL_SIZE), output.dtype), mask=ow_mask)
 
 
 class Model(nn.Module):
