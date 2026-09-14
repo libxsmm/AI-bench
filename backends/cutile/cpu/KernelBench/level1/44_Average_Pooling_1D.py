@@ -42,7 +42,7 @@ def avg_pool1d_kernel(x, output, L: ConstInt, OL: ConstInt, C: ConstInt, KERNEL_
         else:
             values = ct.where(valid, ct.gather(x, base + indices), 0.0).astype(ct.float32)
         acc += values
-    ct.scatter(output, pid_bc * OL + offs, ct.astype(acc / KERNEL_SIZE, output.dtype))
+    ct.scatter(output, pid_bc * OL + offs, ct.astype(acc / KERNEL_SIZE, output.dtype), mask=valid_out)
 
 
 class Model(nn.Module):

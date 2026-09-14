@@ -46,9 +46,9 @@ def _conv_transpose1d_stride2_kernel(x, weight, bias, output, B: ConstInt, L_IN:
     output.get_raw_memory().store_offset(safe_output_indices, ct.astype(acc, output.dtype), mask=row_valid[:, None] & col_valid[None, :])
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, output_padding=0, groups=1, bias=False, dilation=1):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=False):
         super().__init__()
-        self.conv = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding, groups=groups, bias=bias, dilation=dilation)
+        self.conv = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias, dilation=dilation)
     def forward(self, x):
         x = x.to(torch.float16).contiguous()
         B, C_IN, L_IN = x.shape

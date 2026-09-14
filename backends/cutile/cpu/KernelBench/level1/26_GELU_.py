@@ -20,11 +20,21 @@ ConstInt = ct.Constant[int]
 )
 @ct.kernel
 def gelu_kernel(x, output, n_elements: ConstInt, BLOCK_SIZE: ConstInt):
-    offsets = ct.bid(0) * BLOCK_SIZE + ct.arange(BLOCK_SIZE, dtype=torch.int32)
-    values = ct.gather(x, offsets).astype(ct.float32)
-    inner = values + 0.044715 * values * values * values
-    result = 0.5 * values * (1.0 + ct.tanh(0.7978845608028654 * inner))
-    ct.scatter(output, offsets, ct.astype(result, x.dtype))
+    tile_index = ct.bid(0)
+    values = ct.load(x, (tile_index,), (BLOCK_SIZE,), padding_mode=ct.PaddingMode.ZERO).astype(ct.float32)
+    absolute_values = ct.abs(values)
+    t = 1.0 / (1.0 + 0.3275911 * absolute_values)
+    polynomial = t * (
+        1.061405429
+        + t * (-1.453152027 + t * (1.421413741 + t * (-0.284496736 + t * 0.254829592)))
+    )
+    erf_values = ct.where(
+        values < 0.0,
+        -(1.0 - polynomial * ct.exp(-absolute_values * absolute_values)),
+        1.0 - polynomial * ct.exp(-absolute_values * absolute_values),
+    )
+    result = 0.5 * values * (1.0 + erf_values)
+    ct.store(output, (tile_index,), ct.astype(result, x.dtype))
 
 
 class Model(nn.Module):

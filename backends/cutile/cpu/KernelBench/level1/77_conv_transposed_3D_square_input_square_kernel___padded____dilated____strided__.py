@@ -54,13 +54,11 @@ def _conv_transpose3d_kernel(
     max_weight_offset = K * K * K * C_IN * C_OUT - 1
     for kd in range(K):
         input_d = d_idx + 1 - kd
-        valid_d = (input_d >= 0) & (input_d < D)
         for kh in range(K):
             input_h = h_idx + 1 - kh
-            valid_h = valid_d & (input_h >= 0) & (input_h < H)
             for kw in range(K):
                 input_w = rows + 1 - kw
-                valid = row_valid & valid_h & (input_w >= 0) & (input_w < W)
+                valid = row_valid & (input_d >= 0) & (input_d < D) & (input_h >= 0) & (input_h < H) & (input_w >= 0) & (input_w < W)
                 x_indices = ((((batch * D + input_d) * H + input_h) * W + input_w[:, None]) * C_IN + cin[None, :])
                 safe_x_indices = ct.minimum(ct.maximum(x_indices, 0), max_x_offset)
                 x_values = x_mem.load_offset(safe_x_indices, mask=safe_x_indices >= 0)
@@ -70,17 +68,17 @@ def _conv_transpose3d_kernel(
                 safe_weight_base = ct.minimum(ct.maximum(weight_base, 0), max_weight_offset)
                 weight_values = weight_mem.load_offset(safe_weight_base, mask=col_valid[None, :], padding_value=0.0)
                 acc = ct.mma(x_values, weight_values, acc)
-    safe_cols = ct.minimum(ct.maximum(cols, 0), C_OUT - 1)
-    acc += bias_mem.load_offset(safe_cols, mask=col_valid, padding_value=0.0)[None, :].astype(ct.float32)
+    acc += bias_mem.load_offset(ct.minimum(ct.maximum(cols, 0), C_OUT - 1), mask=col_valid, padding_value=0.0)[None, :].astype(ct.float32)
     output_indices = ((((batch * OD + (2 * d_idx + 1)) * OH + (2 * h_idx + 1)) * OW + (2 * rows[:, None] + 1)) * C_OUT + cols[None, :])
-    safe_output_indices = ct.minimum(ct.maximum(output_indices, 0), B * OD * OH * OW * C_OUT - 1)
+    max_output_offset = B * OD * OH * OW * C_OUT - 1
+    safe_output_indices = ct.minimum(ct.maximum(output_indices, 0), max_output_offset)
     output.get_raw_memory().store_offset(safe_output_indices, ct.astype(acc, output.dtype), mask=row_valid[:, None] & col_valid[None, :])
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=(1,1,1), padding=(0,0,0), output_padding=(0,0,0), groups=1, bias=False, dilation=(1,1,1)):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=False):
         super().__init__()
         if isinstance(kernel_size, int): kernel_size = (kernel_size, kernel_size, kernel_size)
-        self.conv = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding, groups=groups, bias=bias, dilation=dilation)
+        self.conv = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias, dilation=dilation)
     def forward(self, x):
         x = x.to(torch.float16).contiguous()
         B, C_IN, D, H, W = x.shape

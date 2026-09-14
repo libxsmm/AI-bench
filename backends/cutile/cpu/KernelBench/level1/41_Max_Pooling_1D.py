@@ -43,7 +43,12 @@ def maxpool1d_kernel(x, output, L: ConstInt, OL: ConstInt, C: ConstInt, KERNEL_S
         else:
             values = ct.where(valid, ct.gather(x, base + indices), float("-inf")).astype(ct.float32)
         max_value = ct.maximum(max_value, values)
-    ct.scatter(output, b * C * OL + c * OL + offs, ct.astype(max_value, output.dtype))
+    ct.scatter(
+        output,
+        b * C * OL + c * OL + offs,
+        ct.astype(max_value, output.dtype),
+        mask=valid_out,
+    )
 
 
 class Model(nn.Module):

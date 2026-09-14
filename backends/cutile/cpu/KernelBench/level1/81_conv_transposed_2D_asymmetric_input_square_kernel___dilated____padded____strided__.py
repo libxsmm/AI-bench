@@ -41,13 +41,13 @@ def _conv_transpose2d_scatter_kernel(x, weight, output, B: ConstInt, H_IN: Const
             output_mem.store_offset(safe_output_indices, ct.astype(result, output.dtype), mask=valid_output)
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, output_padding=0, groups=1, bias=False, dilation=1):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=False):
         super().__init__()
-        self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding, groups=groups, bias=bias, dilation=dilation)
+        self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias, dilation=dilation)
     def forward(self, x):
         x = x.to(torch.float16).contiguous(); B, C_IN, H_IN, W_IN = x.shape
         KH, KW = self.conv.kernel_size; SH, SW = self.conv.stride; PH, PW = self.conv.padding; DH, DW = self.conv.dilation
-        H_OUT = (H_IN - 1) * SH - 2 * PH + DH * (KH - 1) + 1 + self.conv.output_padding[0]; W_OUT = (W_IN - 1) * SW - 2 * PW + DW * (KW - 1) + 1 + self.conv.output_padding[1]
+        H_OUT = (H_IN - 1) * SH - 2 * PH + DH * (KH - 1) + 1; W_OUT = (W_IN - 1) * SW - 2 * PW + DW * (KW - 1) + 1
         x_channels_last = x.contiguous(memory_format=torch.channels_last)
         weight = self.conv.weight.permute(2, 3, 0, 1).contiguous().to(dtype=torch.float16)
         output = torch.zeros((B, self.conv.out_channels, H_OUT, W_OUT), device=x.device, dtype=torch.float16).contiguous(memory_format=torch.channels_last)
