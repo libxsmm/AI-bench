@@ -1,9 +1,18 @@
 [
     {
         "layer_kind": "reduction",
-        "wg_rows": 64,
-        "sg_rows": 8,
+        "wg_tile": [
+            64,
+            0
+        ],
+        "sg_tile": [
+            8,
+            0
+        ],
         "subgroup_size": 16,
-        "reduction_step_size": 32
+        "reduction_tile": [
+            0,
+            32
+        ]
     }
 ]
