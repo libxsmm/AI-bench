@@ -694,6 +694,27 @@ def sfc_matmul(
 
 
 class SFCMatmulHelper:
+    """
+    Helper class to implement a nn.Linear layer using the SFC matmul approach.
+
+    This class determines suitable block sizes based on the capabilities of the
+    host CPU. The weight tensor is expected to be transposed (NxK) and in
+    row-major order. It is block-and-VNNI packed and cached. An optional bias
+    tensor is stored as-is.
+
+    Invoking this class with an input tensor performs the matrix multiplication
+    for the given activation tensor, which is block-packed on the fly. The
+    K-dimension is blocked according to a heuristic based on the input size.
+
+    Intermediate buffers are cached and reused per thread. The output buffer
+    is allocated by `torch.empty(...)`, unless the caller can guarantee (by
+    passing `c_is_owned=True`) that the result is consumed before the next
+    activation tensor is processed. The output is truncated to the input
+    datatype unless `trunc_output` is set to False.
+    """
+
+    # TODO: Document hooks for epilogue (elementwise, reduction, softmax).
+
     def __init__(self, weights: torch.Tensor, bias: torch.Tensor = None):
         self.BLOCK_SIZE_M, self.BLOCK_SIZE_N, self.BLOCK_SIZE_K = self.get_block_sizes(
             weights.dtype
