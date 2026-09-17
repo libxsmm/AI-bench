@@ -213,8 +213,9 @@ def _affine_groupnorm_2d_kernel(
         block_shape=[1, 1, BLOCK_SIZE_C],
     )
 
-    n = tl.program_id(0)
-    g = tl.program_id(1)
+    program_id = tl.program_id(0)
+    n = program_id // num_groups
+    g = program_id % num_groups
 
     # Welford's online algorithm: single pass over the data, merging one
     # block of BLOCK_SIZE_C elements at a time using Chan's parallel formula.
@@ -280,7 +281,7 @@ def groupnorm(
         out = inp
     else:
         out = torch.empty_like(inp, dtype=out_dtype)
-    _affine_groupnorm_2d_kernel[(N, num_groups)](
+    _affine_groupnorm_2d_kernel[(N * num_groups,)](
         inp,
         out,
         post_op_arg,

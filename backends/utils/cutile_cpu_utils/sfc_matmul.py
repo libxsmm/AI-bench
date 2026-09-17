@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) <2026> Intel Corporation.
 # SPDX-License-Identifier: Apache-2.0
 
-from contextlib import nullcontext
 from dataclasses import replace
 import functools
 import threading
@@ -9,7 +8,8 @@ import threading
 import cuda.tile as ct
 from cuda.tile._backend import cpu
 from cuda.tile._backend._signature import build_signature
-from cuda.tile.compilation import ArrayConstraint, KernelSignature
+from cuda.tile.compilation import ArrayConstraint
+from cuda.tile.compilation import KernelSignature
 import torch
 
 from .gilbert_d2xy import gilbert_d2xy
@@ -57,6 +57,15 @@ def _get_accum_dtype(torch_dtype):
     if torch_dtype == torch.int8:
         return torch.int32
     raise ValueError(f"Unsupported dtype: {torch_dtype}")
+
+
+def _compile_options(options):
+    # All dimensions are asserted to be exact multiples of the block size, so
+    # loads never need masking; Triton passes assume_in_bounds=True likewise.
+    effective = {"assume_in_bounds": True}
+    if options:
+        effective.update(options)
+    return effective
 
 
 def _specialize_packed_argument(parameters, argument_index, array, strides):
@@ -219,7 +228,7 @@ def _default_combine_op(lhs, rhs, **kwargs):
 @functools.lru_cache()
 def _make_matmul_kernel(post_op, reduction_block_op):
     @ct.kernel
-    def kernel(
+    def _sfc_matmul_kernel(
         A,
         B,
         C,
@@ -349,7 +358,7 @@ def _make_matmul_kernel(post_op, reduction_block_op):
             tile=accumulator.astype(C.dtype),
         )
 
-    return kernel
+    return _sfc_matmul_kernel
 
 
 @functools.lru_cache()
@@ -357,7 +366,7 @@ def _make_finish_reduction_kernel(
     reduction_init_val, reduction_combine_op, reduction_post_op
 ):
     @ct.kernel
-    def kernel(
+    def _finish_reduction_kernel(
         Input,
         Output,
         M: ConstInt,
@@ -384,7 +393,7 @@ def _make_finish_reduction_kernel(
             tile=ct.reshape(column_values, (BLOCK_SIZE_M,)).astype(Output.dtype),
         )
 
-    return kernel
+    return _finish_reduction_kernel
 
 
 @ct.kernel
@@ -452,15 +461,10 @@ class PreparedSFCMatmul:
     def __init__(self, launches, output, options):
         self._launches = launches
         self._output = output
-        self._options = None if options is None else dict(options)
+        self._options = _compile_options(options)
 
     def __call__(self):
-        context = (
-            nullcontext()
-            if self._options is None
-            else cpu.compile_options(self._options)
-        )
-        with context:
+        with cpu.compile_options(self._options):
             for grid, compiled, kernel_args in self._launches:
                 ct.launch_compiled(None, grid, compiled, kernel_args)
         return self._output
@@ -540,12 +544,7 @@ def prepare_sfc_matmul(
     )
 
     launches = []
-    context = (
-        nullcontext()
-        if options is None
-        else cpu.compile_options(dict(options))
-    )
-    with context:
+    with cpu.compile_options(_compile_options(options)):
         pack_args = (
             a,
             ap,
