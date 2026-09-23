@@ -76,7 +76,5 @@ class Model(nn.Module):
             reduction_block_op=_reduction_block,
             reduction_post_op=_reduction_post_op,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(
-                max(1, res_mm1.shape[1] // 4096)
-            ),
+            blocking_factor_k=_next_power_of_2(max(1, res_mm1.shape[1] // 4096)),
         )

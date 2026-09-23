@@ -3,17 +3,37 @@
 # Status: Experimental / uncurated
 # Expectation: Correctness-first, performance not representative
 
-import torch
-import torch.nn as nn
 import cuda.tile as ct
 from cuda.tile._backend import cpu
+import torch
+import torch.nn as nn
 
 ct.set_backend("cpu")
 ConstInt = ct.Constant[int]
 
 
 @ct.kernel
-def _conv_transpose3d_kernel(x, weight, bias, output, B: ConstInt, D_IN: ConstInt, H_IN: ConstInt, W_IN: ConstInt, C_IN: ConstInt, C_OUT: ConstInt, D_OUT: ConstInt, H_OUT: ConstInt, W_OUT: ConstInt, KD: ConstInt, KH: ConstInt, KW: ConstInt, BLOCK_W: ConstInt, BLOCK_K: ConstInt, BLOCK_OC: ConstInt):
+def _conv_transpose3d_kernel(
+    x,
+    weight,
+    bias,
+    output,
+    B: ConstInt,
+    D_IN: ConstInt,
+    H_IN: ConstInt,
+    W_IN: ConstInt,
+    C_IN: ConstInt,
+    C_OUT: ConstInt,
+    D_OUT: ConstInt,
+    H_OUT: ConstInt,
+    W_OUT: ConstInt,
+    KD: ConstInt,
+    KH: ConstInt,
+    KW: ConstInt,
+    BLOCK_W: ConstInt,
+    BLOCK_K: ConstInt,
+    BLOCK_OC: ConstInt,
+):
     pid_w = ct.bid(0)
     pid_bdh = ct.bid(1)
     pid_oc = ct.bid(2)
@@ -51,13 +71,24 @@ def _conv_transpose3d_kernel(x, weight, bias, output, B: ConstInt, D_IN: ConstIn
                                 (batch, input_d, input_h, w_start, c_block)
                             ).reshape((BLOCK_W, BLOCK_K))
                         else:
-                            rows = pid_w * BLOCK_W + ct.arange(BLOCK_W, dtype=torch.int32) - kw
+                            rows = (
+                                pid_w * BLOCK_W
+                                + ct.arange(BLOCK_W, dtype=torch.int32)
+                                - kw
+                            )
                             valid = (rows >= 0) & (rows < W_IN)
                             x_indices = (
-                                (((batch * D_IN + input_d) * H_IN + input_h) * W_IN + rows[:, None]) * C_IN
-                                + c_block * BLOCK_K + cin[None, :]
+                                (
+                                    ((batch * D_IN + input_d) * H_IN + input_h) * W_IN
+                                    + rows[:, None]
+                                )
+                                * C_IN
+                                + c_block * BLOCK_K
+                                + cin[None, :]
                             )
-                            safe_x_indices = ct.minimum(ct.maximum(x_indices, 0), max_x_offset)
+                            safe_x_indices = ct.minimum(
+                                ct.maximum(x_indices, 0), max_x_offset
+                            )
                             x_values = x_mem.load_offset(
                                 safe_x_indices,
                                 mask=valid[:, None] & valid_c[None, :],
@@ -77,10 +108,33 @@ def _conv_transpose3d_kernel(x, weight, bias, output, B: ConstInt, D_IN: ConstIn
     output_tile = ct.astype(acc, output.dtype).reshape((1, 1, 1, BLOCK_W, BLOCK_OC))
     output_view.store((batch, d_out, h_out, pid_w, pid_oc), output_tile)
 
+
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, output_padding=0, groups=1, bias=False, dilation=1):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        output_padding=0,
+        groups=1,
+        bias=False,
+        dilation=1,
+    ):
         super().__init__()
-        self.conv = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding, groups=groups, bias=bias, dilation=dilation)
+        self.conv = nn.ConvTranspose3d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
+            groups=groups,
+            bias=bias,
+            dilation=dilation,
+        )
+
     def forward(self, x):
         x = x.to(torch.float16).contiguous()
         B, C_IN, D_IN, H_IN, W_IN = x.shape
@@ -90,10 +144,52 @@ class Model(nn.Module):
         W_OUT = W_IN + KW - 1
         x_channels_last = x.contiguous(memory_format=torch.channels_last_3d)
         x_ndhwc = x_channels_last.permute(0, 2, 3, 4, 1)
-        weight = self.conv.weight.permute(2, 3, 4, 0, 1).reshape(KD * KH * KW, C_IN, self.conv.out_channels).contiguous().to(dtype=torch.float16)
-        bias = torch.zeros(self.conv.out_channels, device=x.device, dtype=torch.float16) if self.conv.bias is None else self.conv.bias.contiguous().to(dtype=torch.float16)
-        output = torch.empty((B, self.conv.out_channels, D_OUT, H_OUT, W_OUT), device=x.device, dtype=torch.float16).contiguous(memory_format=torch.channels_last_3d)
+        weight = (
+            self.conv.weight.permute(2, 3, 4, 0, 1)
+            .reshape(KD * KH * KW, C_IN, self.conv.out_channels)
+            .contiguous()
+            .to(dtype=torch.float16)
+        )
+        bias = (
+            torch.zeros(self.conv.out_channels, device=x.device, dtype=torch.float16)
+            if self.conv.bias is None
+            else self.conv.bias.contiguous().to(dtype=torch.float16)
+        )
+        output = torch.empty(
+            (B, self.conv.out_channels, D_OUT, H_OUT, W_OUT),
+            device=x.device,
+            dtype=torch.float16,
+        ).contiguous(memory_format=torch.channels_last_3d)
         output_ndhwc = output.permute(0, 2, 3, 4, 1)
         with cpu.compile_options({"assume_in_bounds": False}):
-            ct.launch(None, (ct.cdiv(W_OUT, 64), B * D_OUT * H_OUT, ct.cdiv(self.conv.out_channels, 32)), _conv_transpose3d_kernel, (x_ndhwc, weight, bias, output_ndhwc, B, D_IN, H_IN, W_IN, C_IN, self.conv.out_channels, D_OUT, H_OUT, W_OUT, KD, KH, KW, 64, 16, 32))
+            ct.launch(
+                None,
+                (
+                    ct.cdiv(W_OUT, 64),
+                    B * D_OUT * H_OUT,
+                    ct.cdiv(self.conv.out_channels, 32),
+                ),
+                _conv_transpose3d_kernel,
+                (
+                    x_ndhwc,
+                    weight,
+                    bias,
+                    output_ndhwc,
+                    B,
+                    D_IN,
+                    H_IN,
+                    W_IN,
+                    C_IN,
+                    self.conv.out_channels,
+                    D_OUT,
+                    H_OUT,
+                    W_OUT,
+                    KD,
+                    KH,
+                    KW,
+                    64,
+                    16,
+                    32,
+                ),
+            )
         return output

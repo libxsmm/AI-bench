@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -13,13 +12,20 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_SIZE": size}) for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]],
+    configs=[
+        ct.tune.Config({"BLOCK_SIZE": size})
+        for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]
+    ],
     key=["n_elements"],
     grid=lambda meta: (ct.cdiv(meta["n_elements"], meta["BLOCK_SIZE"]),),
-    options=lambda meta: {"assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0},
+    options=lambda meta: {
+        "assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0
+    },
 )
 @ct.kernel
-def hardtanh_kernel(x, output, n_elements: ConstInt, min_val, max_val, BLOCK_SIZE: ConstInt):
+def hardtanh_kernel(
+    x, output, n_elements: ConstInt, min_val, max_val, BLOCK_SIZE: ConstInt
+):
     offsets = ct.bid(0) * BLOCK_SIZE + ct.arange(BLOCK_SIZE, dtype=torch.int32)
     values = ct.gather(x, offsets)
     values = ct.maximum(values, min_val)

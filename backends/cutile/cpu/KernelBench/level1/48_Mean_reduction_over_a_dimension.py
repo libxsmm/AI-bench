@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -16,10 +15,21 @@ ConstInt = ct.Constant[int]
     configs=[ct.tune.Config({"BLOCK_R": 32, "BLOCK_N": 64})],
     key=["R", "C"],
     grid=lambda meta: (ct.cdiv(meta["C"], meta["BLOCK_N"]), meta["B"]),
-    options=lambda meta: {"assume_in_bounds": meta["R"] % meta["BLOCK_R"] == 0 and meta["C"] % meta["BLOCK_N"] == 0},
+    options=lambda meta: {
+        "assume_in_bounds": meta["R"] % meta["BLOCK_R"] == 0
+        and meta["C"] % meta["BLOCK_N"] == 0
+    },
 )
 @ct.kernel
-def mean_reduce_kernel(x, output, B: ConstInt, R: ConstInt, C: ConstInt, BLOCK_R: ConstInt, BLOCK_N: ConstInt):
+def mean_reduce_kernel(
+    x,
+    output,
+    B: ConstInt,
+    R: ConstInt,
+    C: ConstInt,
+    BLOCK_R: ConstInt,
+    BLOCK_N: ConstInt,
+):
     pid_n = ct.bid(0)
     pid_b = ct.bid(1)
     rows = ct.arange(BLOCK_R, dtype=torch.int32)
@@ -31,7 +41,9 @@ def mean_reduce_kernel(x, output, B: ConstInt, R: ConstInt, C: ConstInt, BLOCK_R
         valid = (row_ids[:, None] < R) & (cols[None, :] < C)
         offsets = pid_b * R * C + row_ids[:, None] * C + cols[None, :]
         safe_offsets = ct.minimum(ct.maximum(offsets, 0), B * R * C - 1)
-        values = x_mem.load_offset(safe_offsets, mask=valid, padding_value=0.0).astype(ct.float32)
+        values = x_mem.load_offset(safe_offsets, mask=valid, padding_value=0.0).astype(
+            ct.float32
+        )
         acc += ct.sum(values, axis=0)
     ct.scatter(output, pid_b * C + cols, ct.astype(acc / R, ct.bfloat16))
 

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -13,7 +12,10 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_N": size}) for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]],
+    configs=[
+        ct.tune.Config({"BLOCK_N": size})
+        for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]
+    ],
     key=["N"],
     grid=lambda meta: (meta["M"],),
     options=lambda meta: {"assume_in_bounds": meta["N"] % meta["BLOCK_N"] == 0},
@@ -31,7 +33,9 @@ def _logsoftmax_kernel(x, output, M: ConstInt, N: ConstInt, BLOCK_N: ConstInt):
         values = ct.where(valid, ct.gather(x, offsets), float("-inf"))
         block_max = ct.max(values, axis=0)
         new_max = ct.maximum(max_value, block_max)
-        total = total * ct.exp2((max_value - new_max) * 1.4426950408889634) + ct.sum(ct.exp2((values - new_max) * 1.4426950408889634), axis=0)
+        total = total * ct.exp2((max_value - new_max) * 1.4426950408889634) + ct.sum(
+            ct.exp2((values - new_max) * 1.4426950408889634), axis=0
+        )
         max_value = new_max
     log_sum = ct.log(total)
     for block in range(ct.cdiv(N, BLOCK_N)):

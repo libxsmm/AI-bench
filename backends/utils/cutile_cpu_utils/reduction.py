@@ -158,15 +158,11 @@ def _make_affine_groupnorm_2d_kernel(post_op):
             )
             values = ct.reshape(values, (BLOCK_SIZE_C,)).astype(ct.float32)
             block_mean = ct.sum(values, axis=0) / BLOCK_SIZE_C
-            block_m2 = ct.sum(
-                (values - block_mean) * (values - block_mean), axis=0
-            )
+            block_m2 = ct.sum((values - block_mean) * (values - block_mean), axis=0)
             new_count = count + BLOCK_SIZE_C
             delta = block_mean - mean_value
             mean_value += delta * BLOCK_SIZE_C / new_count
-            m2_value += (
-                block_m2 + delta * delta * count * BLOCK_SIZE_C / new_count
-            )
+            m2_value += block_m2 + delta * delta * count * BLOCK_SIZE_C / new_count
             count = new_count
 
         inverse_std = 1.0 / ct.sqrt(m2_value / group_size + EPS)

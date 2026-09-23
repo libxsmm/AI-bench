@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -19,7 +18,9 @@ ConstInt = ct.Constant[int]
     options=lambda meta: {"assume_in_bounds": meta["S"] % meta["BLOCK_S"] == 0},
 )
 @ct.kernel
-def rms_norm_kernel(x, output, B: ConstInt, F: ConstInt, S: ConstInt, eps, BLOCK_S: ConstInt):
+def rms_norm_kernel(
+    x, output, B: ConstInt, F: ConstInt, S: ConstInt, eps, BLOCK_S: ConstInt
+):
     pid = ct.bid(0)
     blocks = ct.cdiv(S, BLOCK_S)
     batch = pid // blocks

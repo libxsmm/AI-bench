@@ -151,7 +151,7 @@ LLVM_DISTRIBUTION_COMPONENTS = "llvm-headers;llvm-libraries;cmake-exports;mlir-h
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-triton = { git = "https://github.com/intel-sandbox/users.fschlimb.triton-cpu", rev = "d4e39fae7975abf1533db351273b2c2ba0e7ed70" }
+triton = { git = "https://github.com/intel-sandbox/users.fschlimb.triton-cpu", rev = "31e80adc009c904d3f57a3ebe85b27c4b060ce65" }
 cuda-tile = { git = "https://github.com/fschlimb/cutile-python", branch = "bench" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "90fa845" }
 mlir-python-bindings = { index = "eudsl" }

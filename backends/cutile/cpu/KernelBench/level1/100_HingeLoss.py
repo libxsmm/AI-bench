@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -19,7 +18,9 @@ ConstInt = ct.Constant[int]
     options=lambda meta: {"assume_in_bounds": meta["D"] % meta["BLOCK_SIZE"] == 0},
 )
 @ct.kernel
-def hinge_row_kernel(pred, target, rows, B: ConstInt, D: ConstInt, BLOCK_SIZE: ConstInt):
+def hinge_row_kernel(
+    pred, target, rows, B: ConstInt, D: ConstInt, BLOCK_SIZE: ConstInt
+):
     row = ct.bid(0)
     cols = ct.arange(BLOCK_SIZE, dtype=torch.int32)
     pred_mem = pred.get_raw_memory()
@@ -29,8 +30,12 @@ def hinge_row_kernel(pred, target, rows, B: ConstInt, D: ConstInt, BLOCK_SIZE: C
         offsets = row * D + col_start + cols
         target_offsets = col_start + cols
         valid = col_start + cols < D
-        predictions = pred_mem.load_offset(offsets, mask=valid, padding_value=0.0).astype(ct.float32)
-        targets = target_mem.load_offset(target_offsets, mask=valid, padding_value=0.0).astype(ct.float32)
+        predictions = pred_mem.load_offset(
+            offsets, mask=valid, padding_value=0.0
+        ).astype(ct.float32)
+        targets = target_mem.load_offset(
+            target_offsets, mask=valid, padding_value=0.0
+        ).astype(ct.float32)
         total += ct.sum(ct.maximum(1.0 - predictions * targets, 0.0), axis=0)
     ct.store(rows, index=(row,), tile=total)
 
@@ -45,5 +50,5 @@ class Model(nn.Module):
         B, D = predictions.shape
         rows = torch.empty(B, device=predictions.device, dtype=torch.float32)
         hinge_row_kernel(None, (predictions.view(-1), targets.view(-1), rows, B, D))
-        
+
         return rows.sum() / (B * D)

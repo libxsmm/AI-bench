@@ -34,9 +34,7 @@ class Model(nn.Module):
         self.gemm = nn.Linear(in_features, out_features)
         self.group_norm = nn.GroupNorm(num_groups, out_features)
         self.num_groups = num_groups
-        self._norm_epilogue_fun = _make_norm_epilogue(
-            hardtanh_min, hardtanh_max
-        )
+        self._norm_epilogue_fun = _make_norm_epilogue(hardtanh_min, hardtanh_max)
         self._weight_packed = None
         self._bias = None
 

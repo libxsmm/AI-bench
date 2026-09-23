@@ -13,7 +13,9 @@ ConstInt = ct.Constant[int]
 
 
 @ct.kernel
-def argmin_kernel(x, output, B: ConstInt, D1: ConstInt, D2: ConstInt, BLOCK_D2: ConstInt):
+def argmin_kernel(
+    x, output, B: ConstInt, D1: ConstInt, D2: ConstInt, BLOCK_D2: ConstInt
+):
     pid = ct.bid(0)
     blocks = ct.cdiv(D2, BLOCK_D2)
     batch = pid // blocks
@@ -41,5 +43,10 @@ class Model(nn.Module):
         output = torch.empty((B, D2), device=x.device, dtype=torch.int64)
         BLOCK_D2 = 128
         with cpu.compile_options({"assume_in_bounds": D2 % BLOCK_D2 == 0}):
-            ct.launch(None, (B * ct.cdiv(D2, BLOCK_D2),), argmin_kernel, (x.view(-1), output.view(-1), B, D1, D2, BLOCK_D2))
+            ct.launch(
+                None,
+                (B * ct.cdiv(D2, BLOCK_D2),),
+                argmin_kernel,
+                (x.view(-1), output.view(-1), B, D1, D2, BLOCK_D2),
+            )
         return output

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -13,13 +12,33 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": group}) for group in [1, 2, 4, 8]],
+    configs=[
+        ct.tune.Config(
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": group}
+        )
+        for group in [1, 2, 4, 8]
+    ],
     key=["M"],
-    grid=lambda meta: (ct.cdiv(meta["M"], meta["BLOCK_M"]) * ct.cdiv(meta["M"], meta["BLOCK_N"]),),
-    options=lambda meta: {"assume_in_bounds": meta["M"] % meta["BLOCK_M"] == 0 and meta["M"] % meta["BLOCK_N"] == 0 and meta["M"] % meta["BLOCK_K"] == 0},
+    grid=lambda meta: (
+        ct.cdiv(meta["M"], meta["BLOCK_M"]) * ct.cdiv(meta["M"], meta["BLOCK_N"]),
+    ),
+    options=lambda meta: {
+        "assume_in_bounds": meta["M"] % meta["BLOCK_M"] == 0
+        and meta["M"] % meta["BLOCK_N"] == 0
+        and meta["M"] % meta["BLOCK_K"] == 0
+    },
 )
 @ct.kernel
-def tril_matmul_kernel(A, B, C, M: ConstInt, BLOCK_M: ConstInt, BLOCK_N: ConstInt, BLOCK_K: ConstInt, GROUP_SIZE_M: ConstInt):
+def tril_matmul_kernel(
+    A,
+    B,
+    C,
+    M: ConstInt,
+    BLOCK_M: ConstInt,
+    BLOCK_N: ConstInt,
+    BLOCK_K: ConstInt,
+    GROUP_SIZE_M: ConstInt,
+):
     pid = ct.bid(0)
     num = ct.cdiv(M, BLOCK_M)
     width = GROUP_SIZE_M * num
@@ -35,7 +54,11 @@ def tril_matmul_kernel(A, B, C, M: ConstInt, BLOCK_M: ConstInt, BLOCK_N: ConstIn
         end = min(off_m + BLOCK_M, M)
         acc = ct.full((BLOCK_M, BLOCK_N), 0, dtype=ct.float32)
         for k in range(start, end, BLOCK_K):
-            acc = ct.mma(ct.load(A, index=(pid_m, k // BLOCK_K), shape=(BLOCK_M, BLOCK_K)), ct.load(B, index=(k // BLOCK_K, pid_n), shape=(BLOCK_K, BLOCK_N)), acc)
+            acc = ct.mma(
+                ct.load(A, index=(pid_m, k // BLOCK_K), shape=(BLOCK_M, BLOCK_K)),
+                ct.load(B, index=(k // BLOCK_K, pid_n), shape=(BLOCK_K, BLOCK_N)),
+                acc,
+            )
         rows = off_m + ct.arange(BLOCK_M, dtype=torch.int32)
         cols = off_n + ct.arange(BLOCK_N, dtype=torch.int32)
         acc = ct.where(rows[:, None] >= cols[None, :], acc, 0.0)

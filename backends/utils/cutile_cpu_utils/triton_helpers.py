@@ -22,10 +22,11 @@ def mish(value):
 
 
 def gelu(value):
-    return 0.5 * value * (
-        1.0
-        + ct.tanh(
-            0.7978845608028654
-            * (value + 0.044715 * value * value * value)
+    return (
+        0.5
+        * value
+        * (
+            1.0
+            + ct.tanh(0.7978845608028654 * (value + 0.044715 * value * value * value))
         )
     )

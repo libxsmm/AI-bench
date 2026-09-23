@@ -47,5 +47,10 @@ class Model(nn.Module):
         output = torch.empty_like(x_flat)
         BLOCK_SIZE = 32
         with cpu.compile_options({"assume_in_bounds": N % BLOCK_SIZE == 0}):
-            ct.launch(None, (B * C,), instance_norm_kernel, (x_flat.view(-1), output.view(-1), N, self.eps, BLOCK_SIZE))
+            ct.launch(
+                None,
+                (B * C,),
+                instance_norm_kernel,
+                (x_flat.view(-1), output.view(-1), N, self.eps, BLOCK_SIZE),
+            )
         return output.view(B, C, H, W)

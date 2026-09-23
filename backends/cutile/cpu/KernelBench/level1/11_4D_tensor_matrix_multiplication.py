@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -13,13 +12,35 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": group}) for group in [1, 2, 4, 8]],
+    configs=[
+        ct.tune.Config(
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": group}
+        )
+        for group in [1, 2, 4, 8]
+    ],
     key=["M", "N", "K"],
-    grid=lambda meta: (ct.cdiv(meta["M"], meta["BLOCK_M"]) * ct.cdiv(meta["N"], meta["BLOCK_N"]),),
-    options=lambda meta: {"assume_in_bounds": meta["M"] % meta["BLOCK_M"] == 0 and meta["N"] % meta["BLOCK_N"] == 0 and meta["K"] % meta["BLOCK_K"] == 0},
+    grid=lambda meta: (
+        ct.cdiv(meta["M"], meta["BLOCK_M"]) * ct.cdiv(meta["N"], meta["BLOCK_N"]),
+    ),
+    options=lambda meta: {
+        "assume_in_bounds": meta["M"] % meta["BLOCK_M"] == 0
+        and meta["N"] % meta["BLOCK_N"] == 0
+        and meta["K"] % meta["BLOCK_K"] == 0
+    },
 )
 @ct.kernel
-def _gemm_kernel(A, B, C, M: ConstInt, N: ConstInt, K: ConstInt, BLOCK_M: ConstInt, BLOCK_N: ConstInt, BLOCK_K: ConstInt, GROUP_SIZE_M: ConstInt):
+def _gemm_kernel(
+    A,
+    B,
+    C,
+    M: ConstInt,
+    N: ConstInt,
+    K: ConstInt,
+    BLOCK_M: ConstInt,
+    BLOCK_N: ConstInt,
+    BLOCK_K: ConstInt,
+    GROUP_SIZE_M: ConstInt,
+):
     pid = ct.bid(0)
     num_pid_m = ct.cdiv(M, BLOCK_M)
     num_pid_n = ct.cdiv(N, BLOCK_N)
@@ -31,7 +52,11 @@ def _gemm_kernel(A, B, C, M: ConstInt, N: ConstInt, K: ConstInt, BLOCK_M: ConstI
     pid_n = (pid % width) // group_size
     acc = ct.full((BLOCK_M, BLOCK_N), 0, dtype=ct.float32)
     for k in range(ct.cdiv(K, BLOCK_K)):
-        acc = ct.mma(ct.load(A, index=(pid_m, k), shape=(BLOCK_M, BLOCK_K)), ct.load(B, index=(k, pid_n), shape=(BLOCK_K, BLOCK_N)), acc)
+        acc = ct.mma(
+            ct.load(A, index=(pid_m, k), shape=(BLOCK_M, BLOCK_K)),
+            ct.load(B, index=(k, pid_n), shape=(BLOCK_K, BLOCK_N)),
+            acc,
+        )
     ct.store(C, index=(pid_m, pid_n), tile=ct.astype(acc, C.dtype))
 
 

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -16,10 +15,21 @@ ConstInt = ct.Constant[int]
     configs=[ct.tune.Config({"BLOCK_R": 32, "BLOCK_N": 64})],
     key=["R", "C"],
     grid=lambda meta: (ct.cdiv(meta["C"], meta["BLOCK_N"]), meta["B"]),
-    options=lambda meta: {"assume_in_bounds": meta["R"] % meta["BLOCK_R"] == 0 and meta["C"] % meta["BLOCK_N"] == 0},
+    options=lambda meta: {
+        "assume_in_bounds": meta["R"] % meta["BLOCK_R"] == 0
+        and meta["C"] % meta["BLOCK_N"] == 0
+    },
 )
 @ct.kernel
-def sum_reduce_kernel(x, output, B: ConstInt, R: ConstInt, C: ConstInt, BLOCK_R: ConstInt, BLOCK_N: ConstInt):
+def sum_reduce_kernel(
+    x,
+    output,
+    B: ConstInt,
+    R: ConstInt,
+    C: ConstInt,
+    BLOCK_R: ConstInt,
+    BLOCK_N: ConstInt,
+):
     pid_n = ct.bid(0)
     pid_b = ct.bid(1)
     rows = ct.arange(BLOCK_R, dtype=torch.int32)

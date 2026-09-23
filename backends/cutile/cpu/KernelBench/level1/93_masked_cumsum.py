@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -19,7 +18,9 @@ ConstInt = ct.Constant[int]
     options=lambda meta: {"assume_in_bounds": meta["N"] % meta["BLOCK_SIZE"] == 0},
 )
 @ct.kernel
-def masked_cumsum_kernel(x, mask, output, M: ConstInt, N: ConstInt, BLOCK_SIZE: ConstInt):
+def masked_cumsum_kernel(
+    x, mask, output, M: ConstInt, N: ConstInt, BLOCK_SIZE: ConstInt
+):
     row = ct.bid(0)
     cols = ct.arange(BLOCK_SIZE, dtype=torch.int32)
     running = 0.0

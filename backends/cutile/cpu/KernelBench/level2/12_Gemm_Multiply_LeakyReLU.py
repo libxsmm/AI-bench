@@ -27,9 +27,7 @@ class Model(nn.Module):
     def __init__(self, in_features, out_features, multiplier, negative_slope):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
-        self._epilogue_fun = _make_epilogue(
-            float(multiplier), float(negative_slope)
-        )
+        self._epilogue_fun = _make_epilogue(float(multiplier), float(negative_slope))
         self._weight_packed = None
         self._bias = None
 

@@ -19,7 +19,17 @@ ConstInt = ct.Constant[int]
     options=lambda meta: {"assume_in_bounds": meta["D"] % meta["BLOCK_K"] == 0},
 )
 @ct.kernel
-def triplet_kernel(anchor, positive, negative, rows, B: ConstInt, D: ConstInt, margin, eps, BLOCK_K: ConstInt):
+def triplet_kernel(
+    anchor,
+    positive,
+    negative,
+    rows,
+    B: ConstInt,
+    D: ConstInt,
+    margin,
+    eps,
+    BLOCK_K: ConstInt,
+):
     row = ct.bid(0)
     cols = ct.arange(BLOCK_K, dtype=torch.int32)
     positive_total = 0.0
@@ -61,7 +71,19 @@ class Model(nn.Module):
         B, D = anchor.shape
         rows = torch.empty(B, device=anchor.device, dtype=torch.float32)
         output = torch.empty(1, device=anchor.device, dtype=torch.float32)
-        triplet_kernel(None, (anchor.view(-1), positive.view(-1), negative.view(-1), rows, B, D, self.margin, self.eps))
+        triplet_kernel(
+            None,
+            (
+                anchor.view(-1),
+                positive.view(-1),
+                negative.view(-1),
+                rows,
+                B,
+                D,
+                self.margin,
+                self.eps,
+            ),
+        )
         with cpu.compile_options({"assume_in_bounds": B % 128 == 0}):
             ct.launch(None, (1,), mean_kernel, (rows, output, B, 128))
         return output[0]

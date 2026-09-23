@@ -27,8 +27,17 @@ def kl_row_kernel(pred, target, rows, B: ConstInt, N: ConstInt, BLOCK_SIZE: Cons
         offsets = row * N + block * BLOCK_SIZE + cols
         valid = block * BLOCK_SIZE + cols < N
         pred_values = ct.where(valid, ct.gather(pred, offsets), 1.0).astype(ct.float32)
-        target_values = ct.where(valid, ct.gather(target, offsets), 0.0).astype(ct.float32)
-        total += ct.sum(ct.where(target_values > 0, target_values * ct.log(target_values / pred_values), 0.0), axis=0)
+        target_values = ct.where(valid, ct.gather(target, offsets), 0.0).astype(
+            ct.float32
+        )
+        total += ct.sum(
+            ct.where(
+                target_values > 0,
+                target_values * ct.log(target_values / pred_values),
+                0.0,
+            ),
+            axis=0,
+        )
     ct.store(rows, index=(row,), tile=total)
 
 

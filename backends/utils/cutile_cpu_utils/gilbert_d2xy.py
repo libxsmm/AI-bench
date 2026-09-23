@@ -32,9 +32,7 @@ def _gilbert_d2xy_recursive(dst_idx, cur_idx, x, y, ax, ay, bx, by):
 
         next_idx = cur_idx + abs((ax2 + ay2) * (bx + by))
         if cur_idx <= dst_idx < next_idx:
-            return _gilbert_d2xy_recursive(
-                dst_idx, cur_idx, x, y, ax2, ay2, bx, by
-            )
+            return _gilbert_d2xy_recursive(dst_idx, cur_idx, x, y, ax2, ay2, bx, by)
         return _gilbert_d2xy_recursive(
             dst_idx,
             next_idx,
@@ -51,9 +49,7 @@ def _gilbert_d2xy_recursive(dst_idx, cur_idx, x, y, ax, ay, bx, by):
 
     next_idx = cur_idx + abs((bx2 + by2) * (ax2 + ay2))
     if cur_idx <= dst_idx < next_idx:
-        return _gilbert_d2xy_recursive(
-            dst_idx, cur_idx, x, y, bx2, by2, ax2, ay2
-        )
+        return _gilbert_d2xy_recursive(dst_idx, cur_idx, x, y, bx2, by2, ax2, ay2)
     cur_idx = next_idx
 
     next_idx = cur_idx + abs((ax + ay) * ((bx - bx2) + (by - by2)))

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -26,7 +25,9 @@ def reverse_cumsum_kernel(x, output, M: ConstInt, N: ConstInt, BLOCK_SIZE: Const
     for block in range(ct.cdiv(N, BLOCK_SIZE)):
         offsets = row * N + block * BLOCK_SIZE + cols
         valid = block * BLOCK_SIZE + cols < N
-        total += ct.sum(ct.where(valid, ct.gather(x, offsets), 0.0).astype(ct.float32), axis=0)
+        total += ct.sum(
+            ct.where(valid, ct.gather(x, offsets), 0.0).astype(ct.float32), axis=0
+        )
     prefix = 0.0
     for block in range(ct.cdiv(N, BLOCK_SIZE)):
         offsets = row * N + block * BLOCK_SIZE + cols
