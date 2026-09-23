@@ -57,7 +57,9 @@ class Model(nn.Module):
                 BLOCK_SIZE_K=32,
             )
             self._bias = self.gemm.bias.data.to(dtype=x.dtype).contiguous()
-            self._multiply_weight = self.multiply_weight.data.to(dtype=x.dtype).contiguous()
+            self._multiply_weight = self.multiply_weight.data.to(
+                dtype=x.dtype
+            ).contiguous()
             assert self.group_norm.affine, "GroupNorm must have affine=True"
 
         res_mm = sfc_matmul(

@@ -13,14 +13,19 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_SIZE": size}) for size in [32, 64, 128, 256, 512, 1024, 2048]],
+    configs=[
+        ct.tune.Config({"BLOCK_SIZE": size})
+        for size in [32, 64, 128, 256, 512, 1024, 2048]
+    ],
     key=["n_elements"],
     grid=lambda meta: (ct.cdiv(meta["n_elements"], meta["BLOCK_SIZE"]),),
-    options=lambda meta: {"assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0},
+    options=lambda meta: {
+        "assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0
+    },
 )
 @ct.kernel
 def scalar_mul_kernel(
-    input,
+    input_tensor,
     output,
     scalar,
     n_elements: ConstInt,
@@ -28,7 +33,7 @@ def scalar_mul_kernel(
 ):
     pid = ct.bid(0)
     offsets = pid * BLOCK_SIZE + ct.arange(BLOCK_SIZE, dtype=torch.int32)
-    x = ct.gather(input, offsets)
+    x = ct.gather(input_tensor, offsets)
     result = x * scalar
     ct.scatter(output, offsets, ct.astype(result, ct.bfloat16))
 

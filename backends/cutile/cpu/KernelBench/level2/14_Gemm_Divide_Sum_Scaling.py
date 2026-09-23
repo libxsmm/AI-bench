@@ -32,9 +32,7 @@ class Model(nn.Module):
         super().__init__()
         self.weight = nn.Parameter(torch.randn(hidden_size, input_size))
         self._scaling_factor = float(scaling_factor)
-        self._reduction_post_op = _make_reduction_post_op(
-            self._scaling_factor
-        )
+        self._reduction_post_op = _make_reduction_post_op(self._scaling_factor)
         self._weight_packed = None
 
     def forward(self, x):

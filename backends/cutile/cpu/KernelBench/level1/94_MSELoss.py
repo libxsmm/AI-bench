@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -26,7 +25,10 @@ def mse_row_kernel(pred, target, rows, B: ConstInt, N: ConstInt, BLOCK_SIZE: Con
     for block in range(ct.cdiv(N, BLOCK_SIZE)):
         offsets = row * N + block * BLOCK_SIZE + cols
         valid = block * BLOCK_SIZE + cols < N
-        diff = (ct.where(valid, ct.gather(pred, offsets), 0.0) - ct.where(valid, ct.gather(target, offsets), 0.0)).astype(ct.float32)
+        diff = (
+            ct.where(valid, ct.gather(pred, offsets), 0.0)
+            - ct.where(valid, ct.gather(target, offsets), 0.0)
+        ).astype(ct.float32)
         total += ct.sum(diff * diff, axis=0)
     ct.store(rows, index=(row,), tile=total)
 

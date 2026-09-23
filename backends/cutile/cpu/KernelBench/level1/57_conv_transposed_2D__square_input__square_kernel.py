@@ -3,10 +3,10 @@
 # Status: Experimental / uncurated
 # Expectation: Correctness-first, performance not representative
 
-import torch
-import torch.nn as nn
 import cuda.tile as ct
 from cuda.tile._backend import cpu
+import torch
+import torch.nn as nn
 
 ct.set_backend("cpu")
 ConstInt = ct.Constant[int]
@@ -54,35 +54,106 @@ def _conv_transpose2d_kernel(
         for kw in range(KW):
             input_w = ow + kw
             valid = row_valid
-            x_indices = ((((batch * H_PAD + oh + kh) * W_PAD + input_w[:, None]) * C_IN) + cin[None, :])
+            x_indices = (
+                ((batch * H_PAD + oh + kh) * W_PAD + input_w[:, None]) * C_IN
+            ) + cin[None, :]
             safe_x_indices = ct.minimum(ct.maximum(x_indices, 0), max_x_offset)
             x_values = x_mem.load_offset(safe_x_indices, mask=safe_x_indices >= 0)
             x_values = x_values * valid[:, None].astype(torch.float16)
-            weight_base = (kh * KW + kw) * C_IN * C_OUT + cin[:, None] * C_OUT + cols[None, :]
+            weight_base = (
+                (kh * KW + kw) * C_IN * C_OUT + cin[:, None] * C_OUT + cols[None, :]
+            )
             safe_weight_base = ct.minimum(ct.maximum(weight_base, 0), max_weight_offset)
-            weight_values = weight_mem.load_offset(safe_weight_base, mask=col_valid[None, :], padding_value=0.0)
+            weight_values = weight_mem.load_offset(
+                safe_weight_base, mask=col_valid[None, :], padding_value=0.0
+            )
             acc = ct.mma(x_values, weight_values, acc)
 
     safe_cols = ct.minimum(ct.maximum(cols, 0), C_OUT - 1)
-    acc += bias_mem.load_offset(safe_cols, mask=col_valid, padding_value=0.0)[None, :].astype(ct.float32)
+    acc += bias_mem.load_offset(safe_cols, mask=col_valid, padding_value=0.0)[
+        None, :
+    ].astype(ct.float32)
     output_indices = ((batch * OH + oh) * OW + ow[:, None]) * C_OUT + cols[None, :]
-    safe_output_indices = ct.minimum(ct.maximum(output_indices, 0), N * OH * OW * C_OUT - 1)
-    output.get_raw_memory().store_offset(safe_output_indices, ct.astype(acc, output.dtype), mask=row_valid[:, None] & col_valid[None, :])
+    safe_output_indices = ct.minimum(
+        ct.maximum(output_indices, 0), N * OH * OW * C_OUT - 1
+    )
+    output.get_raw_memory().store_offset(
+        safe_output_indices,
+        ct.astype(acc, output.dtype),
+        mask=row_valid[:, None] & col_valid[None, :],
+    )
+
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, output_padding=0, groups=1, bias=False, dilation=1):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        output_padding=0,
+        groups=1,
+        bias=False,
+        dilation=1,
+    ):
         super().__init__()
-        self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding, groups=groups, bias=bias, dilation=dilation)
+        self.conv = nn.ConvTranspose2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
+            groups=groups,
+            bias=bias,
+            dilation=dilation,
+        )
+
     def forward(self, x):
         x = x.to(torch.float16)
         N, C_IN, H, W = x.shape
         KH, KW = self.conv.kernel_size
         OH = H + KH - 1
         OW = W + KW - 1
-        x_padded = torch.nn.functional.pad(x, (KW - 1, KW - 1, KH - 1, KH - 1)).contiguous(memory_format=torch.channels_last)
-        weight = self.conv.weight.flip(2, 3).permute(2, 3, 0, 1).contiguous().to(dtype=torch.float16)
-        bias = torch.zeros(self.conv.out_channels, device=x.device, dtype=torch.float16) if self.conv.bias is None else self.conv.bias.contiguous().to(dtype=torch.float16)
-        output = torch.empty((N, self.conv.out_channels, OH, OW), device=x.device, dtype=torch.float16).contiguous(memory_format=torch.channels_last)
+        x_padded = torch.nn.functional.pad(
+            x, (KW - 1, KW - 1, KH - 1, KH - 1)
+        ).contiguous(memory_format=torch.channels_last)
+        weight = (
+            self.conv.weight.flip(2, 3)
+            .permute(2, 3, 0, 1)
+            .contiguous()
+            .to(dtype=torch.float16)
+        )
+        bias = (
+            torch.zeros(self.conv.out_channels, device=x.device, dtype=torch.float16)
+            if self.conv.bias is None
+            else self.conv.bias.contiguous().to(dtype=torch.float16)
+        )
+        output = torch.empty(
+            (N, self.conv.out_channels, OH, OW), device=x.device, dtype=torch.float16
+        ).contiguous(memory_format=torch.channels_last)
         with cpu.compile_options({"assume_in_bounds": False}):
-            ct.launch(None, (OH * ct.cdiv(OW, 64) * ct.cdiv(self.conv.out_channels, 32), N), _conv_transpose2d_kernel, (x_padded, weight, bias, output, N, H + 2 * (KH - 1), W + 2 * (KW - 1), C_IN, self.conv.out_channels, OH, OW, KH, KW, 64, 32))
+            ct.launch(
+                None,
+                (OH * ct.cdiv(OW, 64) * ct.cdiv(self.conv.out_channels, 32), N),
+                _conv_transpose2d_kernel,
+                (
+                    x_padded,
+                    weight,
+                    bias,
+                    output,
+                    N,
+                    H + 2 * (KH - 1),
+                    W + 2 * (KW - 1),
+                    C_IN,
+                    self.conv.out_channels,
+                    OH,
+                    OW,
+                    KH,
+                    KW,
+                    64,
+                    32,
+                ),
+            )
         return output

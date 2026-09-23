@@ -47,9 +47,7 @@ class Model(nn.Module):
         self.avg_pool = nn.AvgPool1d(kernel_size=pool_kernel_size)
         self._weight_packed = None
         self._bias = None
-        self._reduction_block = _make_reduction_block(
-            pool_kernel_size, scale_factor
-        )
+        self._reduction_block = _make_reduction_block(pool_kernel_size, scale_factor)
 
     def forward(self, x):
         x = x.contiguous()

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -19,16 +18,23 @@ ConstInt = ct.Constant[int]
     options=lambda meta: {"assume_in_bounds": meta["N"] % meta["BLOCK_SIZE"] == 0},
 )
 @ct.kernel
-def huber_row_kernel(pred, target, rows, B: ConstInt, N: ConstInt, BLOCK_SIZE: ConstInt):
+def huber_row_kernel(
+    pred, target, rows, B: ConstInt, N: ConstInt, BLOCK_SIZE: ConstInt
+):
     row = ct.bid(0)
     cols = ct.arange(BLOCK_SIZE, dtype=torch.int32)
     total = 0.0
     for block in range(ct.cdiv(N, BLOCK_SIZE)):
         offsets = row * N + block * BLOCK_SIZE + cols
         valid = block * BLOCK_SIZE + cols < N
-        diff = (ct.where(valid, ct.gather(pred, offsets), 0.0) - ct.where(valid, ct.gather(target, offsets), 0.0)).astype(ct.float32)
+        diff = (
+            ct.where(valid, ct.gather(pred, offsets), 0.0)
+            - ct.where(valid, ct.gather(target, offsets), 0.0)
+        ).astype(ct.float32)
         absolute = ct.abs(diff)
-        total += ct.sum(ct.where(absolute < 1.0, 0.5 * diff * diff, absolute - 0.5), axis=0)
+        total += ct.sum(
+            ct.where(absolute < 1.0, 0.5 * diff * diff, absolute - 0.5), axis=0
+        )
     ct.store(rows, index=(row,), tile=total)
 
 

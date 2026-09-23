@@ -13,7 +13,18 @@ ConstInt = ct.Constant[int]
 
 
 @ct.kernel
-def group_norm_stats_kernel(x, mean, invstd, B: ConstInt, C: ConstInt, HW: ConstInt, groups: ConstInt, channels_per_group: ConstInt, eps, BLOCK_HW: ConstInt):
+def group_norm_stats_kernel(
+    x,
+    mean,
+    invstd,
+    B: ConstInt,
+    C: ConstInt,
+    HW: ConstInt,
+    groups: ConstInt,
+    channels_per_group: ConstInt,
+    eps,
+    BLOCK_HW: ConstInt,
+):
     pid = ct.bid(0)
     batch = pid // groups
     group = pid % groups
@@ -37,7 +48,20 @@ def group_norm_stats_kernel(x, mean, invstd, B: ConstInt, C: ConstInt, HW: Const
 
 
 @ct.kernel
-def group_norm_apply_kernel(x, output, mean, invstd, weight, bias, B: ConstInt, C: ConstInt, HW: ConstInt, groups: ConstInt, channels_per_group: ConstInt, BLOCK_HW: ConstInt):
+def group_norm_apply_kernel(
+    x,
+    output,
+    mean,
+    invstd,
+    weight,
+    bias,
+    B: ConstInt,
+    C: ConstInt,
+    HW: ConstInt,
+    groups: ConstInt,
+    channels_per_group: ConstInt,
+    BLOCK_HW: ConstInt,
+):
     pid = ct.bid(0)
     batch = pid // C
     channel = pid % C
@@ -46,7 +70,9 @@ def group_norm_apply_kernel(x, output, mean, invstd, weight, bias, B: ConstInt, 
     average = ct.load(mean, index=(stats,), shape=())
     inverse = ct.load(invstd, index=(stats,), shape=())
     scale = inverse * ct.load(weight, index=(channel,), shape=()).astype(ct.float32)
-    shift = ct.load(bias, index=(channel,), shape=()).astype(ct.float32) - average * scale
+    shift = (
+        ct.load(bias, index=(channel,), shape=()).astype(ct.float32) - average * scale
+    )
     cols = ct.arange(BLOCK_HW, dtype=torch.int32)
     base = batch * C * HW + channel * HW
     for block in range(ct.cdiv(HW, BLOCK_HW)):
@@ -81,6 +107,40 @@ class Model(nn.Module):
         mean = torch.empty(B * self.num_groups, device=device, dtype=torch.float32)
         invstd = torch.empty(B * self.num_groups, device=device, dtype=torch.float32)
         with cpu.compile_options({"assume_in_bounds": HW % 32 == 0}):
-            ct.launch(None, (B * self.num_groups,), group_norm_stats_kernel, (x.view(-1), mean, invstd, B, C, HW, self.num_groups, channels_per_group, self.gn.eps, 32))
-            ct.launch(None, (B * C,), group_norm_apply_kernel, (x.view(-1), output.view(-1), mean, invstd, self.weight_packed, self.bias_packed, B, C, HW, self.num_groups, channels_per_group, 32))
+            ct.launch(
+                None,
+                (B * self.num_groups,),
+                group_norm_stats_kernel,
+                (
+                    x.view(-1),
+                    mean,
+                    invstd,
+                    B,
+                    C,
+                    HW,
+                    self.num_groups,
+                    channels_per_group,
+                    self.gn.eps,
+                    32,
+                ),
+            )
+            ct.launch(
+                None,
+                (B * C,),
+                group_norm_apply_kernel,
+                (
+                    x.view(-1),
+                    output.view(-1),
+                    mean,
+                    invstd,
+                    self.weight_packed,
+                    self.bias_packed,
+                    B,
+                    C,
+                    HW,
+                    self.num_groups,
+                    channels_per_group,
+                    32,
+                ),
+            )
         return output

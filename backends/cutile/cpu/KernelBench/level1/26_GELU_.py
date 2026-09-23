@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -13,15 +12,22 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_SIZE": size}) for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]],
+    configs=[
+        ct.tune.Config({"BLOCK_SIZE": size})
+        for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]
+    ],
     key=["n_elements"],
     grid=lambda meta: (ct.cdiv(meta["n_elements"], meta["BLOCK_SIZE"]),),
-    options=lambda meta: {"assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0},
+    options=lambda meta: {
+        "assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0
+    },
 )
 @ct.kernel
 def gelu_kernel(x, output, n_elements: ConstInt, BLOCK_SIZE: ConstInt):
     tile_index = ct.bid(0)
-    values = ct.load(x, (tile_index,), (BLOCK_SIZE,), padding_mode=ct.PaddingMode.ZERO).astype(ct.float32)
+    values = ct.load(
+        x, (tile_index,), (BLOCK_SIZE,), padding_mode=ct.PaddingMode.ZERO
+    ).astype(ct.float32)
     absolute_values = ct.abs(values)
     t = 1.0 / (1.0 + 0.3275911 * absolute_values)
     polynomial = t * (

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -16,7 +15,9 @@ ConstInt = ct.Constant[int]
     configs=[ct.tune.Config({"BLOCK_SIZE": 32})],
     key=["n_elements"],
     grid=lambda meta: (ct.cdiv(meta["n_elements"], meta["BLOCK_SIZE"]),),
-    options=lambda meta: {"assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0},
+    options=lambda meta: {
+        "assume_in_bounds": meta["n_elements"] % meta["BLOCK_SIZE"] == 0
+    },
 )
 @ct.kernel
 def gelu_kernel(x, output, n_elements: ConstInt, BLOCK_SIZE: ConstInt):

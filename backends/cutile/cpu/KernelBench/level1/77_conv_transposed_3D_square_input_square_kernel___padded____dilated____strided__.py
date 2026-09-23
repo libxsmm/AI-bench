@@ -3,10 +3,10 @@
 # Status: Experimental / uncurated
 # Expectation: Correctness-first, performance not representative
 
-import torch
-import torch.nn as nn
 import cuda.tile as ct
 from cuda.tile._backend import cpu
+import torch
+import torch.nn as nn
 
 ct.set_backend("cpu")
 ConstInt = ct.Constant[int]
@@ -58,27 +58,72 @@ def _conv_transpose3d_kernel(
             input_h = h_idx + 1 - kh
             for kw in range(K):
                 input_w = rows + 1 - kw
-                valid = row_valid & (input_d >= 0) & (input_d < D) & (input_h >= 0) & (input_h < H) & (input_w >= 0) & (input_w < W)
-                x_indices = ((((batch * D + input_d) * H + input_h) * W + input_w[:, None]) * C_IN + cin[None, :])
+                valid = (
+                    row_valid
+                    & (input_d >= 0)
+                    & (input_d < D)
+                    & (input_h >= 0)
+                    & (input_h < H)
+                    & (input_w >= 0)
+                    & (input_w < W)
+                )
+                x_indices = (
+                    ((batch * D + input_d) * H + input_h) * W + input_w[:, None]
+                ) * C_IN + cin[None, :]
                 safe_x_indices = ct.minimum(ct.maximum(x_indices, 0), max_x_offset)
                 x_values = x_mem.load_offset(safe_x_indices, mask=safe_x_indices >= 0)
                 x_values = x_values * valid[:, None].astype(torch.float16)
                 kernel_index = kd * K * K + kh * K + kw
-                weight_base = kernel_index * C_IN * C_OUT + cin[:, None] * C_OUT + cols[None, :]
-                safe_weight_base = ct.minimum(ct.maximum(weight_base, 0), max_weight_offset)
-                weight_values = weight_mem.load_offset(safe_weight_base, mask=col_valid[None, :], padding_value=0.0)
+                weight_base = (
+                    kernel_index * C_IN * C_OUT + cin[:, None] * C_OUT + cols[None, :]
+                )
+                safe_weight_base = ct.minimum(
+                    ct.maximum(weight_base, 0), max_weight_offset
+                )
+                weight_values = weight_mem.load_offset(
+                    safe_weight_base, mask=col_valid[None, :], padding_value=0.0
+                )
                 acc = ct.mma(x_values, weight_values, acc)
-    acc += bias_mem.load_offset(ct.minimum(ct.maximum(cols, 0), C_OUT - 1), mask=col_valid, padding_value=0.0)[None, :].astype(ct.float32)
-    output_indices = ((((batch * OD + (2 * d_idx + 1)) * OH + (2 * h_idx + 1)) * OW + (2 * rows[:, None] + 1)) * C_OUT + cols[None, :])
+    acc += bias_mem.load_offset(
+        ct.minimum(ct.maximum(cols, 0), C_OUT - 1), mask=col_valid, padding_value=0.0
+    )[None, :].astype(ct.float32)
+    output_indices = (
+        ((batch * OD + (2 * d_idx + 1)) * OH + (2 * h_idx + 1)) * OW
+        + (2 * rows[:, None] + 1)
+    ) * C_OUT + cols[None, :]
     max_output_offset = B * OD * OH * OW * C_OUT - 1
     safe_output_indices = ct.minimum(ct.maximum(output_indices, 0), max_output_offset)
-    output.get_raw_memory().store_offset(safe_output_indices, ct.astype(acc, output.dtype), mask=row_valid[:, None] & col_valid[None, :])
+    output.get_raw_memory().store_offset(
+        safe_output_indices,
+        ct.astype(acc, output.dtype),
+        mask=row_valid[:, None] & col_valid[None, :],
+    )
+
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=False):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        bias=False,
+    ):
         super().__init__()
-        if isinstance(kernel_size, int): kernel_size = (kernel_size, kernel_size, kernel_size)
-        self.conv = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias, dilation=dilation)
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size, kernel_size, kernel_size)
+        self.conv = nn.ConvTranspose3d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+            dilation=dilation,
+        )
+
     def forward(self, x):
         x = x.to(torch.float16).contiguous()
         B, C_IN, D, H, W = x.shape
@@ -91,12 +136,45 @@ class Model(nn.Module):
         OW = (W - 1) * STRIDE - 2 * PADDING + DILATION * (K - 1) + 1
         C_OUT = self.conv.out_channels
         x_channels_last = x.contiguous(memory_format=torch.channels_last_3d)
-        weight = self.conv.weight.permute(2, 3, 4, 0, 1).contiguous().to(dtype=torch.float16)
-        bias = torch.zeros(C_OUT, device=x.device, dtype=torch.float16) if self.conv.bias is None else self.conv.bias.contiguous().to(dtype=torch.float16)
-        output = torch.zeros((B, C_OUT, OD, OH, OW), device=x.device, dtype=torch.float16).contiguous(memory_format=torch.channels_last_3d)
+        weight = (
+            self.conv.weight.permute(2, 3, 4, 0, 1).contiguous().to(dtype=torch.float16)
+        )
+        bias = (
+            torch.zeros(C_OUT, device=x.device, dtype=torch.float16)
+            if self.conv.bias is None
+            else self.conv.bias.contiguous().to(dtype=torch.float16)
+        )
+        output = torch.zeros(
+            (B, C_OUT, OD, OH, OW), device=x.device, dtype=torch.float16
+        ).contiguous(memory_format=torch.channels_last_3d)
         D_ACT = OD // 2
         H_ACT = OH // 2
         W_ACT = OW // 2
         with cpu.compile_options({"assume_in_bounds": False}):
-            ct.launch(None, (ct.cdiv(W_ACT, 16), B * D_ACT * H_ACT, ct.cdiv(C_OUT, 32)), _conv_transpose3d_kernel, (x_channels_last, weight, bias, output, B, C_IN, C_OUT, D, H, W, OD, OH, OW, K, D_ACT, H_ACT, W_ACT, 16, 32))
+            ct.launch(
+                None,
+                (ct.cdiv(W_ACT, 16), B * D_ACT * H_ACT, ct.cdiv(C_OUT, 32)),
+                _conv_transpose3d_kernel,
+                (
+                    x_channels_last,
+                    weight,
+                    bias,
+                    output,
+                    B,
+                    C_IN,
+                    C_OUT,
+                    D,
+                    H,
+                    W,
+                    OD,
+                    OH,
+                    OW,
+                    K,
+                    D_ACT,
+                    H_ACT,
+                    W_ACT,
+                    16,
+                    32,
+                ),
+            )
         return output

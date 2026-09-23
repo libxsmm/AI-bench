@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -15,11 +14,31 @@ ConstInt = ct.Constant[int]
 @ct.autotune(
     configs=[ct.tune.Config({"BLOCK_W": 32})],
     key=["OW"],
-    grid=lambda meta: (ct.cdiv(meta["OW"], meta["BLOCK_W"]), meta["B"] * meta["C"] * meta["OD"] * meta["OH"]),
-    options=lambda meta: {"assume_in_bounds": meta["OW"] % meta["BLOCK_W"] == 0 and meta["PADDING"] == 0},
+    grid=lambda meta: (
+        ct.cdiv(meta["OW"], meta["BLOCK_W"]),
+        meta["B"] * meta["C"] * meta["OD"] * meta["OH"],
+    ),
+    options=lambda meta: {
+        "assume_in_bounds": meta["OW"] % meta["BLOCK_W"] == 0 and meta["PADDING"] == 0
+    },
 )
 @ct.kernel
-def avg_pool3d_kernel(x, output, B: ConstInt, C: ConstInt, D: ConstInt, H: ConstInt, W: ConstInt, OD: ConstInt, OH: ConstInt, OW: ConstInt, KERNEL_SIZE: ConstInt, STRIDE: ConstInt, PADDING: ConstInt, BLOCK_W: ConstInt):
+def avg_pool3d_kernel(
+    x,
+    output,
+    B: ConstInt,
+    C: ConstInt,
+    D: ConstInt,
+    H: ConstInt,
+    W: ConstInt,
+    OD: ConstInt,
+    OH: ConstInt,
+    OW: ConstInt,
+    KERNEL_SIZE: ConstInt,
+    STRIDE: ConstInt,
+    PADDING: ConstInt,
+    BLOCK_W: ConstInt,
+):
     pid_ow = ct.bid(0)
     pid_ncdoh = ct.bid(1)
     oh = pid_ncdoh % OH
@@ -43,9 +62,18 @@ def avg_pool3d_kernel(x, output, B: ConstInt, C: ConstInt, D: ConstInt, H: Const
                     for kw in range(KERNEL_SIZE):
                         w = cols * STRIDE + kw - PADDING
                         valid = (cols < OW) & (w >= 0) & (w < W)
-                        acc += ct.where(valid, ct.gather(x, base + d * H * W + h * W + w), 0.0).astype(ct.float32)
-    out_base = batch * C * OD * OH * OW + channel * OD * OH * OW + od * OH * OW + oh * OW
-    ct.scatter(output, out_base + cols, ct.astype(acc / (KERNEL_SIZE * KERNEL_SIZE * KERNEL_SIZE), ct.bfloat16), mask=mask_ow)
+                        acc += ct.where(
+                            valid, ct.gather(x, base + d * H * W + h * W + w), 0.0
+                        ).astype(ct.float32)
+    out_base = (
+        batch * C * OD * OH * OW + channel * OD * OH * OW + od * OH * OW + oh * OW
+    )
+    ct.scatter(
+        output,
+        out_base + cols,
+        ct.astype(acc / (KERNEL_SIZE * KERNEL_SIZE * KERNEL_SIZE), ct.bfloat16),
+        mask=mask_ow,
+    )
 
 
 class Model(nn.Module):
@@ -61,5 +89,22 @@ class Model(nn.Module):
         OH = (H + 2 * self.padding - self.kernel_size) // self.stride + 1
         OW = (W + 2 * self.padding - self.kernel_size) // self.stride + 1
         output = torch.empty((B, C, OD, OH, OW), device=x.device, dtype=x.dtype)
-        avg_pool3d_kernel(None, (x.view(-1), output.view(-1), B, C, D, H, W, OD, OH, OW, self.kernel_size, self.stride, self.padding))
+        avg_pool3d_kernel(
+            None,
+            (
+                x.view(-1),
+                output.view(-1),
+                B,
+                C,
+                D,
+                H,
+                W,
+                OD,
+                OH,
+                OW,
+                self.kernel_size,
+                self.stride,
+                self.padding,
+            ),
+        )
         return output

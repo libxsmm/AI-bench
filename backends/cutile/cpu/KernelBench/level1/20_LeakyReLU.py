@@ -12,7 +12,10 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_SIZE": size}) for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]],
+    configs=[
+        ct.tune.Config({"BLOCK_SIZE": size})
+        for size in [32, 64, 128, 256, 512, 1024, 2048, 4096]
+    ],
     key=["n_elements"],
     grid=lambda meta: (ct.cdiv(meta["n_elements"], meta["BLOCK_SIZE"]),),
     options=lambda meta: {
@@ -37,5 +40,6 @@ class Model(nn.Module):
         output = torch.empty_like(x_flat)
         n_elements = x_flat.numel()
         leaky_relu_kernel(
-            None, (x_flat, output, float(self.negative_slope), n_elements))
+            None, (x_flat, output, float(self.negative_slope), n_elements)
+        )
         return output.view_as(x)

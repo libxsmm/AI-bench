@@ -13,7 +13,9 @@ ConstInt = ct.Constant[int]
 
 
 @ct.kernel
-def argmax_dim1_kernel(x, output, B: ConstInt, D1: ConstInt, D2: ConstInt, BLOCK_N: ConstInt):
+def argmax_dim1_kernel(
+    x, output, B: ConstInt, D1: ConstInt, D2: ConstInt, BLOCK_N: ConstInt
+):
     pid_n = ct.bid(0)
     batch = ct.bid(1)
     cols = pid_n * BLOCK_N + ct.arange(BLOCK_N, dtype=torch.int32)
@@ -22,11 +24,14 @@ def argmax_dim1_kernel(x, output, B: ConstInt, D1: ConstInt, D2: ConstInt, BLOCK
     max_index = ct.full((BLOCK_N,), 0, dtype=torch.int32)
     for k in range(D1):
         offsets = batch * D1 * D2 + k * D2 + cols
-        values = ct.where(valid, ct.gather(x, offsets), float("-inf")).astype(ct.float32)
+        offsets = ct.minimum(ct.maximum(offsets, 0), B * D1 * D2 - 1)
+        values = ct.where(valid, ct.gather(x, offsets), float("-inf")).astype(
+            ct.float32
+        )
         update = values > max_value
         max_value = ct.where(update, values, max_value)
         max_index = ct.where(update, k, max_index)
-    ct.scatter(output, batch * D2 + cols, ct.astype(max_index, ct.int64))
+    ct.scatter(output, batch * D2 + cols, ct.astype(max_index, ct.int64), mask=valid)
 
 
 class Model(nn.Module):
@@ -39,5 +44,10 @@ class Model(nn.Module):
         output = torch.empty((B, D2), device=x.device, dtype=torch.int64)
         BLOCK_N = 32
         with cpu.compile_options({"assume_in_bounds": D2 % BLOCK_N == 0}):
-            ct.launch(None, (ct.cdiv(D2, BLOCK_N), B), argmax_dim1_kernel, (x.view(-1), output.view(-1), B, D1, D2, BLOCK_N))
+            ct.launch(
+                None,
+                (ct.cdiv(D2, BLOCK_N), B),
+                argmax_dim1_kernel,
+                (x.view(-1), output.view(-1), B, D1, D2, BLOCK_N),
+            )
         return output

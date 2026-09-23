@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -15,11 +14,32 @@ ConstInt = ct.Constant[int]
 @ct.autotune(
     configs=[ct.tune.Config({"BLOCK_H": 1, "BLOCK_W": 32})],
     key=["OH", "OW"],
-    grid=lambda meta: (meta["x"].shape[0] // (meta["H"] * meta["W"]), ct.cdiv(meta["OH"], meta["BLOCK_H"]), ct.cdiv(meta["OW"], meta["BLOCK_W"])),
-    options=lambda meta: {"assume_in_bounds": meta["OW"] % meta["BLOCK_W"] == 0 and meta["PADDING"] == 0 and meta["DILATION"] == 1},
+    grid=lambda meta: (
+        meta["x"].shape[0] // (meta["H"] * meta["W"]),
+        ct.cdiv(meta["OH"], meta["BLOCK_H"]),
+        ct.cdiv(meta["OW"], meta["BLOCK_W"]),
+    ),
+    options=lambda meta: {
+        "assume_in_bounds": meta["OW"] % meta["BLOCK_W"] == 0
+        and meta["PADDING"] == 0
+        and meta["DILATION"] == 1
+    },
 )
 @ct.kernel
-def maxpool2d_kernel(x, output, H: ConstInt, W: ConstInt, OH: ConstInt, OW: ConstInt, KERNEL_SIZE: ConstInt, STRIDE: ConstInt, PADDING: ConstInt, DILATION: ConstInt, BLOCK_H: ConstInt, BLOCK_W: ConstInt):
+def maxpool2d_kernel(
+    x,
+    output,
+    H: ConstInt,
+    W: ConstInt,
+    OH: ConstInt,
+    OW: ConstInt,
+    KERNEL_SIZE: ConstInt,
+    STRIDE: ConstInt,
+    PADDING: ConstInt,
+    DILATION: ConstInt,
+    BLOCK_H: ConstInt,
+    BLOCK_W: ConstInt,
+):
     pid_bc = ct.bid(0)
     pid_oh = ct.bid(1)
     pid_ow = ct.bid(2)
@@ -41,8 +61,15 @@ def maxpool2d_kernel(x, output, H: ConstInt, W: ConstInt, OH: ConstInt, OW: Cons
                 valid = valid_out & (iw >= 0) & (iw < W)
                 start = base + ih * W + pid_ow * BLOCK_W - PADDING + kw * DILATION
                 values = x_view.load(start).astype(ct.float32)
-                max_value = ct.maximum(max_value, ct.where(valid, values, float("-inf")))
-    ct.scatter(output, pid_bc * OH * OW + rows * OW + cols, ct.astype(max_value, output.dtype), mask=valid_out)
+                max_value = ct.maximum(
+                    max_value, ct.where(valid, values, float("-inf"))
+                )
+    ct.scatter(
+        output,
+        pid_bc * OH * OW + rows * OW + cols,
+        ct.astype(max_value, output.dtype),
+        mask=valid_out,
+    )
 
 
 def maxpool2d(x, kernel_size, stride, padding, dilation):
@@ -51,7 +78,21 @@ def maxpool2d(x, kernel_size, stride, padding, dilation):
     OW = (W + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
     x = x.contiguous()
     output = torch.empty((B, C, OH, OW), device=x.device, dtype=x.dtype)
-    maxpool2d_kernel(None, (x.view(-1), output.view(-1), H, W, OH, OW, kernel_size, stride, padding, dilation))
+    maxpool2d_kernel(
+        None,
+        (
+            x.view(-1),
+            output.view(-1),
+            H,
+            W,
+            OH,
+            OW,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+        ),
+    )
     return output
 
 

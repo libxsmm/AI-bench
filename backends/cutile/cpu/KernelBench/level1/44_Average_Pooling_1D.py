@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -15,11 +14,27 @@ ConstInt = ct.Constant[int]
 @ct.autotune(
     configs=[ct.tune.Config({"BLOCK_SIZE": 32})],
     key=["OL", "KERNEL_SIZE"],
-    grid=lambda meta: (meta["x"].shape[0] // meta["L"], ct.cdiv(meta["OL"], meta["BLOCK_SIZE"])),
-    options=lambda meta: {"assume_in_bounds": meta["OL"] % meta["BLOCK_SIZE"] == 0 and meta["PADDING"] == 0},
+    grid=lambda meta: (
+        meta["x"].shape[0] // meta["L"],
+        ct.cdiv(meta["OL"], meta["BLOCK_SIZE"]),
+    ),
+    options=lambda meta: {
+        "assume_in_bounds": meta["OL"] % meta["BLOCK_SIZE"] == 0
+        and meta["PADDING"] == 0
+    },
 )
 @ct.kernel
-def avg_pool1d_kernel(x, output, L: ConstInt, OL: ConstInt, C: ConstInt, KERNEL_SIZE: ConstInt, STRIDE: ConstInt, PADDING: ConstInt, BLOCK_SIZE: ConstInt):
+def avg_pool1d_kernel(
+    x,
+    output,
+    L: ConstInt,
+    OL: ConstInt,
+    C: ConstInt,
+    KERNEL_SIZE: ConstInt,
+    STRIDE: ConstInt,
+    PADDING: ConstInt,
+    BLOCK_SIZE: ConstInt,
+):
     pid_bc = ct.bid(0)
     pid_o = ct.bid(1)
     offs = pid_o * BLOCK_SIZE + ct.arange(BLOCK_SIZE, dtype=torch.int32)
@@ -40,9 +55,16 @@ def avg_pool1d_kernel(x, output, L: ConstInt, OL: ConstInt, C: ConstInt, KERNEL_
             values = x_view.load(start).astype(ct.float32)
             values = ct.where(valid, values, 0.0)
         else:
-            values = ct.where(valid, ct.gather(x, base + indices), 0.0).astype(ct.float32)
+            values = ct.where(valid, ct.gather(x, base + indices), 0.0).astype(
+                ct.float32
+            )
         acc += values
-    ct.scatter(output, pid_bc * OL + offs, ct.astype(acc / KERNEL_SIZE, output.dtype), mask=valid_out)
+    ct.scatter(
+        output,
+        pid_bc * OL + offs,
+        ct.astype(acc / KERNEL_SIZE, output.dtype),
+        mask=valid_out,
+    )
 
 
 class Model(nn.Module):
@@ -59,5 +81,17 @@ class Model(nn.Module):
         x = x.contiguous()
         OL = (L + 2 * self.padding - self.kernel_size) // self.stride + 1
         output = torch.empty((B, C, OL), device=x.device, dtype=torch.bfloat16)
-        avg_pool1d_kernel(None, (x.view(-1), output.view(-1), L, OL, C, self.kernel_size, self.stride, self.padding))
+        avg_pool1d_kernel(
+            None,
+            (
+                x.view(-1),
+                output.view(-1),
+                L,
+                OL,
+                C,
+                self.kernel_size,
+                self.stride,
+                self.padding,
+            ),
+        )
         return output

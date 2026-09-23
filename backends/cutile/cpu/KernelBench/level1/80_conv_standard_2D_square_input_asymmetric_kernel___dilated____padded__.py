@@ -10,7 +10,28 @@ ConstInt = ct.Constant[int]
 
 
 @ct.kernel
-def _conv2d_dilated_gemm(x, weight, bias, output, B: ConstInt, C_IN: ConstInt, C_OUT: ConstInt, H: ConstInt, W: ConstInt, OH: ConstInt, OW: ConstInt, KH: ConstInt, KW: ConstInt, PAD_H: ConstInt, PAD_W: ConstInt, DIL_H: ConstInt, DIL_W: ConstInt, BLOCK_M: ConstInt, BLOCK_N: ConstInt, BLOCK_K: ConstInt):
+def _conv2d_dilated_gemm(
+    x,
+    weight,
+    bias,
+    output,
+    B: ConstInt,
+    C_IN: ConstInt,
+    C_OUT: ConstInt,
+    H: ConstInt,
+    W: ConstInt,
+    OH: ConstInt,
+    OW: ConstInt,
+    KH: ConstInt,
+    KW: ConstInt,
+    PAD_H: ConstInt,
+    PAD_W: ConstInt,
+    DIL_H: ConstInt,
+    DIL_W: ConstInt,
+    BLOCK_M: ConstInt,
+    BLOCK_N: ConstInt,
+    BLOCK_K: ConstInt,
+):
     pid = ct.bid(0)
     num_n = ct.cdiv(C_OUT, BLOCK_N)
     pid_m = pid // num_n
@@ -33,33 +54,77 @@ def _conv2d_dilated_gemm(x, weight, bias, output, B: ConstInt, C_IN: ConstInt, C
         for kw in range(KW):
             input_h = oh + kh * DIL_H - PAD_H
             input_w = ow + kw * DIL_W - PAD_W
-            valid = row_valid & (input_h >= 0) & (input_h < H) & (input_w >= 0) & (input_w < W)
+            valid = (
+                row_valid
+                & (input_h >= 0)
+                & (input_h < H)
+                & (input_w >= 0)
+                & (input_w < W)
+            )
             for block in range(ct.cdiv(C_IN, BLOCK_K)):
                 cin = block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)
                 cin_valid = cin < C_IN
-                x_indices = (((batch[:, None] * H + input_h[:, None]) * W + input_w[:, None]) * C_IN + cin[None, :])
+                x_indices = (
+                    (batch[:, None] * H + input_h[:, None]) * W + input_w[:, None]
+                ) * C_IN + cin[None, :]
                 safe_x = ct.minimum(ct.maximum(x_indices, 0), max_x)
                 x_tile = x_mem.load_offset(safe_x, mask=safe_x >= 0)
                 x_tile = x_tile * (valid[:, None] & cin_valid[None, :]).astype(x.dtype)
-                w_indices = ((kh * KW + kw) * C_IN + cin[:, None]) * C_OUT + cols[None, :]
+                w_indices = ((kh * KW + kw) * C_IN + cin[:, None]) * C_OUT + cols[
+                    None, :
+                ]
                 safe_w = ct.minimum(ct.maximum(w_indices, 0), max_w)
-                w_tile = weight_mem.load_offset(safe_w, mask=cin_valid[:, None] & col_valid[None, :], padding_value=0.0)
+                w_tile = weight_mem.load_offset(
+                    safe_w,
+                    mask=cin_valid[:, None] & col_valid[None, :],
+                    padding_value=0.0,
+                )
                 acc = ct.mma(x_tile, w_tile, acc)
     safe_cols = ct.minimum(ct.maximum(cols, 0), C_OUT - 1)
-    acc += bias_mem.load_offset(safe_cols, mask=col_valid, padding_value=0.0)[None, :].astype(ct.float32)
+    acc += bias_mem.load_offset(safe_cols, mask=col_valid, padding_value=0.0)[
+        None, :
+    ].astype(ct.float32)
     out_indices = rows[:, None] * C_OUT + cols[None, :]
     safe_out = ct.minimum(ct.maximum(out_indices, 0), B * OH * OW * C_OUT - 1)
-    output.get_raw_memory().store_offset(safe_out, ct.astype(acc, output.dtype), mask=row_valid[:, None] & col_valid[None, :])
+    output.get_raw_memory().store_offset(
+        safe_out,
+        ct.astype(acc, output.dtype),
+        mask=row_valid[:, None] & col_valid[None, :],
+    )
 
 
 class Model(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=(0, 0), dilation=(1, 1), bias=False):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=(0, 0),
+        dilation=(1, 1),
+        bias=False,
+    ):
         super().__init__()
-        self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias)
+        self.conv2d = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=bias,
+        )
 
     def forward(self, x):
         if self.conv2d.stride != (1, 1):
-            return torch.nn.functional.conv2d(x, self.conv2d.weight, self.conv2d.bias, self.conv2d.stride, self.conv2d.padding, self.conv2d.dilation)
+            return torch.nn.functional.conv2d(
+                x,
+                self.conv2d.weight,
+                self.conv2d.bias,
+                self.conv2d.stride,
+                self.conv2d.padding,
+                self.conv2d.dilation,
+            )
         x = x.contiguous(memory_format=torch.channels_last)
         B, C_IN, H, W = x.shape
         KH, KW = self.conv2d.kernel_size
@@ -68,8 +133,40 @@ class Model(nn.Module):
         OH = H + 2 * PAD_H - DIL_H * (KH - 1)
         OW = W + 2 * PAD_W - DIL_W * (KW - 1)
         weight = self.conv2d.weight.permute(2, 3, 1, 0).contiguous().to(x.dtype)
-        bias = torch.zeros(self.conv2d.out_channels, device=x.device, dtype=x.dtype) if self.conv2d.bias is None else self.conv2d.bias.to(x.dtype).contiguous()
-        output = torch.empty((B, self.conv2d.out_channels, OH, OW), device=x.device, dtype=x.dtype).contiguous(memory_format=torch.channels_last)
+        bias = (
+            torch.zeros(self.conv2d.out_channels, device=x.device, dtype=x.dtype)
+            if self.conv2d.bias is None
+            else self.conv2d.bias.to(x.dtype).contiguous()
+        )
+        output = torch.empty(
+            (B, self.conv2d.out_channels, OH, OW), device=x.device, dtype=x.dtype
+        ).contiguous(memory_format=torch.channels_last)
         with cpu.compile_options({"assume_in_bounds": False}):
-            ct.launch(None, (ct.cdiv(B * OH * OW, 32) * ct.cdiv(self.conv2d.out_channels, 32),), _conv2d_dilated_gemm, (x, weight, bias, output, B, C_IN, self.conv2d.out_channels, H, W, OH, OW, KH, KW, PAD_H, PAD_W, DIL_H, DIL_W, 32, 32, 32))
+            ct.launch(
+                None,
+                (ct.cdiv(B * OH * OW, 32) * ct.cdiv(self.conv2d.out_channels, 32),),
+                _conv2d_dilated_gemm,
+                (
+                    x,
+                    weight,
+                    bias,
+                    output,
+                    B,
+                    C_IN,
+                    self.conv2d.out_channels,
+                    H,
+                    W,
+                    OH,
+                    OW,
+                    KH,
+                    KW,
+                    PAD_H,
+                    PAD_W,
+                    DIL_H,
+                    DIL_W,
+                    32,
+                    32,
+                    32,
+                ),
+            )
         return output

@@ -13,7 +13,9 @@ ConstInt = ct.Constant[int]
 
 
 @ct.kernel
-def _layer_norm_kernel(x, output, weight, bias, M: ConstInt, N: ConstInt, eps, BLOCK_SIZE: ConstInt):
+def _layer_norm_kernel(
+    x, output, weight, bias, M: ConstInt, N: ConstInt, eps, BLOCK_SIZE: ConstInt
+):
     row = ct.bid(0)
     cols = ct.arange(BLOCK_SIZE, dtype=torch.int32)
     base = row * N
@@ -45,8 +47,12 @@ class Model(nn.Module):
         self._moved = False
 
     def _move_params(self, device):
-        self.w_flat = self.ln.weight.data.to(device, dtype=torch.bfloat16).contiguous().flatten()
-        self.b_flat = self.ln.bias.data.to(device, dtype=torch.bfloat16).contiguous().flatten()
+        self.w_flat = (
+            self.ln.weight.data.to(device, dtype=torch.bfloat16).contiguous().flatten()
+        )
+        self.b_flat = (
+            self.ln.bias.data.to(device, dtype=torch.bfloat16).contiguous().flatten()
+        )
         self._eps = self.ln.eps
         self._norm_n = 1
         for size in self.ln.normalized_shape:
@@ -64,5 +70,10 @@ class Model(nn.Module):
         output = torch.empty_like(x_flat)
         BLOCK_SIZE = 32
         with cpu.compile_options({"assume_in_bounds": N % BLOCK_SIZE == 0}):
-            ct.launch(None, (M,), _layer_norm_kernel, (x_flat, output, self.w_flat, self.b_flat, M, N, self._eps, BLOCK_SIZE))
+            ct.launch(
+                None,
+                (M,),
+                _layer_norm_kernel,
+                (x_flat, output, self.w_flat, self.b_flat, M, N, self._eps, BLOCK_SIZE),
+            )
         return output.view(original_shape)

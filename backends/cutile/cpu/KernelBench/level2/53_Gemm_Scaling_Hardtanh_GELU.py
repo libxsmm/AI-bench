@@ -35,9 +35,7 @@ class Model(nn.Module):
     ):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
-        self._epilogue_fun = _make_epilogue(
-            scaling_factor, hardtanh_min, hardtanh_max
-        )
+        self._epilogue_fun = _make_epilogue(scaling_factor, hardtanh_min, hardtanh_max)
         self._weight_packed = None
         self._bias = None
 

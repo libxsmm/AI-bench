@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -14,10 +13,21 @@ ConstInt = ct.Constant[int]
 
 
 @ct.autotune(
-    configs=[ct.tune.Config({"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": group}) for group in [1, 2, 4, 8]],
+    configs=[
+        ct.tune.Config(
+            {"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32, "GROUP_SIZE_M": group}
+        )
+        for group in [1, 2, 4, 8]
+    ],
     key=["M", "N", "K"],
-    grid=lambda meta: (ct.cdiv(meta["M"], meta["BLOCK_M"]) * ct.cdiv(meta["N"], meta["BLOCK_N"]),),
-    options=lambda meta: {"assume_in_bounds": meta["M"] % meta["BLOCK_M"] == 0 and meta["N"] % meta["BLOCK_N"] == 0 and meta["K"] % meta["BLOCK_K"] == 0},
+    grid=lambda meta: (
+        ct.cdiv(meta["M"], meta["BLOCK_M"]) * ct.cdiv(meta["N"], meta["BLOCK_N"]),
+    ),
+    options=lambda meta: {
+        "assume_in_bounds": meta["M"] % meta["BLOCK_M"] == 0
+        and meta["N"] % meta["BLOCK_N"] == 0
+        and meta["K"] % meta["BLOCK_K"] == 0
+    },
 )
 @ct.kernel
 def _matmul_kernel(

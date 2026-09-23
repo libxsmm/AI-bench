@@ -20,9 +20,7 @@ def _make_epilogue(divide_value):
     divide_value = float(divide_value)
 
     def epilogue(value, post_op_arg_ptr, **kwargs):
-        bias_value = ct.load(post_op_arg_ptr, index=(0,), shape=()).astype(
-            value.dtype
-        )
+        bias_value = ct.load(post_op_arg_ptr, index=(0,), shape=()).astype(value.dtype)
         value = value + bias_value
         value = value * 0.999995 / divide_value
         return value * (1.0 / (1.0 + ct.exp(-value)))

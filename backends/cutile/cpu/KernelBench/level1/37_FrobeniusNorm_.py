@@ -27,7 +27,9 @@ def _reduce_kernel(partial, inverse_norm, num_partial: ConstInt, BLOCK_SIZE: Con
     total = 0.0
     for block in range(ct.cdiv(num_partial, BLOCK_SIZE)):
         indices = block * BLOCK_SIZE + offsets
-        total += ct.sum(ct.where(indices < num_partial, ct.gather(partial, indices), 0.0), axis=0)
+        total += ct.sum(
+            ct.where(indices < num_partial, ct.gather(partial, indices), 0.0), axis=0
+        )
     ct.store(inverse_norm, index=(0,), tile=1.0 / ct.sqrt(total))
 
 
@@ -58,8 +60,15 @@ class Model(nn.Module):
         inverse_norm = torch.empty(1, device=x.device, dtype=torch.float32)
         output = torch.empty_like(x_flat)
         with cpu.compile_options({"assume_in_bounds": N % 8192 == 0}):
-            ct.launch(None, (partial_count,), _partial_sum_sq_kernel, (x_flat, partial, N, 8192))
+            ct.launch(
+                None,
+                (partial_count,),
+                _partial_sum_sq_kernel,
+                (x_flat, partial, N, 8192),
+            )
         with cpu.compile_options({"assume_in_bounds": partial_count % 128 == 0}):
-            ct.launch(None, (1,), _reduce_kernel, (partial, inverse_norm, partial_count, 128))
+            ct.launch(
+                None, (1,), _reduce_kernel, (partial, inverse_norm, partial_count, 128)
+            )
         _normalize_kernel(None, (x_flat, output, inverse_norm, N))
         return output.view(original_shape)

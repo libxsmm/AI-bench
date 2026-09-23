@@ -6,7 +6,6 @@
 import math
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -17,11 +16,26 @@ ConstInt = ct.Constant[int]
 @ct.autotune(
     configs=[ct.tune.Config({"BLOCK_M": 32, "BLOCK_N": 32, "BLOCK_K": 32})],
     key=["SEQ_LEN", "HEAD_DIM"],
-    grid=lambda meta: (meta["BH"], ct.cdiv(meta["SEQ_LEN"], meta["BLOCK_M"]) * ct.cdiv(meta["SEQ_LEN"], meta["BLOCK_N"])),
+    grid=lambda meta: (
+        meta["BH"],
+        ct.cdiv(meta["SEQ_LEN"], meta["BLOCK_M"])
+        * ct.cdiv(meta["SEQ_LEN"], meta["BLOCK_N"]),
+    ),
     options={"assume_in_bounds": False},
 )
 @ct.kernel
-def qk_gemm_kernel(Q, Kt, S, BH: ConstInt, SEQ_LEN: ConstInt, HEAD_DIM: ConstInt, scale, BLOCK_M: ConstInt, BLOCK_N: ConstInt, BLOCK_K: ConstInt):
+def qk_gemm_kernel(
+    Q,
+    Kt,
+    S,
+    BH: ConstInt,
+    SEQ_LEN: ConstInt,
+    HEAD_DIM: ConstInt,
+    scale,
+    BLOCK_M: ConstInt,
+    BLOCK_N: ConstInt,
+    BLOCK_K: ConstInt,
+):
     batch = ct.bid(0)
     tile = ct.bid(1)
     num_n = ct.cdiv(SEQ_LEN, BLOCK_N)
@@ -33,14 +47,36 @@ def qk_gemm_kernel(Q, Kt, S, BH: ConstInt, SEQ_LEN: ConstInt, HEAD_DIM: ConstInt
     Q_mem = Q.get_raw_memory()
     Kt_mem = Kt.get_raw_memory()
     for block in range(ct.cdiv(HEAD_DIM, BLOCK_K)):
-        q_offsets = batch * SEQ_LEN * HEAD_DIM + rows[:, None] * HEAD_DIM + block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)[None, :]
-        k_offsets = batch * HEAD_DIM * SEQ_LEN + block * BLOCK_K * SEQ_LEN + ct.arange(BLOCK_K, dtype=torch.int32)[:, None] * SEQ_LEN + cols[None, :]
-        q_valid = (rows[:, None] < SEQ_LEN) & (block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)[None, :] < HEAD_DIM)
-        k_valid = (block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)[:, None] < HEAD_DIM) & (cols[None, :] < SEQ_LEN)
-        q_safe_offsets = ct.minimum(ct.maximum(q_offsets, 0), BH * SEQ_LEN * HEAD_DIM - 1)
-        k_safe_offsets = ct.minimum(ct.maximum(k_offsets, 0), BH * HEAD_DIM * SEQ_LEN - 1)
-        q = Q_mem.load_offset(q_safe_offsets, mask=q_valid, padding_value=0.0).astype(ct.float32)
-        k = Kt_mem.load_offset(k_safe_offsets, mask=k_valid, padding_value=0.0).astype(ct.float32)
+        q_offsets = (
+            batch * SEQ_LEN * HEAD_DIM
+            + rows[:, None] * HEAD_DIM
+            + block * BLOCK_K
+            + ct.arange(BLOCK_K, dtype=torch.int32)[None, :]
+        )
+        k_offsets = (
+            batch * HEAD_DIM * SEQ_LEN
+            + block * BLOCK_K * SEQ_LEN
+            + ct.arange(BLOCK_K, dtype=torch.int32)[:, None] * SEQ_LEN
+            + cols[None, :]
+        )
+        q_valid = (rows[:, None] < SEQ_LEN) & (
+            block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)[None, :] < HEAD_DIM
+        )
+        k_valid = (
+            block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)[:, None] < HEAD_DIM
+        ) & (cols[None, :] < SEQ_LEN)
+        q_safe_offsets = ct.minimum(
+            ct.maximum(q_offsets, 0), BH * SEQ_LEN * HEAD_DIM - 1
+        )
+        k_safe_offsets = ct.minimum(
+            ct.maximum(k_offsets, 0), BH * HEAD_DIM * SEQ_LEN - 1
+        )
+        q = Q_mem.load_offset(q_safe_offsets, mask=q_valid, padding_value=0.0).astype(
+            ct.float32
+        )
+        k = Kt_mem.load_offset(k_safe_offsets, mask=k_valid, padding_value=0.0).astype(
+            ct.float32
+        )
         acc = ct.mma(q, k, acc)
     out_offsets = batch * SEQ_LEN * SEQ_LEN + rows[:, None] * SEQ_LEN + cols[None, :]
     out_valid = (rows[:, None] < SEQ_LEN) & (cols[None, :] < SEQ_LEN)
@@ -50,11 +86,25 @@ def qk_gemm_kernel(Q, Kt, S, BH: ConstInt, SEQ_LEN: ConstInt, HEAD_DIM: ConstInt
 @ct.autotune(
     configs=[ct.tune.Config({"BLOCK_M": 32, "BLOCK_K": 32, "BLOCK_N": 128})],
     key=["SEQ_LEN", "HEAD_DIM"],
-    grid=lambda meta: (meta["BH"], ct.cdiv(meta["SEQ_LEN"], meta["BLOCK_M"]) * ct.cdiv(meta["HEAD_DIM"], meta["BLOCK_N"])),
+    grid=lambda meta: (
+        meta["BH"],
+        ct.cdiv(meta["SEQ_LEN"], meta["BLOCK_M"])
+        * ct.cdiv(meta["HEAD_DIM"], meta["BLOCK_N"]),
+    ),
     options={"assume_in_bounds": False},
 )
 @ct.kernel
-def softmax_pv_kernel(S, V, O, BH: ConstInt, SEQ_LEN: ConstInt, HEAD_DIM: ConstInt, BLOCK_M: ConstInt, BLOCK_N: ConstInt, BLOCK_K: ConstInt):
+def softmax_pv_kernel(
+    S,
+    V,
+    O,
+    BH: ConstInt,
+    SEQ_LEN: ConstInt,
+    HEAD_DIM: ConstInt,
+    BLOCK_M: ConstInt,
+    BLOCK_N: ConstInt,
+    BLOCK_K: ConstInt,
+):
     batch = ct.bid(0)
     tile = ct.bid(1)
     num_n = ct.cdiv(HEAD_DIM, BLOCK_N)
@@ -71,18 +121,28 @@ def softmax_pv_kernel(S, V, O, BH: ConstInt, SEQ_LEN: ConstInt, HEAD_DIM: ConstI
         keys = block * BLOCK_K + ct.arange(BLOCK_K, dtype=torch.int32)
         s_offsets = batch * SEQ_LEN * SEQ_LEN + rows[:, None] * SEQ_LEN + keys[None, :]
         s_valid = (rows[:, None] < SEQ_LEN) & (keys[None, :] < SEQ_LEN)
-        s_safe_offsets = ct.minimum(ct.maximum(s_offsets, 0), BH * SEQ_LEN * SEQ_LEN - 1)
-        scores = S_mem.load_offset(s_safe_offsets, mask=s_valid, padding_value=float("-inf")).astype(ct.float32)
+        s_safe_offsets = ct.minimum(
+            ct.maximum(s_offsets, 0), BH * SEQ_LEN * SEQ_LEN - 1
+        )
+        scores = S_mem.load_offset(
+            s_safe_offsets, mask=s_valid, padding_value=float("-inf")
+        ).astype(ct.float32)
         chunk_max = ct.max(scores, axis=1)
         new_max = ct.maximum(m_i, chunk_max)
         alpha = ct.exp2((m_i - new_max) * 1.4426950408889634)
         exp_scores = ct.exp2((scores - new_max[:, None]) * 1.4426950408889634)
         l_i = alpha * l_i + ct.sum(exp_scores, axis=1)
         acc = acc * alpha[:, None]
-        v_offsets = batch * SEQ_LEN * HEAD_DIM + keys[:, None] * HEAD_DIM + cols[None, :]
+        v_offsets = (
+            batch * SEQ_LEN * HEAD_DIM + keys[:, None] * HEAD_DIM + cols[None, :]
+        )
         v_valid = (keys[:, None] < SEQ_LEN) & (cols[None, :] < HEAD_DIM)
-        v_safe_offsets = ct.minimum(ct.maximum(v_offsets, 0), BH * SEQ_LEN * HEAD_DIM - 1)
-        values = V_mem.load_offset(v_safe_offsets, mask=v_valid, padding_value=0.0).astype(ct.float32)
+        v_safe_offsets = ct.minimum(
+            ct.maximum(v_offsets, 0), BH * SEQ_LEN * HEAD_DIM - 1
+        )
+        values = V_mem.load_offset(
+            v_safe_offsets, mask=v_valid, padding_value=0.0
+        ).astype(ct.float32)
         acc = ct.mma(exp_scores, values, acc)
         m_i = new_max
     result = acc / l_i[:, None]
