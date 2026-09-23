@@ -65,15 +65,6 @@ def _conv2d_fused_kernel(
         for kw in range(KW):
             x_kh_kw = x_base + kh * stride_xh + kw * stride_xw
 
-            w_bp = tl.make_block_ptr(
-                base=w_ptr + kh * stride_wkh + kw * stride_wkw,
-                shape=(C_IN, C_out),
-                strides=(stride_wci, stride_wco),
-                offsets=(0, pid_n * BLOCK_N),
-                block_shape=(BLOCK_K, BLOCK_N),
-                order=(1, 0),
-            )
-
             for c0 in range(0, C_IN, BLOCK_K):
                 k_idx = c0 + offs_k
 
@@ -83,19 +74,27 @@ def _conv2d_fused_kernel(
                     other=0.0,
                 )
 
-                w_tile = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+                offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+                w_offsets = (
+                    kh * stride_wkh
+                    + kw * stride_wkw
+                    + k_idx[:, None] * stride_wci
+                    + offs_n[None, :] * stride_wco
+                )
+                w_tile = tl.load(
+                    w_ptr + w_offsets,
+                    mask=(k_idx[:, None] < C_IN) & (offs_n[None, :] < C_out),
+                    other=0.0,
+                )
                 acc = tl.dot(x_tile, w_tile, acc)
-                w_bp = tl.advance(w_bp, (BLOCK_K, 0))
 
-    y_bp = tl.make_block_ptr(
-        base=y_ptr,
-        shape=(M_total, C_out),
-        strides=(C_out, 1),
-        offsets=(pid_m * BLOCK_M, pid_n * BLOCK_N),
-        block_shape=(BLOCK_M, BLOCK_N),
-        order=(1, 0),
+    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    y_offsets = offs_m[:, None] * C_out + offs_n[None, :]
+    tl.store(
+        y_ptr + y_offsets,
+        acc.to(tl.float32),
+        mask=mask_m[:, None] & (offs_n[None, :] < C_out),
     )
-    tl.store(y_bp, acc.to(tl.float32), boundary_check=(0, 1))
 
 
 class Model(nn.Module):

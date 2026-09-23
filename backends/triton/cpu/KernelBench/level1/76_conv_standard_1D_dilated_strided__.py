@@ -64,15 +64,17 @@ def _conv1d_kernel(
             x_addrs, mask=mask_ol[:, None] & (offs_k[None, :] < C_IN), other=0.0
         )
 
-        w_bp = tl.make_block_ptr(
-            base=w_ptr + k * stride_wk,
-            shape=(C_IN, OC),
-            strides=(stride_wi, stride_wo),
-            offsets=(0, pid_n * BLOCK_N),
-            block_shape=(BLOCK_K, BLOCK_N),
-            order=(1, 0),
+        w_addrs = (
+            w_ptr
+            + k * stride_wk
+            + offs_k[:, None] * stride_wi
+            + offs_n[None, :] * stride_wo
         )
-        w_tile = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+        w_tile = tl.load(
+            w_addrs,
+            mask=(offs_k[:, None] < C_IN) & mask_n[None, :],
+            other=0.0,
+        )
 
         acc = tl.dot(x_tile, w_tile, acc)
 

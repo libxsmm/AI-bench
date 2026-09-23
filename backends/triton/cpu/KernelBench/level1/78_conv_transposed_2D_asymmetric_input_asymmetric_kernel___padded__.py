@@ -72,48 +72,40 @@ def _conv_transpose2d_swizzled_v2(
     OHOW = OH * OW
 
     acc = tl.zeros((BLOCK_OW, BLOCK_N), dtype=tl.float32)
+    offs_ow = ow0 + tl.arange(0, BLOCK_OW)
+    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
 
     for kh in range(KH):
         for kw in range(KW):
-            x_row_start = n * HW + (oh + kh) * W + (ow0 + kw)
-            x_valid_rows = W - (ow0 + kw)
-
-            x_bp = tl.make_block_ptr(
-                base=x_ptr,
-                shape=(x_row_start + x_valid_rows, C_IN),
-                strides=(C_IN, 1),
-                offsets=(x_row_start, 0),
-                block_shape=(BLOCK_OW, BLOCK_K),
-                order=(1, 0),
-            )
-
-            w_bp = tl.make_block_ptr(
-                base=w_ptr + kh * stride_wkh + kw * stride_wkw,
-                shape=(C_IN, C_out),
-                strides=(stride_wci, stride_wco),
-                offsets=(0, pid_n * BLOCK_N),
-                block_shape=(BLOCK_K, BLOCK_N),
-                order=(1, 0),
-            )
-
             for c0 in range(0, C_IN, BLOCK_K):
-                x_tile = tl.load(x_bp, boundary_check=(0, 1), padding_option="zero")
-                w_tile = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+                offs_k = c0 + tl.arange(0, BLOCK_K)
+                x_offsets = (
+                    n * HW + (oh + kh) * W + offs_ow[:, None] + kw
+                ) * C_IN + offs_k[None, :]
+                x_tile = tl.load(
+                    x_ptr + x_offsets,
+                    mask=(offs_ow[:, None] < OW) & (offs_k[None, :] < C_IN),
+                    other=0.0,
+                )
+                w_offsets = (
+                    kh * stride_wkh
+                    + kw * stride_wkw
+                    + offs_k[:, None] * stride_wci
+                    + offs_n[None, :] * stride_wco
+                )
+                w_tile = tl.load(
+                    w_ptr + w_offsets,
+                    mask=(offs_k[:, None] < C_IN) & (offs_n[None, :] < C_out),
+                    other=0.0,
+                )
                 acc = tl.dot(x_tile, w_tile, acc)
-                x_bp = tl.advance(x_bp, (0, BLOCK_K))
-                w_bp = tl.advance(w_bp, (BLOCK_K, 0))
 
-    y_row_start = n * OHOW + oh * OW + ow0
-    y_valid_rows = OW - ow0
-    y_bp = tl.make_block_ptr(
-        base=y_ptr,
-        shape=(y_row_start + y_valid_rows, C_out),
-        strides=(C_out, 1),
-        offsets=(y_row_start, pid_n * BLOCK_N),
-        block_shape=(BLOCK_OW, BLOCK_N),
-        order=(1, 0),
+    y_offsets = (n * OHOW + oh * OW + offs_ow[:, None]) * C_out + offs_n[None, :]
+    tl.store(
+        y_ptr + y_offsets,
+        acc.to(tl.float16),
+        mask=(offs_ow[:, None] < OW) & (offs_n[None, :] < C_out),
     )
-    tl.store(y_bp, acc.to(tl.float16), boundary_check=(0, 1))
 
 
 class Model(nn.Module):
