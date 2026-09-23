@@ -91,13 +91,11 @@ def _conv3d_fused_k(
 
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
 
-    w_bp = tl.make_block_ptr(
+    w_desc = tl.make_tensor_descriptor(
         base=w_ptr,
         shape=(K_FUSED, C_out),
         strides=(C_out, 1),
-        offsets=(0, pid_n * BLOCK_N),
         block_shape=(BLOCK_K, BLOCK_N),
-        order=(1, 0),
     )
 
     for k0 in range(0, K_FUSED, BLOCK_K):
@@ -114,9 +112,8 @@ def _conv3d_fused_k(
             mask=mask_m[:, None] & (k_idx[None, :] < K_FUSED),
             other=0.0,
         )
-        w_tile = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+        w_tile = w_desc.load([k0, pid_n * BLOCK_N])
         acc = tl.dot(x_tile, w_tile, acc)
-        w_bp = tl.advance(w_bp, (BLOCK_K, 0))
 
     offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
     mask_n = offs_n < C_out

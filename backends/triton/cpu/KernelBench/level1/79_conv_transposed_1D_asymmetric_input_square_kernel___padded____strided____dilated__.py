@@ -39,43 +39,42 @@ def _conv_transpose1d_kernel(
     j0 = (pid % num_l_tiles) * BLOCK_L
 
     batch_off_in = batch_idx.to(tl.int64) * L_IN * IN_CHANNELS
+    offs_l = j0 + tl.arange(0, BLOCK_L)
+    offs_k = tl.arange(0, BLOCK_K)
+    offs_oc = tl.arange(0, BLOCK_OC)
 
     acc = tl.zeros((BLOCK_L, BLOCK_OC), dtype=tl.float32)
 
     for k in range(KERNEL_SIZE):
-        i_off = j0 + 1 - k
-
-        inp_bp = tl.make_block_ptr(
-            base=inp_ptr + batch_off_in,
-            shape=(L_IN, IN_CHANNELS),
-            strides=(IN_CHANNELS, 1),
-            offsets=(i_off, 0),
-            block_shape=(BLOCK_L, BLOCK_K),
-            order=(1, 0),
+        i_off = offs_l + 1 - k
+        inp_offsets = i_off[:, None] * IN_CHANNELS + offs_k[None, :]
+        a = tl.load(
+            inp_ptr + batch_off_in + inp_offsets,
+            mask=(offs_l[:, None] < N_NONZERO)
+            & (i_off[:, None] >= 0)
+            & (i_off[:, None] < L_IN)
+            & (offs_k[None, :] < IN_CHANNELS),
+            other=0.0,
         )
-        w_bp = tl.make_block_ptr(
-            base=w_ptr + k * IN_CHANNELS * OUT_CHANNELS,
-            shape=(IN_CHANNELS, OUT_CHANNELS),
-            strides=(OUT_CHANNELS, 1),
-            offsets=(0, 0),
-            block_shape=(BLOCK_K, BLOCK_OC),
-            order=(1, 0),
+        w_offsets = (
+            k * IN_CHANNELS * OUT_CHANNELS
+            + offs_k[:, None] * OUT_CHANNELS
+            + offs_oc[None, :]
         )
-
-        a = tl.load(inp_bp, boundary_check=(0, 1), padding_option="zero")
-        b = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+        b = tl.load(
+            w_ptr + w_offsets,
+            mask=(offs_k[:, None] < IN_CHANNELS) & (offs_oc[None, :] < OUT_CHANNELS),
+            other=0.0,
+        )
         acc = tl.dot(a, b, acc)
 
     batch_off_out = batch_idx.to(tl.int64) * L_OUT * OUT_CHANNELS + OUT_CHANNELS
-    out_bp = tl.make_block_ptr(
-        base=out_ptr + batch_off_out,
-        shape=(N_NONZERO, OUT_CHANNELS),
-        strides=(2 * OUT_CHANNELS, 1),
-        offsets=(j0, 0),
-        block_shape=(BLOCK_L, BLOCK_OC),
-        order=(1, 0),
+    out_offsets = offs_l[:, None] * (2 * OUT_CHANNELS) + offs_oc[None, :]
+    tl.store(
+        out_ptr + batch_off_out + out_offsets,
+        acc.to(tl.float16),
+        mask=(offs_l[:, None] < N_NONZERO) & (offs_oc[None, :] < OUT_CHANNELS),
     )
-    tl.store(out_bp, acc.to(tl.float16), boundary_check=(0, 1))
 
 
 class Model(nn.Module):

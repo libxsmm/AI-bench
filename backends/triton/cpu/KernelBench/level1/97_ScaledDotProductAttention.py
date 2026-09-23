@@ -34,8 +34,8 @@ def _qk_gemm_kernel(
     stride_sb,
     stride_sm,
     stride_sn,
-    SEQ_LEN,
-    HEAD_DIM,
+    SEQ_LEN: tl.constexpr,
+    HEAD_DIM: tl.constexpr,
     scale,
     BLOCK_M: tl.constexpr,
     BLOCK_N: tl.constexpr,
@@ -51,43 +51,32 @@ def _qk_gemm_kernel(
     q_base = Q_ptr + pid_b.to(tl.int64) * stride_qb
     k_base = K_ptr + pid_b.to(tl.int64) * stride_kb
 
-    Q_bp = tl.make_block_ptr(
-        base=q_base,
-        shape=(SEQ_LEN, HEAD_DIM),
-        strides=(stride_qm, stride_qd),
-        offsets=(pid_m * BLOCK_M, 0),
-        block_shape=(BLOCK_M, BLOCK_K),
-        order=(1, 0),
-    )
-    KT_bp = tl.make_block_ptr(
-        base=k_base,
-        shape=(HEAD_DIM, SEQ_LEN),
-        strides=(stride_kd, stride_kn),
-        offsets=(0, pid_n * BLOCK_N),
-        block_shape=(BLOCK_K, BLOCK_N),
-        order=(1, 0),
-    )
-
+    offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    offs_k = tl.arange(0, BLOCK_K)
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
-    for _ in range(0, HEAD_DIM, BLOCK_K):
-        q = tl.load(Q_bp, boundary_check=(0, 1))
-        k_t = tl.load(KT_bp, boundary_check=(0, 1))
+    for k0 in range(0, HEAD_DIM, BLOCK_K):
+        k_idx = k0 + offs_k
+        q_offsets = offs_m[:, None] * stride_qm + k_idx[None, :] * stride_qd
+        k_offsets = k_idx[:, None] * stride_kd + offs_n[None, :] * stride_kn
+        q = tl.load(
+            q_base + q_offsets,
+            mask=(offs_m[:, None] < SEQ_LEN) & (k_idx[None, :] < HEAD_DIM),
+            other=0.0,
+        )
+        k_t = tl.load(
+            k_base + k_offsets,
+            mask=(k_idx[:, None] < HEAD_DIM) & (offs_n[None, :] < SEQ_LEN),
+            other=0.0,
+        )
         acc = tl.dot(q, k_t, acc)
-        Q_bp = tl.advance(Q_bp, (0, BLOCK_K))
-        KT_bp = tl.advance(KT_bp, (BLOCK_K, 0))
-
-    acc = acc * scale
-
     s_base = S_ptr + pid_b.to(tl.int64) * stride_sb
-    S_bp = tl.make_block_ptr(
-        base=s_base,
-        shape=(SEQ_LEN, SEQ_LEN),
-        strides=(stride_sm, stride_sn),
-        offsets=(pid_m * BLOCK_M, pid_n * BLOCK_N),
-        block_shape=(BLOCK_M, BLOCK_N),
-        order=(1, 0),
+    s_offsets = offs_m[:, None] * stride_sm + offs_n[None, :] * stride_sn
+    tl.store(
+        s_base + s_offsets,
+        (acc * scale).to(S_ptr.dtype.element_ty),
+        mask=(offs_m[:, None] < SEQ_LEN) & (offs_n[None, :] < SEQ_LEN),
     )
-    tl.store(S_bp, acc.to(S_ptr.dtype.element_ty), boundary_check=(0, 1))
 
 
 @triton.autotune(
@@ -112,8 +101,8 @@ def _fused_softmax_pv_kernel(
     stride_ob,
     stride_om,
     stride_od,
-    SEQ_LEN,
-    HEAD_DIM,
+    SEQ_LEN: tl.constexpr,
+    HEAD_DIM: tl.constexpr,
     BLOCK_M: tl.constexpr,
     BLOCK_K: tl.constexpr,
     BLOCK_N: tl.constexpr,
@@ -135,17 +124,19 @@ def _fused_softmax_pv_kernel(
     l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
 
-    for off_k in range(0, SEQ_LEN, BLOCK_K):
-        S_bp = tl.make_block_ptr(
-            base=s_base,
-            shape=(SEQ_LEN, SEQ_LEN),
-            strides=(stride_sm, stride_sn),
-            offsets=(off_m, off_k),
-            block_shape=(BLOCK_M, BLOCK_K),
-            order=(1, 0),
-        )
-        s = tl.load(S_bp, boundary_check=(0, 1)).to(tl.float32)
-
+    o_base = O_ptr + pid_b.to(tl.int64) * stride_ob
+    offs_m = off_m + tl.arange(0, BLOCK_M)
+    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    offs_k = tl.arange(0, BLOCK_K)
+    for k0 in range(0, SEQ_LEN, BLOCK_K):
+        k_idx = k0 + offs_k
+        s_offsets = offs_m[:, None] * stride_sm + k_idx[None, :] * stride_sn
+        s = tl.load(
+            s_base + s_offsets,
+            mask=(offs_m[:, None] < SEQ_LEN) & (k_idx[None, :] < SEQ_LEN),
+            other=float("-inf"),
+        ).to(tl.float32)
+        s = tl.where(offs_m[:, None] < SEQ_LEN, s, 0.0)
         chunk_max = tl.max(s, axis=1)
         m_new = tl.maximum(m_i, chunk_max)
         alpha = tl.math.exp2((m_i - m_new) * LOG2E)
@@ -154,30 +145,20 @@ def _fused_softmax_pv_kernel(
         l_i = alpha * l_i + chunk_sum
         acc = acc * alpha[:, None]
         m_i = m_new
-
-        V_bp = tl.make_block_ptr(
-            base=v_base,
-            shape=(SEQ_LEN, HEAD_DIM),
-            strides=(stride_vn, stride_vd),
-            offsets=(off_k, pid_n * BLOCK_N),
-            block_shape=(BLOCK_K, BLOCK_N),
-            order=(1, 0),
+        v_offsets = k_idx[:, None] * stride_vn + offs_n[None, :] * stride_vd
+        v = tl.load(
+            v_base + v_offsets,
+            mask=(k_idx[:, None] < SEQ_LEN) & (offs_n[None, :] < HEAD_DIM),
+            other=0.0,
         )
-        v = tl.load(V_bp, boundary_check=(0, 1))
         acc = tl.dot(exp_s.to(v.dtype), v, acc)
-
     acc = acc / l_i[:, None]
-
-    o_base = O_ptr + pid_b.to(tl.int64) * stride_ob
-    O_bp = tl.make_block_ptr(
-        base=o_base,
-        shape=(SEQ_LEN, HEAD_DIM),
-        strides=(stride_om, stride_od),
-        offsets=(off_m, pid_n * BLOCK_N),
-        block_shape=(BLOCK_M, BLOCK_N),
-        order=(1, 0),
+    o_offsets = offs_m[:, None] * stride_om + offs_n[None, :] * stride_od
+    tl.store(
+        o_base + o_offsets,
+        acc.to(O_ptr.dtype.element_ty),
+        mask=(offs_m[:, None] < SEQ_LEN) & (offs_n[None, :] < HEAD_DIM),
     )
-    tl.store(O_bp, acc.to(O_ptr.dtype.element_ty), boundary_check=(0, 1))
 
 
 class Model(nn.Module):

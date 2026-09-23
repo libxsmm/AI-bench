@@ -71,13 +71,11 @@ def _conv_transpose1d_gemm(
         valid = (il >= 0) & (il < L_in) & mask_m
         x_ptrs = x_base + il * sxl
 
-        w_bp = tl.make_block_ptr(
+        w_desc = tl.make_tensor_descriptor(
             base=w_ptr + k * swk,
             shape=(C_IN, C_out),
             strides=(swci, swco),
-            offsets=(0, pid_n * BLOCK_N),
             block_shape=(BLOCK_K, BLOCK_N),
-            order=(1, 0),
         )
 
         for c0 in range(0, C_IN, BLOCK_K):
@@ -87,9 +85,8 @@ def _conv_transpose1d_gemm(
                 mask=valid[:, None] & (k_idx[None, :] < C_IN),
                 other=0.0,
             )
-            w_tile = tl.load(w_bp, boundary_check=(0, 1), padding_option="zero")
+            w_tile = w_desc.load([c0, pid_n * BLOCK_N])
             acc = tl.dot(x_tile, w_tile, acc)
-            w_bp = tl.advance(w_bp, (BLOCK_K, 0))
 
     y_ptrs = y_ptr + n_idx * syn + ol_idx * syl
     tl.store(
