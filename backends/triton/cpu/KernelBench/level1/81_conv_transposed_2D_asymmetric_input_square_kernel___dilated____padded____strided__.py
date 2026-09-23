@@ -80,9 +80,7 @@ def _conv_transpose2d_scatter(
 
                 kidx = kh * KW + kw
                 w_offsets = (
-                    kidx * C_IN * C_out
-                    + offs_ci[:, None] * C_out
-                    + offs_oc[None, :]
+                    kidx * C_IN * C_out + offs_ci[:, None] * C_out + offs_oc[None, :]
                 )
                 w_tile = tl.load(
                     w_ptr + w_offsets,

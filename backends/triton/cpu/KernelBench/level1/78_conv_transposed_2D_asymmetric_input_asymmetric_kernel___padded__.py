@@ -80,9 +80,8 @@ def _conv_transpose2d_swizzled_v2(
             for c0 in range(0, C_IN, BLOCK_K):
                 offs_k = c0 + tl.arange(0, BLOCK_K)
                 x_offsets = (
-                    (n * HW + (oh + kh) * W + offs_ow[:, None] + kw) * C_IN
-                    + offs_k[None, :]
-                )
+                    n * HW + (oh + kh) * W + offs_ow[:, None] + kw
+                ) * C_IN + offs_k[None, :]
                 x_tile = tl.load(
                     x_ptr + x_offsets,
                     mask=(offs_ow[:, None] < OW) & (offs_k[None, :] < C_IN),
@@ -101,9 +100,7 @@ def _conv_transpose2d_swizzled_v2(
                 )
                 acc = tl.dot(x_tile, w_tile, acc)
 
-    y_offsets = (
-        (n * OHOW + oh * OW + offs_ow[:, None]) * C_out + offs_n[None, :]
-    )
+    y_offsets = (n * OHOW + oh * OW + offs_ow[:, None]) * C_out + offs_n[None, :]
     tl.store(
         y_ptr + y_offsets,
         acc.to(tl.float16),

@@ -78,13 +78,12 @@ def _conv_transpose3d_v5(
 
                     for kw in range(K):
                         input_w = offs_w_idx + 1 - kw
-                        x_offsets = input_w[:, None] * sx_w + tl.arange(
-                            0, C_IN
-                        )[None, :]
+                        x_offsets = (
+                            input_w[:, None] * sx_w + tl.arange(0, C_IN)[None, :]
+                        )
                         x_tile = tl.load(
                             x_dh_base + x_offsets,
-                            mask=(input_w[:, None] >= 0)
-                            & (input_w[:, None] < W),
+                            mask=(input_w[:, None] >= 0) & (input_w[:, None] < W),
                             other=0.0,
                         )
 

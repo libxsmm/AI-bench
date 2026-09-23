@@ -76,9 +76,7 @@ def _conv_transpose3d_v2(
                         for _c0 in range(0, C_IN, BLOCK_K):
                             offs_c = _c0 + tl.arange(0, BLOCK_K)
                             input_w = offs_w - kw
-                            x_offsets = (
-                                input_w[:, None] * sx_w + offs_c[None, :]
-                            )
+                            x_offsets = input_w[:, None] * sx_w + offs_c[None, :]
                             x_tile = tl.load(
                                 x_dh_base + x_offsets,
                                 mask=(input_w[:, None] >= 0)

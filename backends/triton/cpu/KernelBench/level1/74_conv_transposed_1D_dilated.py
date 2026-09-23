@@ -79,12 +79,7 @@ def _conv_transpose1d_dilated_gemm(
                 mask=valid[:, None] & (k_idx[None, :] < C_IN),
                 other=0.0,
             )
-            w_ptrs = (
-                w_ptr
-                + k * swk
-                + k_idx[:, None] * swci
-                + offs_n[None, :] * swco
-            )
+            w_ptrs = w_ptr + k * swk + k_idx[:, None] * swci + offs_n[None, :] * swco
             w_tile = tl.load(
                 w_ptrs,
                 mask=(k_idx[:, None] < C_IN) & mask_n[None, :],

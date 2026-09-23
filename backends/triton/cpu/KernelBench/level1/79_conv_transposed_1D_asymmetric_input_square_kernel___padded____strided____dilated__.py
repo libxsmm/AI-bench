@@ -63,8 +63,7 @@ def _conv_transpose1d_kernel(
         )
         b = tl.load(
             w_ptr + w_offsets,
-            mask=(offs_k[:, None] < IN_CHANNELS)
-            & (offs_oc[None, :] < OUT_CHANNELS),
+            mask=(offs_k[:, None] < IN_CHANNELS) & (offs_oc[None, :] < OUT_CHANNELS),
             other=0.0,
         )
         acc = tl.dot(a, b, acc)

@@ -50,9 +50,7 @@ def _pointwise_gemm(
     offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
     for k0 in range(0, K, BLOCK_K):
         offs_k = k0 + tl.arange(0, BLOCK_K)
-        w_offsets = (
-            offs_m[:, None] * stride_wm + offs_k[None, :] * stride_wk
-        )
+        w_offsets = offs_m[:, None] * stride_wm + offs_k[None, :] * stride_wk
         x_offsets = offs_k[:, None] * stride_xk + offs_n[None, :]
         w = tl.load(
             w_ptr + w_offsets,
