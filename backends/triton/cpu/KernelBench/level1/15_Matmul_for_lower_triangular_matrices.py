@@ -36,7 +36,7 @@ def swizzle_tile(
         )
         for gs in [1, 2, 4, 8]
     ],
-    key=["M", "N", "K"],
+    key=["M"],
 )
 @triton.jit
 def tril_matmul_kernel(

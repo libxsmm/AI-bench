@@ -61,18 +61,16 @@ def _conv_transpose2d_scatter(
     offs_oc = pid_oc * BLOCK_OC + tl.arange(0, BLOCK_OC)
 
     x_base = x_ptr + b.to(tl.int64) * sx_b + ih * sx_h
-    x_bp = tl.make_block_ptr(
-        base=x_base,
-        shape=(W_IN, C_IN),
-        strides=(sx_w, 1),
-        offsets=(pid_w * BLOCK_W, 0),
-        block_shape=(BLOCK_W, C_IN),
-        order=(1, 0),
+    offs_ci = tl.arange(0, C_IN)
+    x_offsets = offs_iw[:, None] * sx_w + offs_ci[None, :]
+    iw_valid = offs_iw < W_IN
+    x_tile = tl.load(
+        x_base + x_offsets,
+        mask=iw_valid[:, None],
+        other=0.0,
     )
-    x_tile = tl.load(x_bp, boundary_check=(0,), padding_option="zero")
 
     out_batch_base = out_ptr + b.to(tl.int64) * so_b
-    iw_valid = offs_iw < W_IN
 
     for kh in range(KH):
         oh = ih * STRIDE_H + kh * DIL_H - PAD_H
@@ -81,15 +79,16 @@ def _conv_transpose2d_scatter(
                 ow = offs_iw * STRIDE_W + kw * DIL_W - PAD_W
 
                 kidx = kh * KW + kw
-                w_bp = tl.make_block_ptr(
-                    base=w_ptr + kidx * C_IN * C_out,
-                    shape=(C_IN, C_out),
-                    strides=(C_out, 1),
-                    offsets=(0, pid_oc * BLOCK_OC),
-                    block_shape=(C_IN, BLOCK_OC),
-                    order=(1, 0),
+                w_offsets = (
+                    kidx * C_IN * C_out
+                    + offs_ci[:, None] * C_out
+                    + offs_oc[None, :]
                 )
-                w_tile = tl.load(w_bp, boundary_check=(1,), padding_option="zero")
+                w_tile = tl.load(
+                    w_ptr + w_offsets,
+                    mask=offs_oc[None, :] < C_out,
+                    other=0.0,
+                )
 
                 result = tl.dot(x_tile, w_tile).to(tl.float16)
 

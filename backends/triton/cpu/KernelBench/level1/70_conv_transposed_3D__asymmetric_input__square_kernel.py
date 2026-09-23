@@ -55,6 +55,8 @@ def _conv_transpose3d_v2(
 
     acc = tl.zeros((BLOCK_W, BLOCK_OC), dtype=tl.float32)
     x_batch_base = x_ptr + b.to(tl.int64) * sx_b
+    offs_w = pid_w * BLOCK_W + tl.arange(0, BLOCK_W)
+    offs_oc = pid_oc * BLOCK_OC + tl.arange(0, BLOCK_OC)
 
     for kd in range(K):
         d_in = d_out - kd
@@ -67,46 +69,44 @@ def _conv_transpose3d_v2(
                     x_dh_base = x_batch_base + d_in * sx_d + h_in * sx_h
 
                     for kw in range(K):
-                        w_in_start = pid_w * BLOCK_W - kw
                         kidx = kd * K * K + kh * K + kw
 
-                        x_bp = tl.make_block_ptr(
-                            base=x_dh_base,
-                            shape=(W_in, C_IN),
-                            strides=(sx_w, 1),
-                            offsets=(w_in_start, 0),
-                            block_shape=(BLOCK_W, BLOCK_K),
-                            order=(1, 0),
-                        )
-                        w_bp = tl.make_block_ptr(
-                            base=w_ptr + kidx * C_IN * C_out,
-                            shape=(C_IN, C_out),
-                            strides=(C_out, 1),
-                            offsets=(0, pid_oc * BLOCK_OC),
-                            block_shape=(BLOCK_K, BLOCK_OC),
-                            order=(1, 0),
-                        )
-
                         for _c0 in range(0, C_IN, BLOCK_K):
+                            offs_c = _c0 + tl.arange(0, BLOCK_K)
+                            input_w = offs_w - kw
+                            x_offsets = input_w[:, None] * sx_w + offs_c[None, :]
                             x_tile = tl.load(
-                                x_bp, boundary_check=(0, 1), padding_option="zero"
+                                x_dh_base + x_offsets,
+                                mask=(input_w[:, None] >= 0)
+                                & (input_w[:, None] < W_in)
+                                & (offs_c[None, :] < C_IN),
+                                other=0.0,
+                            )
+                            w_offsets = (
+                                kidx * C_IN * C_out
+                                + offs_c[:, None] * C_out
+                                + offs_oc[None, :]
                             )
                             w_tile = tl.load(
-                                w_bp, boundary_check=(0, 1), padding_option="zero"
+                                w_ptr + w_offsets,
+                                mask=(offs_c[:, None] < C_IN)
+                                & (offs_oc[None, :] < C_out),
+                                other=0.0,
                             )
                             acc += tl.dot(x_tile, w_tile)
-                            x_bp = tl.advance(x_bp, (0, BLOCK_K))
-                            w_bp = tl.advance(w_bp, (BLOCK_K, 0))
 
-    out_bp = tl.make_block_ptr(
-        base=out_ptr + b.to(tl.int64) * so_b + d_out * so_d + h_out * so_h,
-        shape=(W_out, C_out),
-        strides=(so_w, 1),
-        offsets=(pid_w * BLOCK_W, pid_oc * BLOCK_OC),
-        block_shape=(BLOCK_W, BLOCK_OC),
-        order=(1, 0),
+    out_offsets = (
+        b.to(tl.int64) * so_b
+        + d_out * so_d
+        + h_out * so_h
+        + offs_w[:, None] * so_w
+        + offs_oc[None, :]
     )
-    tl.store(out_bp, acc.to(tl.float16), boundary_check=(0, 1))
+    tl.store(
+        out_ptr + out_offsets,
+        acc.to(tl.float16),
+        mask=(offs_w[:, None] < W_out) & (offs_oc[None, :] < C_out),
+    )
 
 
 class Model(nn.Module):

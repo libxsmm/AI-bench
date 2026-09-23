@@ -77,31 +77,28 @@ def _conv_transpose3d_v5(
                     x_dh_base = x_batch_base + d_in * sx_d + h_in * sx_h
 
                     for kw in range(K):
-                        w_in_start = pid_w * BLOCK_W + 1 - kw
-
-                        x_bp = tl.make_block_ptr(
-                            base=x_dh_base,
-                            shape=(W, C_IN),
-                            strides=(sx_w, 1),
-                            offsets=(w_in_start, 0),
-                            block_shape=(BLOCK_W, C_IN),
-                            order=(1, 0),
-                        )
+                        input_w = offs_w_idx + 1 - kw
+                        x_offsets = input_w[:, None] * sx_w + tl.arange(
+                            0, C_IN
+                        )[None, :]
                         x_tile = tl.load(
-                            x_bp, boundary_check=(0,), padding_option="zero"
+                            x_dh_base + x_offsets,
+                            mask=(input_w[:, None] >= 0)
+                            & (input_w[:, None] < W),
+                            other=0.0,
                         )
 
                         kidx = kd * K * K + kh * K + kw
-                        w_bp = tl.make_block_ptr(
-                            base=w_ptr + kidx * C_IN * C_out,
-                            shape=(C_IN, C_out),
-                            strides=(C_out, 1),
-                            offsets=(0, pid_oc * BLOCK_OC),
-                            block_shape=(C_IN, BLOCK_OC),
-                            order=(1, 0),
+                        offs_c = tl.arange(0, C_IN)
+                        w_offsets = (
+                            kidx * C_IN * C_out
+                            + offs_c[:, None] * C_out
+                            + offs_oc[None, :]
                         )
                         w_tile = tl.load(
-                            w_bp, boundary_check=(1,), padding_option="zero"
+                            w_ptr + w_offsets,
+                            mask=offs_oc[None, :] < C_out,
+                            other=0.0,
                         )
 
                         acc += tl.dot(x_tile, w_tile)

@@ -45,40 +45,33 @@ def _pointwise_gemm(
     x_base = x_ptr + bid.to(tl.int64) * stride_xb
     y_base = y_ptr + bid.to(tl.int64) * stride_yb
 
-    W_bp = tl.make_block_ptr(
-        base=w_ptr,
-        shape=(M, K),
-        strides=(stride_wm, stride_wk),
-        offsets=(pid_m * BLOCK_M, 0),
-        block_shape=(BLOCK_M, BLOCK_K),
-        order=(1, 0),
-    )
-    X_bp = tl.make_block_ptr(
-        base=x_base,
-        shape=(K, N),
-        strides=(stride_xk, 1),
-        offsets=(0, pid_n * BLOCK_N),
-        block_shape=(BLOCK_K, BLOCK_N),
-        order=(1, 0),
-    )
-
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
-    for _ in range(0, K, BLOCK_K):
-        w = tl.load(W_bp, boundary_check=(0, 1), padding_option="zero")
-        x = tl.load(X_bp, boundary_check=(0, 1), padding_option="zero")
+    offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+    offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    for k0 in range(0, K, BLOCK_K):
+        offs_k = k0 + tl.arange(0, BLOCK_K)
+        w_offsets = (
+            offs_m[:, None] * stride_wm + offs_k[None, :] * stride_wk
+        )
+        x_offsets = offs_k[:, None] * stride_xk + offs_n[None, :]
+        w = tl.load(
+            w_ptr + w_offsets,
+            mask=(offs_m[:, None] < M) & (offs_k[None, :] < K),
+            other=0.0,
+        )
+        x = tl.load(
+            x_base + x_offsets,
+            mask=(offs_k[:, None] < K) & (offs_n[None, :] < N),
+            other=0.0,
+        )
         acc = tl.dot(w, x, acc)
-        W_bp = tl.advance(W_bp, (0, BLOCK_K))
-        X_bp = tl.advance(X_bp, (BLOCK_K, 0))
 
-    Y_bp = tl.make_block_ptr(
-        base=y_base,
-        shape=(M, N),
-        strides=(stride_ym, 1),
-        offsets=(pid_m * BLOCK_M, pid_n * BLOCK_N),
-        block_shape=(BLOCK_M, BLOCK_N),
-        order=(1, 0),
+    y_offsets = offs_m[:, None] * stride_ym + offs_n[None, :]
+    tl.store(
+        y_base + y_offsets,
+        acc.to(y_ptr.dtype.element_ty),
+        mask=(offs_m[:, None] < M) & (offs_n[None, :] < N),
     )
-    tl.store(Y_bp, acc.to(y_ptr.dtype.element_ty), boundary_check=(0, 1))
 
 
 class Model(nn.Module):
