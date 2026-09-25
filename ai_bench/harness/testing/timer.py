@@ -10,6 +10,13 @@ from torch.profiler import profile
 from torch.profiler import record_function
 
 
+def _trim_extremes(times: torch.Tensor) -> torch.Tensor:
+    """Drop min and max measurements if there are enough samples."""
+    if len(times) >= 10:
+        times = torch.sort(times).values[1:-1]
+    return times
+
+
 def time_cpu(
     fn: Callable,
     args: tuple,
@@ -72,41 +79,59 @@ def time_cpu(
         for _ in range(rep):
             if min_cache_nuke_mib > 0:
                 torch.bmm(nuke_a, nuke_b, out=nuke_c)
-            t0 = pytime.perf_counter_ns()
+            start = pytime.perf_counter_ns()
             fn(*args)
-            t1 = pytime.perf_counter_ns()
-            fallback_times.append((t1 - t0) / 1e3)
+            end = pytime.perf_counter_ns()
+            fallback_times.append((end - start) / 1e3)
         times = torch.tensor(fallback_times, dtype=torch.float)
 
     # Trim extremes if there are enough measurements.
-    if len(times) >= 10:
-        times = torch.sort(times).values[1:-1]
+    times = _trim_extremes(times)
 
     return torch.mean(times).item()
 
 
-def time_gpu(
+def _time_gpu_wallclock(
     device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
 ) -> float:
-    """Measure execution time of the provided function on GPU.
-
-    Uses hardware events for accurate GPU-side timing, with L2 cache flushing
-    and a dummy matmul to improve accuracy for short-lived kernels.
-
-    Args:
-        device: Target device
-        fn: Function to measure
-        args: Arguments to pass to the function
-        warmup: Warmup iterations
-        rep: Measurement iterations
-    Returns:
-        Mean runtime in microseconds
+    """Measure host wall-clock time of each call, with device synchronization
+    before and after it.
     """
-    current_device = torch.accelerator.current_accelerator().type
-    assert current_device == device.type, (
-        f"Invalid accelerator {current_device}, expected {device.type}"
-    )
+    # Buffer used to flush L2 cache between kernel runs.
+    cache_size = 256 * 1024 * 1024
+    cache = torch.empty(cache_size, dtype=torch.int8, device=device)
 
+    for _ in range(warmup):
+        cache.zero_()
+        fn(*args)
+    torch.accelerator.synchronize()
+
+    times = []
+    for _ in range(rep):
+        cache.zero_()
+        # Drain the device so the timed region contains only this call.
+        torch.accelerator.synchronize()
+        start = pytime.perf_counter_ns()
+        fn(*args)
+        torch.accelerator.synchronize()
+        end = pytime.perf_counter_ns()
+        times.append((end - start) / 1e3)
+    times = torch.tensor(times, dtype=torch.float)
+
+    # Trim extremes if there are enough measurements.
+    times = _trim_extremes(times)
+
+    return torch.mean(times).item()
+
+
+def _time_gpu_events(
+    device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
+) -> float:
+    """Measure GPU-side execution time using device events.
+
+    Only accurate when all work of the function is enqueued asynchronously
+    without internal host synchronization.
+    """
     # Buffer used to flush L2 cache between kernel runs.
     cache_size = 256 * 1024 * 1024
     cache = torch.empty(cache_size, dtype=torch.int8, device=device)
@@ -155,10 +180,42 @@ def time_gpu(
     )
 
     # Trim extremes if there are enough measurements.
-    if len(times) >= 10:
-        times = torch.sort(times).values[1:-1]
+    times = _trim_extremes(times)
 
     return torch.mean(times).item()
+
+
+def time_gpu(
+    device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
+) -> float:
+    """Measure execution time of the provided function on GPU.
+
+    The timing strategy is selected with AIBENCH_GPU_TIMER:
+      - wallclock (default): host wall-clock with device synchronization
+        before and after each call
+      - events: GPU event-based timer relying on batch execution and
+        asynchronous kernel dispatch
+
+    Args:
+        device: Target device
+        fn: Function to measure
+        args: Arguments to pass to the function
+        warmup: Warmup iterations
+        rep: Measurement iterations
+    Returns:
+        Mean runtime in microseconds
+    """
+    current_device = torch.accelerator.current_accelerator().type
+    assert current_device == device.type, (
+        f"Invalid accelerator {current_device}, expected {device.type}"
+    )
+
+    mode = os.environ.get("AIBENCH_GPU_TIMER", "wallclock").lower()
+    if mode == "wallclock":
+        return _time_gpu_wallclock(device, fn, args, warmup=warmup, rep=rep)
+    if mode == "events":
+        return _time_gpu_events(device, fn, args, warmup=warmup, rep=rep)
+    raise ValueError(f"Invalid timer mode: {mode}")
 
 
 def time(
