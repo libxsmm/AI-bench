@@ -311,6 +311,7 @@ Environment variables used for project configuration:
 | `AIBENCH_WARMUP` | Override number of warmup iterations |
 | `AIBENCH_REP` | Override number of timed iterations |
 | `AIBENCH_CPU_MIN_CACHE_NUKE_MIB` | Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU |
+| `AIBENCH_GPU_TIMER=wallclock\|events` | GPU timing strategy (default: host `wallclock`) |
 
 ## License
 
