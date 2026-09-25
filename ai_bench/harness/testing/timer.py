@@ -111,11 +111,11 @@ def _time_gpu_wallclock(
         cache.zero_()
         # Drain the device so the timed region contains only this call.
         torch.accelerator.synchronize()
-        t0 = pytime.perf_counter_ns()
+        start = pytime.perf_counter_ns()
         fn(*args)
         torch.accelerator.synchronize()
-        t1 = pytime.perf_counter_ns()
-        times.append((t1 - t0) / 1e3)
+        end = pytime.perf_counter_ns()
+        times.append((end - start) / 1e3)
     times = torch.tensor(times, dtype=torch.float)
 
     # Trim extremes if there are enough measurements.
