@@ -6,6 +6,7 @@
 import cuda.tile as ct
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import sfc_matmul
+from cutile_cpu_utils import mish
 import torch.nn as nn
 
 ct.set_backend("cpu")
@@ -15,20 +16,8 @@ def _next_power_of_2(n):
     return 1 << (n - 1).bit_length()
 
 
-def _softplus(value):
-    return ct.where(
-        value > 20.0,
-        value,
-        ct.log(1.0 + ct.exp(value)),
-    )
-
-
-def _mish(value):
-    return value * ct.tanh(_softplus(value))
-
-
 def _mish_mish(value):
-    return _mish(_mish(value))
+    return mish(mish(value))
 
 
 class Model(nn.Module):

@@ -79,7 +79,14 @@ def maxpool3d_kernel(
                                 - PADDING
                                 + kw * DILATION
                             )
-                            values = x_view.load(start).astype(ct.float32)
+                            if (start >= 0) & (start < x.shape[0]):
+                                values = x_view.load(start).astype(ct.float32)
+                            else:
+                                values = ct.gather(
+                                    x,
+                                    base + d * H * W + h * W + w,
+                                    padding_value=float("-inf"),
+                                ).astype(ct.float32)
                             values = ct.where(valid, values, float("-inf"))
                         else:
                             values = ct.where(

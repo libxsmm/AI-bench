@@ -60,7 +60,15 @@ def maxpool2d_kernel(
                 iw = cols * STRIDE - PADDING + kw * DILATION
                 valid = valid_out & (iw >= 0) & (iw < W)
                 start = base + ih * W + pid_ow * BLOCK_W - PADDING + kw * DILATION
-                values = x_view.load(start).astype(ct.float32)
+                # View indices are unsigned; gather defines negative indices as OOB.
+                if (start >= 0) & (start < x.shape[0]):
+                    values = x_view.load(start).astype(ct.float32)
+                else:
+                    values = ct.gather(
+                        x,
+                        start + ct.arange(BLOCK_W, dtype=torch.int32),
+                        padding_value=float("-inf"),
+                    ).astype(ct.float32)
                 max_value = ct.maximum(
                     max_value, ct.where(valid, values, float("-inf"))
                 )

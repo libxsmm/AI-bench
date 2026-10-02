@@ -55,7 +55,14 @@ def maxpool1d_kernel(
         valid = valid_out & (indices >= 0) & (indices < L)
         if STRIDE == 1:
             start = base + pid_o * BLOCK_SIZE - PADDING + k * DILATION
-            values = x_view.load(start).astype(ct.float32)
+            if (start >= 0) & (start < x.shape[0]):
+                values = x_view.load(start).astype(ct.float32)
+            else:
+                values = ct.gather(
+                    x,
+                    base + indices,
+                    padding_value=float("-inf"),
+                ).astype(ct.float32)
             values = ct.where(valid, values, float("-inf"))
         else:
             values = ct.where(
