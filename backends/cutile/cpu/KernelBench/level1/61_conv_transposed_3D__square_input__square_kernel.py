@@ -66,7 +66,7 @@ def _conv_transpose3d_kernel(
                     w_start = pid_w * BLOCK_W - kw
                     kernel_index = kd * KH * KW + kh * KW + kw
                     for c_block in range(ct.cdiv(C_IN, BLOCK_K)):
-                        if w_start >= 0:
+                        if (w_start >= 0) & (w_start < W_IN):
                             x_values = x_view.load(
                                 (batch, input_d, input_h, w_start, c_block)
                             ).reshape((BLOCK_W, BLOCK_K))

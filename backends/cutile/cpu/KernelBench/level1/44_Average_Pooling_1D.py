@@ -52,7 +52,13 @@ def avg_pool1d_kernel(
         valid = valid_out & (indices >= 0) & (indices < L)
         if STRIDE == 1:
             start = pid_o * BLOCK_SIZE - PADDING + k
-            values = x_view.load(start).astype(ct.float32)
+            if (start >= 0) & (start < L):
+                values = x_view.load(start).astype(ct.float32)
+            else:
+                values = ct.gather(
+                    channel_x,
+                    indices,
+                ).astype(ct.float32)
             values = ct.where(valid, values, 0.0)
         else:
             values = ct.where(valid, ct.gather(x, base + indices), 0.0).astype(

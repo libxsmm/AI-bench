@@ -6,6 +6,7 @@
 import cuda.tile as ct
 import torch
 import torch.nn as nn
+from cutile_cpu_utils import tanh
 
 ct.set_backend("cpu")
 ConstInt = ct.Constant[int]
@@ -24,7 +25,7 @@ def gelu_kernel(x, output, n_elements: ConstInt, BLOCK_SIZE: ConstInt):
     offsets = ct.bid(0) * BLOCK_SIZE + ct.arange(BLOCK_SIZE, dtype=torch.int32)
     values = ct.gather(x, offsets).astype(ct.float32)
     inner = values + 0.044715 * values * values * values
-    result = 0.5 * values * (1.0 + ct.tanh(0.7978845608028654 * inner))
+    result = 0.5 * values * (1.0 + tanh(0.7978845608028654 * inner))
     ct.scatter(output, offsets, ct.astype(result, x.dtype))
 
 

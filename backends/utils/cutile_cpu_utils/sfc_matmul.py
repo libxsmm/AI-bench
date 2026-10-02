@@ -116,9 +116,9 @@ def _block_pack_kernel(
     B,
     BPacked,
     BSfcMap,
-    M: ConstInt,
-    N: ConstInt,
-    K: ConstInt,
+    M,
+    N,
+    K,
     VNNI: ConstInt,
     B_IS_PREPACKED: ConstBool,
 ):
@@ -185,32 +185,44 @@ def _make_intermediate_buffers(
     blocks_n = N // BLOCK_SIZE_N
     blocks_k = K // _BLOCK_SIZE_K
     vnni = 32 // (in_dtype.itemsize * 8)
-    ap = torch.empty((blocks_m, blocks_k, _BLOCK_SIZE_M, _BLOCK_SIZE_K), dtype=in_dtype)
-    bp = (
-        None
-        if b_is_prepacked
-        else torch.empty(
-            (
-                blocks_n,
-                blocks_k,
-                _BLOCK_SIZE_K // vnni,
-                BLOCK_SIZE_N,
-                vnni,
-            ),
-            dtype=in_dtype,
-        )
-    )
-    ctmp = torch.empty(
-        (blocks_m, blocks_n, _BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=accum_dtype
-    )
+    a_shape = (blocks_m, blocks_k, _BLOCK_SIZE_M, _BLOCK_SIZE_K)
+    a_size = M * K * in_dtype.itemsize
+    b_size = 0 if b_is_prepacked else K * N * in_dtype.itemsize
+    ctmp_size = M * N * accum_dtype.itemsize
     if reduce_last_dim:
-        cred = torch.empty((blocks_n, M), dtype=accum_dtype)
+        cred_size = blocks_n * M * accum_dtype.itemsize
     elif softmax_last_dim:
-        cred = torch.empty((blocks_n, 2 * M), dtype=accum_dtype)
+        cred_size = blocks_n * 2 * M * accum_dtype.itemsize
     else:
-        cred = torch.empty((1,), dtype=accum_dtype)
+        cred_size = 0
+    c_size = M * (1 if reduce_last_dim else N) * out_dtype.itemsize if c_is_owned else 0
+    packed = torch.empty(
+        a_size + b_size + ctmp_size + cred_size + c_size, dtype=torch.uint8
+    )
+    ap = packed[:a_size].view(in_dtype).view(a_shape)
+    bp = (
+        packed[a_size : a_size + b_size]
+        .view(in_dtype)
+        .view(blocks_n, blocks_k, _BLOCK_SIZE_K // vnni, BLOCK_SIZE_N, vnni)
+        if not b_is_prepacked
+        else None
+    )
+    ctmp = (
+        packed[a_size + b_size : a_size + b_size + ctmp_size]
+        .view(accum_dtype)
+        .view(blocks_m, blocks_n, _BLOCK_SIZE_M, BLOCK_SIZE_N)
+    )
+    cred = (
+        packed[a_size + b_size + ctmp_size : a_size + b_size + ctmp_size + cred_size]
+        .view(accum_dtype)
+        .view(blocks_n, 2 * M if softmax_last_dim else M)
+        if cred_size
+        else ctmp
+    )
     c = (
-        torch.empty((M, 1 if reduce_last_dim else N), dtype=out_dtype)
+        packed[a_size + b_size + ctmp_size + cred_size :]
+        .view(out_dtype)
+        .view(M, 1 if reduce_last_dim else N)
         if c_is_owned
         else None
     )
@@ -245,10 +257,10 @@ def _make_matmul_kernel(post_op, reduction_block_op):
         Bias,
         PostOpArg,
         SfcMap,
-        M: ConstInt,
-        N: ConstInt,
-        K: ConstInt,
-        ik: ConstInt,
+        M,
+        N,
+        K,
+        ik,
         VNNI: ConstInt,
         BLOCKING_FACTOR_K: ConstInt,
         IS_FIRST_K_BLOCK: ConstBool,
@@ -372,8 +384,8 @@ def _make_finish_reduction_kernel(
     def _finish_reduction_kernel(
         Input,
         Output,
-        M: ConstInt,
-        N: ConstInt,
+        M,
+        N,
         BLOCK_SIZE_M: ConstInt,
         BLOCK_SIZE_N: ConstInt,
     ):
@@ -404,8 +416,8 @@ def _finish_softmax_kernel(
     Ctmp,
     Stats,
     C,
-    M: ConstInt,
-    N: ConstInt,
+    M,
+    N,
 ):
     blocks_n = N // _BLOCK_SIZE_N
     block_m = ct.bid(0)
@@ -472,8 +484,8 @@ class PreparedSFCMatmul:
 
     def __call__(self):
         with cpu.compile_options(self._options):
-            for grid, compiled, kernel_args in self._launches:
-                ct.launch_compiled(None, grid, compiled, kernel_args)
+            for grid, kernel, kernel_args in self._launches:
+                ct.launch(None, grid, kernel, kernel_args)
         return self._output
 
 
@@ -574,7 +586,7 @@ def prepare_sfc_matmul(
         launches.append(
             (
                 (pack_grid, 1, 1),
-                ct.compile_kernel_for_launch(_block_pack_kernel, pack_args),
+                _block_pack_kernel,
                 pack_args,
             )
         )
@@ -605,11 +617,7 @@ def prepare_sfc_matmul(
             launches.append(
                 (
                     (blocks_m * blocks_n, 1, 1),
-                    cpu.compile_for_launch(
-                        matmul_kernel,
-                        kernel_args,
-                        signature_builder=_build_matmul_signature,
-                    ),
+                    matmul_kernel,
                     kernel_args,
                 )
             )
@@ -632,7 +640,7 @@ def prepare_sfc_matmul(
             launches.append(
                 (
                     (M // finish_block_size_m, 1, 1),
-                    ct.compile_kernel_for_launch(finish_kernel, finish_args),
+                    finish_kernel,
                     finish_args,
                 )
             )
@@ -641,7 +649,7 @@ def prepare_sfc_matmul(
             launches.append(
                 (
                     (blocks_m, 1, 1),
-                    ct.compile_kernel_for_launch(_finish_softmax_kernel, finish_args),
+                    _finish_softmax_kernel,
                     finish_args,
                 )
             )

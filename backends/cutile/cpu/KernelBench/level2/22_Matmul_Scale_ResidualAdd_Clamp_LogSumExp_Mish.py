@@ -6,6 +6,7 @@
 import cuda.tile as ct
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import sfc_matmul
+from cutile_cpu_utils import mish
 import torch.nn as nn
 
 ct.set_backend("cpu")
@@ -31,21 +32,9 @@ def _reduction_block(value, **kwargs):
     return ct.sum(ct.exp(value), axis=1)
 
 
-def _softplus(value):
-    return ct.where(
-        value > 20.0,
-        value,
-        ct.log(1.0 + ct.exp(value)),
-    )
-
-
-def _mish(value):
-    return value * ct.tanh(_softplus(value))
-
-
 def _reduction_post_op(value, **kwargs):
     value = ct.log(value)
-    return value * _mish(value)
+    return value * mish(value)
 
 
 class Model(nn.Module):
