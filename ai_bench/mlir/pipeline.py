@@ -9,9 +9,7 @@ from lighthouse.pipeline.descriptor import Descriptor
 from lighthouse.pipeline.driver import BackendDriver
 from lighthouse.schedule.parameters import ScheduleParameters
 from lighthouse.schedule.xegpu import elemwise_schedule
-from lighthouse.schedule.xegpu import fused_attention_schedule
-from lighthouse.schedule.xegpu import mlp_schedule
-from lighthouse.schedule.xegpu import reduction_schedule
+from lighthouse.schedule.xegpu import get_xegpu_pipeline
 from lighthouse.schedule.xegpu import xegpu_to_binary
 from mlir import ir
 
@@ -163,6 +161,48 @@ def _xpu_matmul_params_dir() -> str:
     )
 
 
+def _xpu_schedules(
+    pipeline: str | None = None,
+    parameters: ScheduleParameters | None = None,
+) -> list[ir.Module]:
+    """
+    Construct high-level problem specific schedules for XPU target.
+    The schedules lower IR to XeGPU dialect, binary generation is not included.
+
+    Args:
+        pipeline: Schedule kind.
+        parameters: Schedule parameters.
+    Returns:
+        List of transform schedules.
+    """
+    payload_func_name = "main"
+    if pipeline == "elemwise":
+        return [
+            elemwise_schedule(
+                params=parameters,
+                payload_func_name=payload_func_name,
+            )
+        ]
+    if pipeline not in ("mlp", "reduction", "attention"):
+        raise ValueError(f"Unsupported XPU schedule kind: {pipeline}")
+
+    # The XeGPU pipeline accepts parameters of a single layer.
+    # Multi-layer kernels fall back to the pipeline's inferred parameters.
+    # TODO: Pass parameters to multi-layer kernels when supported by Lighthouse.
+    layer_params = parameters[0]
+    if len(parameters) > 1:
+        _get_logger().warning(
+            "  MLIR XPU - multi-layer parameters are not supported, "
+            "using inferred parameters instead"
+        )
+        layer_params = None
+    return get_xegpu_pipeline(
+        parameters=layer_params,
+        stop_at_stage="xegpu-wg",
+        device="B70" if pipeline == "mlp" else None,
+    )
+
+
 def _compile_xpu_pipeline(
     module: ir.Module,
     pipeline: str | None = None,
@@ -180,37 +220,13 @@ def _compile_xpu_pipeline(
     """
 
     with module.context, ir.Location.unknown():
-        # High-level problem specific schedule.
-        payload_func_name = "main"
-        if pipeline == "mlp":
-            schedule = mlp_schedule(
-                params=parameters,
-                payload_func_name=payload_func_name,
-                device="B70",
-            )
-        elif pipeline == "elemwise":
-            schedule = elemwise_schedule(
-                params=parameters,
-                payload_func_name=payload_func_name,
-            )
-        elif pipeline == "reduction":
-            schedule = reduction_schedule(
-                params=parameters,
-                payload_func_name=payload_func_name,
-            )
-        elif pipeline == "attention":
-            schedule = fused_attention_schedule(
-                params=parameters,
-            )
-        else:
-            raise ValueError(f"Unsupported XPU schedule kind: {pipeline}")
         # Full pipeline with a common tail.
-        schedules = [
-            schedule,
+        schedules = _xpu_schedules(pipeline=pipeline, parameters=parameters)
+        schedules.append(
             xegpu_to_binary(
                 xegpu_op_level="workgroup",
-            ),
-        ]
+            )
+        )
         # Build the lowering pipeline from the selected YAML descriptor.
         driver = BackendDriver(module, "main", result_to_args=False, benchmark=False)
         for s in schedules:

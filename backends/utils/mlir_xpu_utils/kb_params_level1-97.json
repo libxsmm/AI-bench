@@ -10,9 +10,18 @@
             1,
             128
         ],
-        "sg_rows": 16,
+        "sg_tile": [
+            0,
+            0,
+            16
+        ],
         "subgroup_size": 16,
-        "reduction_tile": 64,
+        "reduction_tile": [
+            0,
+            0,
+            0,
+            64
+        ],
         "q_load_tile": [
             16,
             32
