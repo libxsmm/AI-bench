@@ -106,7 +106,7 @@ class CPUBackend(lh_compile.MLIRBackend):
             import uuid
 
             file = "jit-mlir-dump-" + uuid.uuid4().hex + ".o"
-            jit_func.eng.dump_to_object_file(file)
+            jit_func.runner.dump_object_file(file)
             self.logger.info(f"--- MLIR JIT - Created object file: {file}")
 
         return jit_func
