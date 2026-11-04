@@ -4,7 +4,6 @@
 
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 from cutile_cpu_utils import groupnorm
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import reduce_last_dim
@@ -104,7 +103,7 @@ class Model(nn.Module):
         n_bias_elements = int(torch.tensor(self._bias_extra.shape[:-2]).prod().item())
         block_size_r = 256
         assert res_red.shape[0] % block_size_r == 0
-        with cpu.compile_options({"assume_in_bounds": True}):
+        with ct.backend_options({"assume_in_bounds": True}):
             ct.launch(
                 None,
                 (n_bias_elements,),

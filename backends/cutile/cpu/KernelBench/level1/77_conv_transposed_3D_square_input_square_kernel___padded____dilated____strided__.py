@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -150,7 +149,7 @@ class Model(nn.Module):
         D_ACT = OD // 2
         H_ACT = OH // 2
         W_ACT = OW // 2
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (ct.cdiv(W_ACT, 16), B * D_ACT * H_ACT, ct.cdiv(C_OUT, 32)),

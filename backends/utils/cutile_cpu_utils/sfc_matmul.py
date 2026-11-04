@@ -6,8 +6,7 @@ import functools
 import threading
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
-from cuda.tile._backend._signature import build_signature
+from cuda.tile._backends._signature import build_signature
 from cuda.tile.compilation import ArrayConstraint
 from cuda.tile.compilation import KernelSignature
 import torch
@@ -483,7 +482,7 @@ class PreparedSFCMatmul:
         self._options = _compile_options(options)
 
     def __call__(self):
-        with cpu.compile_options(self._options):
+        with ct.backend_options(self._options):
             for grid, kernel, kernel_args in self._launches:
                 ct.launch(None, grid, kernel, kernel_args)
         return self._output
@@ -565,7 +564,7 @@ def prepare_sfc_matmul(
     )
 
     launches = []
-    with cpu.compile_options(_compile_options(options)):
+    with ct.backend_options(_compile_options(options)):
         pack_args = (
             a,
             ap,

@@ -21,7 +21,7 @@ ConstInt = ct.Constant[int]
     ],
     key=["M", "N", "K"],
     grid=lambda meta: (
-        (meta["A"].shape[0] // meta["M"])
+        meta["A"].shape[0]
         * ct.cdiv(meta["M"], meta["BLOCK_M"])
         * ct.cdiv(meta["N"], meta["BLOCK_N"]),
     ),
@@ -60,30 +60,29 @@ def _batched_matmul_kernel(
     pid_m = first_pid_m + ((tile_id % num_pid_in_group) % group_size_m)
     pid_n = (tile_id % num_pid_in_group) // group_size_m
 
-    batch_offset_m = batch_id * num_pid_m
-    batch_offset_k = batch_id * ct.cdiv(K, BLOCK_K)
-
     acc = ct.full((BLOCK_M, BLOCK_N), 0, dtype=ct.float32)
     for k in range(ct.cdiv(K, BLOCK_K)):
+        # 3D tiles keep the batch index loop-invariant, so the K loop has no
+        # index math and ct.mma lowers to AMX on CPU.
         a = ct.load(
             A,
-            index=(batch_offset_m + pid_m, k),
-            shape=(BLOCK_M, BLOCK_K),
+            index=(batch_id, pid_m, k),
+            shape=(1, BLOCK_M, BLOCK_K),
         )
         b = ct.load(
             B,
-            index=(batch_offset_k + k, pid_n),
-            shape=(BLOCK_K, BLOCK_N),
+            index=(batch_id, k, pid_n),
+            shape=(1, BLOCK_K, BLOCK_N),
         )
         acc = ct.mma(
-            a,
-            b,
+            ct.reshape(a, (BLOCK_M, BLOCK_K)),
+            ct.reshape(b, (BLOCK_K, BLOCK_N)),
             acc,
         )
     ct.store(
         C,
-        index=(batch_offset_m + pid_m, pid_n),
-        tile=ct.astype(acc, C.dtype),
+        index=(batch_id, pid_m, pid_n),
+        tile=ct.reshape(ct.astype(acc, C.dtype), (1, BLOCK_M, BLOCK_N)),
     )
 
 
@@ -102,9 +101,9 @@ class Model(nn.Module):
         _batched_matmul_kernel(
             None,
             (
-                A.reshape(BATCH * M, K),
-                B.reshape(BATCH * K, N),
-                C.reshape(BATCH * M, N),
+                A,
+                B,
+                C,
                 M,
                 N,
                 K,

@@ -1,7 +1,6 @@
 # ruff: noqa: E731
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -84,7 +83,7 @@ class Model(nn.Module):
             else self.conv1d.bias.contiguous().to(x.dtype)
         )
         output = torch.empty((B, C_OUT, H, W), device=x.device, dtype=x.dtype)
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (ct.cdiv(C_OUT, 32) * ct.cdiv(HW, 32), B),

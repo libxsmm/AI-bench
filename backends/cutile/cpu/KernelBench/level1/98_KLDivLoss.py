@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -62,6 +61,6 @@ class Model(nn.Module):
         rows = torch.empty(B, device=predictions.device, dtype=torch.float32)
         output = torch.empty(1, device=predictions.device, dtype=torch.float32)
         kl_row_kernel(None, (predictions.view(-1), targets.view(-1), rows, B, N))
-        with cpu.compile_options({"assume_in_bounds": B % 128 == 0}):
+        with ct.backend_options({"assume_in_bounds": B % 128 == 0}):
             ct.launch(None, (1,), mean_kernel, (rows, output, B, 128))
         return output[0]

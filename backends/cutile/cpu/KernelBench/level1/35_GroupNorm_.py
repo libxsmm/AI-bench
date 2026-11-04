@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -106,7 +105,7 @@ class Model(nn.Module):
         output = torch.empty_like(x)
         mean = torch.empty(B * self.num_groups, device=device, dtype=torch.float32)
         invstd = torch.empty(B * self.num_groups, device=device, dtype=torch.float32)
-        with cpu.compile_options({"assume_in_bounds": HW % 32 == 0}):
+        with ct.backend_options({"assume_in_bounds": HW % 32 == 0}):
             ct.launch(
                 None,
                 (B * self.num_groups,),

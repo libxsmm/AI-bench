@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -131,7 +130,7 @@ class Model(nn.Module):
         if not self._bufs_ready:
             self._alloc_bufs(B, C, device)
         if self.training:
-            with cpu.compile_options({"assume_in_bounds": HW % 8192 == 0}):
+            with ct.backend_options({"assume_in_bounds": HW % 8192 == 0}):
                 ct.launch(
                     None,
                     (C, B),
@@ -149,7 +148,7 @@ class Model(nn.Module):
             block_b = 1
             while block_b < B:
                 block_b *= 2
-            with cpu.compile_options({"assume_in_bounds": B % block_b == 0}):
+            with ct.backend_options({"assume_in_bounds": B % block_b == 0}):
                 ct.launch(
                     None,
                     (C,),
@@ -171,7 +170,7 @@ class Model(nn.Module):
             self._scale.copy_(self.weight * inv_std)
             self._shift.copy_(self.bias - self.running_mean * self._scale)
         output = torch.empty_like(x)
-        with cpu.compile_options({"assume_in_bounds": total % 32 == 0}):
+        with ct.backend_options({"assume_in_bounds": total % 32 == 0}):
             ct.launch(
                 None,
                 (ct.cdiv(total, 32),),

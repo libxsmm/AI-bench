@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -84,6 +83,6 @@ class Model(nn.Module):
                 self.eps,
             ),
         )
-        with cpu.compile_options({"assume_in_bounds": B % 128 == 0}):
+        with ct.backend_options({"assume_in_bounds": B % 128 == 0}):
             ct.launch(None, (1,), mean_kernel, (rows, output, B, 128))
         return output[0]

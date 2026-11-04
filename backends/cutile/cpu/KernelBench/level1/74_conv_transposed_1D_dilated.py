@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -131,7 +130,7 @@ class Model(nn.Module):
         output = torch.empty(
             (B, L_OUT, self.conv.out_channels), device=x.device, dtype=x.dtype
         )
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (ct.cdiv(L_OUT, 32) * ct.cdiv(self.conv.out_channels, 32) * B,),

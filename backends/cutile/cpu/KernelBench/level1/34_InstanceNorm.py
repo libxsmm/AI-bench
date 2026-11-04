@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -46,7 +45,7 @@ class Model(nn.Module):
         x_flat = x.contiguous().view(B * C, N)
         output = torch.empty_like(x_flat)
         BLOCK_SIZE = 32
-        with cpu.compile_options({"assume_in_bounds": N % BLOCK_SIZE == 0}):
+        with ct.backend_options({"assume_in_bounds": N % BLOCK_SIZE == 0}):
             ct.launch(
                 None,
                 (B * C,),

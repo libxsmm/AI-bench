@@ -1,7 +1,6 @@
 # ruff: noqa: E731
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -119,7 +118,7 @@ class Model(nn.Module):
         output = torch.empty(
             (B, C_OUT, OD, OH, OW), device=x.device, dtype=torch.float16
         ).contiguous(memory_format=torch.channels_last_3d)
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (ct.cdiv(B * OD * OH * OW, 32), ct.cdiv(C_OUT, 32)),

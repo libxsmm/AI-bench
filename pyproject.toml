@@ -57,10 +57,10 @@ cuda = [
   "torchvision==0.28.0",
   "helion==1.4.0",
 ]
-#mlir = [
-#  "lighthouse[ingress_torch_mlir]",
-#  "ml-dtypes",
-#]
+mlir = [
+  "lighthouse[ingress_torch_mlir]",
+  "ml-dtypes",
+]
 # If triton-cpu build fails with a stale LLVM path, clear caches:
 #   rm -r ~/.triton/llvm
 #   rm -r ~/.cache/uv/git-v0/checkouts/*/[triton rev hash]/build
@@ -73,23 +73,21 @@ triton-cpu = [
   "cmake>=3.20,<4.0",
   "ninja>=1.11.1",
   "nanobind==2.10.2",
-  "pybind11>=2.13.1",
   "lit",
 ]
 cutile-cpu = [
   "torch==2.13.0+cpu",
   "cuda-tile",
+  "cuda-toolkit[cudart,nvvm]>=13.2,<13.6", # Build headers for cuda-tile; not needed at runtime.
   "numpy",
-  "triton",
   "cutile-cpu-utils", # Local kernel helper package (see: backends/utils).
-  # Build dependencies for cuda-tile and triton, which use the project environment.
+  # Build dependencies for cuda-tile, which uses the project environment.
   "setuptools==80.10.2",
   "wheel",
   "cmake>=3.24,<4.0",
   "ninja>=1.11.1",
   "nanobind>=2.9,<3",
   "pybind11>=2.13.1",
-  "lit",
 ]
 helion-mlir = [
   "helion-mlir-backend",
@@ -122,7 +120,7 @@ filterwarnings = [
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
-no-build-isolation-package = ["cuda-tile", "triton"]
+no-build-isolation-package = ["cuda-tile"]
 conflicts = [
   # Restrict to one device to avoid incompatible dependencies.
   [
@@ -147,18 +145,11 @@ conflicts = [
 [tool.uv.extra-build-variables.cuda-tile]
 CUTILE_BUILD_VARIANT = "cpu"
 
-[tool.uv.extra-build-variables.triton]
-TRITON_APPEND_CMAKE_ARGS = "-DTRITON_CODEGEN_BACKENDS=cpu"
-TRITON_BUILD_WITH_CLANG_LLD = "1"
-LLVM_TARGETS = "Native"
-LLVM_PROJECTS = "mlir;llvm"
-LLVM_DISTRIBUTION_COMPONENTS = "llvm-headers;llvm-libraries;cmake-exports;mlir-headers;mlir-libraries;mlir-cmake-exports;llc;opt;llvm-config;mlir-tblgen;mlir-translate"
-
 [tool.uv.sources]
 torch = { index = "pytorch" }
 triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "7798748" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "eb90452" }
-cuda-tile = { git = "https://github.com/fschlimb/cutile-python", branch = "bench" }
+cuda-tile = { git = "https://github.com/fschlimb/cutile-python", branch = "autotune" }
 mlir-python-bindings = { index = "eudsl" }
 helion-mlir-backend = { git = "https://github.com/libxsmm/helion-mlir-backend", rev = "fd5a18f" }
 triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }

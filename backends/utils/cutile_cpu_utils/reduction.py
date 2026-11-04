@@ -1,7 +1,6 @@
 import functools
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 
 ct.set_backend("cpu")
@@ -92,7 +91,7 @@ def reduce_last_dim(
         reduction_op,
         post_op or _no_post_op,
     )
-    with cpu.compile_options({"assume_in_bounds": True}):
+    with ct.backend_options({"assume_in_bounds": True}):
         ct.launch(
             None,
             (M,),
@@ -120,7 +119,7 @@ def reduce_first_dim(
         reduction_op,
         post_op or _no_post_op,
     )
-    with cpu.compile_options({"assume_in_bounds": True}):
+    with ct.backend_options({"assume_in_bounds": True}):
         ct.launch(
             None,
             (N // block_size_n,),
@@ -228,7 +227,7 @@ def groupnorm(
     post_op_has_arg = post_op_arg is not None
     kernel = _make_affine_groupnorm_2d_kernel(post_op or _no_post_op)
     post_op_arg = inp if post_op_arg is None else post_op_arg
-    with cpu.compile_options({"assume_in_bounds": True}):
+    with ct.backend_options({"assume_in_bounds": True}):
         ct.launch(
             None,
             (N * num_groups,),

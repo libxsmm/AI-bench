@@ -4,7 +4,6 @@
 
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 from cutile_cpu_utils import gelu
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import sfc_matmul
@@ -98,7 +97,7 @@ class Model(nn.Module):
 
         output = torch.empty_like(x)
         assert x.shape[1] % 256 == 0, "K must be divisible by BLOCK_SIZE_K"
-        with cpu.compile_options({"assume_in_bounds": True}):
+        with ct.backend_options({"assume_in_bounds": True}):
             ct.launch(
                 None,
                 (x.shape[0],),

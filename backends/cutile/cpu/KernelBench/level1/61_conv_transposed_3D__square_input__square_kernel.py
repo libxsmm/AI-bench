@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -161,7 +160,7 @@ class Model(nn.Module):
             dtype=torch.float16,
         ).contiguous(memory_format=torch.channels_last_3d)
         output_ndhwc = output.permute(0, 2, 3, 4, 1)
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (

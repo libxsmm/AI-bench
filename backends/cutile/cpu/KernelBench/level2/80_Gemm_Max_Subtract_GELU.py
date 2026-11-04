@@ -4,7 +4,6 @@
 
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 from cutile_cpu_utils import gelu
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import reduce_first_dim
@@ -87,7 +86,7 @@ class Model(nn.Module):
             block_size_n = 256
             assert n % block_size_n == 0
             output = torch.empty((1, n), dtype=x.dtype)
-            with cpu.compile_options({"assume_in_bounds": True}):
+            with ct.backend_options({"assume_in_bounds": True}):
                 ct.launch(
                     None,
                     (1,),

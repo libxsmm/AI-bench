@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -113,7 +112,7 @@ class Model(nn.Module):
         )
         x_nlc = x.permute(0, 2, 1).contiguous()
         N_ACTIVE = L_OUT // 2
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (B * ct.cdiv(N_ACTIVE, 32),),

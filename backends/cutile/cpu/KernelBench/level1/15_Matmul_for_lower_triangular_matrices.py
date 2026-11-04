@@ -53,10 +53,12 @@ def tril_matmul_kernel(
         start = (off_n // BLOCK_K) * BLOCK_K
         end = min(off_m + BLOCK_M, M)
         acc = ct.full((BLOCK_M, BLOCK_N), 0, dtype=ct.float32)
-        for k in range(start, end, BLOCK_K):
+        # Iterating tile indices keeps the loop body free of index math,
+        # which the CPU backend needs to lower ct.mma to AMX.
+        for kb in range(start // BLOCK_K, ct.cdiv(end, BLOCK_K)):
             acc = ct.mma(
-                ct.load(A, index=(pid_m, k // BLOCK_K), shape=(BLOCK_M, BLOCK_K)),
-                ct.load(B, index=(k // BLOCK_K, pid_n), shape=(BLOCK_K, BLOCK_N)),
+                ct.load(A, index=(pid_m, kb), shape=(BLOCK_M, BLOCK_K)),
+                ct.load(B, index=(kb, pid_n), shape=(BLOCK_K, BLOCK_N)),
                 acc,
             )
         rows = off_m + ct.arange(BLOCK_M, dtype=torch.int32)

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -42,7 +41,7 @@ class Model(nn.Module):
         B, D1, D2 = x.shape
         output = torch.empty((B, D2), device=x.device, dtype=torch.int64)
         BLOCK_D2 = 128
-        with cpu.compile_options({"assume_in_bounds": D2 % BLOCK_D2 == 0}):
+        with ct.backend_options({"assume_in_bounds": D2 % BLOCK_D2 == 0}):
             ct.launch(
                 None,
                 (B * ct.cdiv(D2, BLOCK_D2),),

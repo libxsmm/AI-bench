@@ -52,8 +52,11 @@ uv sync --extra cuda
 # CPU + Triton-CPU backend (builds Triton from source)
 uv sync --extra cpu --extra triton-cpu
 
-# CPU + CuTile backend (builds CuTile, Triton CPU, and LLVM/MLIR from source)
+# CPU + CuTile backend (builds CuTile and LLVM/MLIR from source)
 uv sync --extra cutile-cpu
+
+# CPU + CuTile and Triton-CPU backends
+uv sync --extra cutile-cpu --extra triton-cpu
 
 # CPU + MLIR backend
 uv sync --extra cpu --extra mlir
@@ -61,6 +64,24 @@ uv sync --extra cpu --extra mlir
 # CPU + Helion-MLIR backend
 uv sync --extra cpu --extra helion-mlir
 ```
+
+### CuTile CPU build and runtime
+
+The `cutile-cpu` extra provides CUDA headers required to build CuTile's Python
+extension; no NVIDIA GPU, driver, or system CUDA Toolkit is required. The
+CuTile build also compiles its CPU compiler into the package, so
+runtime use does not need `tileir-to-mlir`, separate LLVM/MLIR executables, or a
+`TILEIR_TO_MLIR` setting. The host must provide GCC's OpenMP runtime
+(`libgomp.so.1`).
+
+```bash
+ai-bench-compare --backends cutile --variant bench-cpu \
+  --problem level1/1_Square_matrix_multiplication_
+```
+
+Triton-specific environment variables are not needed for `--backends cutile`.
+Use `MLIR_ENABLE_DUMP=1` (without a leading underscore) for TileIR lowering
+dumps, and `CUDA_TILE_CACHE_DIR=off` to disable CuTile's disk cache.
 
 ## Usage
 

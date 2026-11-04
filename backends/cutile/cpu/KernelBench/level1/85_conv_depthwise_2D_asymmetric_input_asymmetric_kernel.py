@@ -1,7 +1,6 @@
 # ruff: noqa: E731
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -97,7 +96,7 @@ class Model(nn.Module):
         OW = (W + 2 * PW - DW * (KW - 1) - 1) // SW + 1
         weight = self.conv2d.weight.squeeze(1).contiguous().to(x.dtype)
         output = torch.empty((B, C, OH, OW), device=x.device, dtype=x.dtype)
-        with cpu.compile_options({"assume_in_bounds": False}):
+        with ct.backend_options({"assume_in_bounds": False}):
             ct.launch(
                 None,
                 (ct.cdiv(OH * OW, 32), B * C),

@@ -4,7 +4,6 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
-from cuda.tile._backend import cpu
 import torch
 import torch.nn as nn
 
@@ -59,14 +58,14 @@ class Model(nn.Module):
         partial = torch.empty(partial_count, device=x.device, dtype=torch.float32)
         inverse_norm = torch.empty(1, device=x.device, dtype=torch.float32)
         output = torch.empty_like(x_flat)
-        with cpu.compile_options({"assume_in_bounds": N % 8192 == 0}):
+        with ct.backend_options({"assume_in_bounds": N % 8192 == 0}):
             ct.launch(
                 None,
                 (partial_count,),
                 _partial_sum_sq_kernel,
                 (x_flat, partial, N, 8192),
             )
-        with cpu.compile_options({"assume_in_bounds": partial_count % 128 == 0}):
+        with ct.backend_options({"assume_in_bounds": partial_count % 128 == 0}):
             ct.launch(
                 None, (1,), _reduce_kernel, (partial, inverse_norm, partial_count, 128)
             )
