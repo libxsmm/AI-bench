@@ -1,6 +1,7 @@
 import helion
 import helion.language as hl
 import helion_mlir_backend  # noqa: F401
+from helion_mlir_backend import output_pool
 import torch
 import torch.nn as nn
 
@@ -18,7 +19,7 @@ def _pack_groups(b3_t: torch.Tensor, group_size: hl.constexpr) -> torch.Tensor:
     panel, a contraction AMX takes (several panels per tile do not)."""
     n, pairs, vnni = b3_t.shape
     group_size = int(group_size)
-    out = torch.empty(
+    out = output_pool.empty(
         (n // group_size, pairs, group_size, vnni), dtype=b3_t.dtype, device=b3_t.device
     )
     for tp, tn in hl.tile([pairs, n]):
@@ -39,7 +40,7 @@ def _gemm_swish_group_norm(
     epilogue."""
     m, pairs, _ = a3.shape
     groups, _, group_size, _ = b4.shape
-    out = torch.empty((m, groups, group_size), dtype=a3.dtype, device=a3.device)
+    out = output_pool.empty((m, groups, group_size), dtype=a3.dtype, device=a3.device)
     for tile_m, tile_g in hl.tile([m, groups]):
         acc = hl.zeros([tile_m, tile_g, group_size], dtype=torch.float32)
         for tile_kp in hl.tile(pairs):
@@ -73,7 +74,7 @@ def _bias_group_norm(
     :func:`_gemm_swish_group_norm`."""
     m, groups, group_size = y3.shape
     hl.specialize(group_size)
-    out = torch.empty_like(y3)
+    out = output_pool.empty_like(y3)
     for tile_m, tile_g in hl.tile([m, groups]):
         y = y3[tile_m, tile_g, :].to(torch.float32) + params[1, tile_g, :]
         mean = y.mean(-1, keepdim=True)
@@ -92,7 +93,7 @@ def _pack_groups_f32(b_t: torch.Tensor, group_size: hl.constexpr) -> torch.Tenso
     ``[N/group, K, group]``."""
     n, k = b_t.shape
     group_size = int(group_size)
-    out = torch.empty(
+    out = output_pool.empty(
         (n // group_size, k, group_size), dtype=b_t.dtype, device=b_t.device
     )
     for tk, tn in hl.tile([k, n]):
@@ -110,7 +111,7 @@ def _gemm_swish_group_norm_f32(
     panel per group ``[G, K, N/G]``."""
     m, _ = a.shape
     groups, k, group_size = b3.shape
-    out = torch.empty((m, groups, group_size), dtype=a.dtype, device=a.device)
+    out = output_pool.empty((m, groups, group_size), dtype=a.dtype, device=a.device)
     for tile_m, tile_g in hl.tile([m, groups]):
         acc = hl.zeros([tile_m, tile_g, group_size], dtype=torch.float32)
         for tile_k in hl.tile(k):

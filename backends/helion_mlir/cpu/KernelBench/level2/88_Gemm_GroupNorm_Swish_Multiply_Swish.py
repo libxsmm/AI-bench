@@ -31,4 +31,5 @@ class Model(nn.Module):
             gn.eps,
             _epilogue,
             self.multiply_weight,
+            in_place=True,
         )

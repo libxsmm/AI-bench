@@ -28,4 +28,6 @@ class Model(nn.Module):
             biases=(self.gemm.bias, self.bias),
         )
         gn = self.groupnorm
+        # Not in place: with the output pool it gains nothing, and the kernel's stack
+        # copy costs compile time. With the pool off, in place would pay under glibc.
         return group_norm(y, gn.num_groups, gn.weight, gn.bias, gn.eps)

@@ -27,4 +27,6 @@ class Model(nn.Module):
     def forward(self, x):
         y, self._linear_cache = linear(x, self.fc, cache=self._linear_cache)
         gn = self.gn
+        # Not in place: with the output pool it gains nothing, and the kernel's stack
+        # copy costs compile time. With the pool off, in place would pay under glibc.
         return group_norm(y, gn.num_groups, gn.weight, gn.bias, gn.eps, self._epilogue)

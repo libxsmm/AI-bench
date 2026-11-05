@@ -22,7 +22,11 @@ class Model(nn.Module):
         self.matmul = nn.Linear(in_features, out_features)
         self.bn = nn.BatchNorm1d(out_features, eps=bn_eps, momentum=bn_momentum)
         self.bias = nn.Parameter(torch.randn(bias_shape))
-        self.register_buffer("_bn_scale", torch.tensor(1.0 / math.sqrt(1.0 + bn_eps)))
+        self.register_buffer(
+            "_bn_scale",
+            torch.tensor(1.0 / math.sqrt(1.0 + bn_eps)),
+            persistent=False,
+        )
         self._linear_cache = None
         divide_value = hl.constexpr(divide_value)
 
