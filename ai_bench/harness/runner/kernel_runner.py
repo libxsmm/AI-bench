@@ -166,7 +166,7 @@ class KernelRunner:
         """
         if not kernel_path.is_file():
             return None
-        mod = ai_utils.import_from_path("kernel_model", kernel_path)
+        mod = ai_utils.import_kernel_from_path(kernel_path)
         if not hasattr(mod, "Model"):
             return None
         return mod.Model

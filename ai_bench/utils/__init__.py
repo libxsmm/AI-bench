@@ -16,6 +16,7 @@ from .finder import sycl_kernels_dir
 from .finder import triton_kernels_dir
 from .flop_counter import count_torch_flop
 from .importer import import_from_path
+from .importer import import_kernel_from_path
 from .memory_counter import MemoryCounter
 from .memory_counter import count_torch_memory_bytes
 
@@ -32,6 +33,7 @@ __all__ = [
     "helion_kernels_dir",
     "helion_mlir_kernels_dir",
     "import_from_path",
+    "import_kernel_from_path",
     "kernel_bench_dir",
     "mlir_kernels_dir",
     "mlir_schedules_dir",

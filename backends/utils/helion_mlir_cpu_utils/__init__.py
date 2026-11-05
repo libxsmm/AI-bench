@@ -5,6 +5,7 @@ from __future__ import annotations
 from .elementwise import leaky_relu
 from .elementwise import relu
 from .elementwise import scalar_mul
+from .kernels import per_config
 from .linear import CACHE_PREPACKED_WEIGHTS_ENV
 from .linear import AffineLinearCache
 from .linear import LinearCache
@@ -24,9 +25,12 @@ from .matmul import pack_b_blocked_vnni
 from .matmul import pack_b_blocked_vnni_t
 from .matmul import pack_b_vnni_t
 from .matmul import supports
+from .matmul import tall_output_tiles
 from .normalization import group_norm
 from .normalization import softmax
+from .reduction import column_sum
 from .reduction import matvec
+from .reduction import row_dot
 from .reduction import row_sum
 from .reduction import supports_matvec
 
@@ -36,6 +40,7 @@ __all__ = [
     "LinearCache",
     "bmm",
     "cache_prepacked_weights",
+    "column_sum",
     "group_norm",
     "identity_epilogue",
     "leaky_relu",
@@ -52,10 +57,13 @@ __all__ = [
     "pack_b_blocked_vnni",
     "pack_b_blocked_vnni_t",
     "pack_b_vnni_t",
+    "per_config",
     "relu",
+    "row_dot",
     "row_sum",
     "scalar_mul",
     "softmax",
     "supports",
     "supports_matvec",
+    "tall_output_tiles",
 ]
