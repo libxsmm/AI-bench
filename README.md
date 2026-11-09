@@ -50,8 +50,8 @@ uv sync --extra xpu
 # CPU + CUDA
 uv sync --extra cuda
 
-# CPU + Triton-CPU backend (builds Triton from source)
-uv sync --extra cpu --extra triton-cpu
+# CPU + Triton-CPU backend (Python 3.12 only)
+uv sync --python 3.12 --extra cpu --extra triton-cpu
 
 # CPU + CuTile backend (prebuilt wheel; Linux x86-64, CPython 3.12)
 uv sync --python 3.12 --extra cutile-cpu
