@@ -65,7 +65,7 @@ mlir = [
 #   rm -r ~/.triton/llvm
 #   rm -r ~/.cache/uv/git-v0/checkouts/*/[triton rev hash]/build
 triton-cpu = [
-  "triton",
+  "triton; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
   "triton-cpu-utils", # Local kernel helper package (see: backends/utils).
   # Extra build dependencies from triton-cpu requirements.txt.
   "setuptools>=40.8.0",
@@ -133,7 +133,7 @@ conflicts = [
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "7798748" }
+triton = { url = "https://github.com/libxsmm/triton-cpu/releases/download/v3.9.0%2Bcpu.gitd3bc1f63/triton-3.9.0+cpu.gitd3bc1f63-cp312-abi3-linux_x86_64.whl" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "eb90452" }
 cuda-tile = { url = "https://github.com/libxsmm/cutile-python/releases/download/cpu-1/cuda_tile-9.9.99-cp312-cp312-linux_x86_64.whl" }
 mlir-python-bindings = { index = "eudsl" }
