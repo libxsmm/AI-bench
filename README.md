@@ -52,11 +52,11 @@ uv sync --extra cuda
 # CPU + Triton-CPU backend (builds Triton from source)
 uv sync --extra cpu --extra triton-cpu
 
-# CPU + CuTile backend (builds CuTile and LLVM/MLIR from source)
-uv sync --extra cutile-cpu
+# CPU + CuTile backend (prebuilt wheel; Linux x86-64, CPython 3.12)
+uv sync --python 3.12 --extra cutile-cpu
 
 # CPU + CuTile and Triton-CPU backends
-uv sync --extra cutile-cpu --extra triton-cpu
+uv sync --python 3.12 --extra cutile-cpu --extra triton-cpu
 
 # CPU + MLIR backend
 uv sync --extra cpu --extra mlir
@@ -65,14 +65,15 @@ uv sync --extra cpu --extra mlir
 uv sync --extra cpu --extra helion-mlir
 ```
 
-### CuTile CPU build and runtime
+### CuTile CPU installation and runtime
 
-The `cutile-cpu` extra provides CUDA headers required to build CuTile's Python
-extension; no NVIDIA GPU, driver, or system CUDA Toolkit is required. The
-CuTile build also compiles its CPU compiler into the package, so
-runtime use does not need `tileir-to-mlir`, separate LLVM/MLIR executables, or a
-`TILEIR_TO_MLIR` setting. The host must provide GCC's OpenMP runtime
-(`libgomp.so.1`).
+The `cutile-cpu` extra installs the prebuilt wheel from the
+[CuTile CPU release](https://github.com/libxsmm/cutile-python/releases/tag/cpu-1).
+It requires CPython 3.12 on Linux x86-64. CuTile and LLVM/MLIR are not built
+from source, and no NVIDIA GPU, driver, or CUDA Toolkit is required. The wheel
+includes the CPU compiler, so runtime use does not need `tileir-to-mlir`,
+separate LLVM/MLIR executables, or a `TILEIR_TO_MLIR` setting. The host must
+provide GCC's OpenMP runtime (`libgomp.so.1`).
 
 ```bash
 ai-bench-compare --backends cutile --variant bench-cpu \
