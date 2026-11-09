@@ -1,5 +1,8 @@
 """Helper utilities for AI-bench CuTile CPU kernels."""
 
+from .cutile_helpers import gelu
+from .cutile_helpers import mish
+from .cutile_helpers import tanh
 from .gilbert_d2xy import gilbert_d2xy
 from .reduction import groupnorm
 from .reduction import reduce_first_dim
@@ -10,12 +13,6 @@ from .reduction import reduce_last_dim
 # from .reduction import softmax
 from .sfc_matmul import pack_weights_for_sfc_matmul
 from .sfc_matmul import sfc_matmul
-from .triton_helpers import gelu
-from .triton_helpers import mish
-from .triton_helpers import tanh
-
-# from .triton_helpers import mish
-# from .triton_helpers import tanh
 
 __all__ = [
     "gelu",
