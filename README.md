@@ -8,7 +8,7 @@
 A benchmarking framework for evaluating AI kernel implementations across multiple backends (PyTorch, Triton, CuTile, Helion, MLIR, Helion-MLIR, Gluon, SYCL) and devices (CPU, XPU, CUDA).
 
 | | PyTorch | Triton | CuTile | Helion | MLIR | Helion-MLIR | Gluon | SYCL |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+|:---:|:---|:---|:---|:---|:---|:---|:---|:---|
 | **CPU** | ✅ | ✅<sup>1</sup> | ✅<sup>4</sup> | ❌ | ✅<sup>2</sup> | ✅<sup>2, 3</sup> | ❌ | ❌ |
 | **XPU** | ✅ | ✅ | ❌ | ✅ | ✅<sup>2</sup>* | ❌ | ✅ | ✅ |
 | **CUDA** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -17,8 +17,9 @@ A benchmarking framework for evaluating AI kernel implementations across multipl
 
 <sup>1</sup> via [triton-lang/triton-cpu](https://github.com/triton-lang/triton-cpu)  
 <sup>2</sup> via [llvm/lighthouse](https://github.com/llvm/lighthouse)  
-<sup>3</sup> via [libxsmm/helion-mlir-backend](https://github.com/libxsmm/helion-mlir-backend)
-<sup>4</sup> via Intel cutile
+<sup>3</sup> via [libxsmm/helion-mlir-backend](https://github.com/libxsmm/helion-mlir-backend)  
+<sup>4</sup> via [libxsmm/cutile-python](https://github.com/libxsmm/cutile-python)
+
 
 *_NOTE_: MLIR XPU requires **custom** LLVM build with Intel GPU support enabled.  
 Override `PYTHONPATH` to point to `mlir_core` packages and ensure LLVM libs can be found.  
