@@ -48,8 +48,8 @@ uv sync --extra xpu
 # CPU + CUDA
 uv sync --extra cuda
 
-# CPU + Triton-CPU backend (builds Triton from source)
-uv sync --extra cpu --extra triton-cpu
+# CPU + Triton-CPU backend (Python 3.12 only)
+uv sync --python 3.12 --extra cpu --extra triton-cpu
 
 # CPU + MLIR backend
 uv sync --extra cpu --extra mlir
