@@ -4,9 +4,9 @@
 
 
 import cuda.tile as ct
+from cutile_cpu_utils import mish
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import sfc_matmul
-from cutile_cpu_utils import mish
 import torch.nn as nn
 
 ct.set_backend("cpu")

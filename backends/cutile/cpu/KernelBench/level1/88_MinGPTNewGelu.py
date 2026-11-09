@@ -4,9 +4,9 @@
 # Expectation: Correctness-first, performance not representative
 
 import cuda.tile as ct
+from cutile_cpu_utils import tanh
 import torch
 import torch.nn as nn
-from cutile_cpu_utils import tanh
 
 ct.set_backend("cpu")
 ConstInt = ct.Constant[int]

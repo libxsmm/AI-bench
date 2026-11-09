@@ -38,9 +38,7 @@ def _fused_groupnorm(
             index=(group, block_k, 0, 0, 0),
             shape=(1, 1, _BLOCK_K // 2, GROUP_SIZE, 2),
         )
-        weight = ct.reshape(
-            ct.permute(weight, (0, 1, 2, 4, 3)), (_BLOCK_K, GROUP_SIZE)
-        )
+        weight = ct.reshape(ct.permute(weight, (0, 1, 2, 4, 3)), (_BLOCK_K, GROUP_SIZE))
         accumulator = ct.mma(activation, weight, accumulator)
 
     linear_bias = ct.reshape(
