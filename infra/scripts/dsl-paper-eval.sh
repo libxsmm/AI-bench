@@ -22,10 +22,11 @@ export NUMACTL_CMD="numactl -m 0 -C 0-63"
 export TORCHINDUCTOR_CACHE_DIR="$WORKDIR/ti_cache"
 export TRITON_HOME="$WORKDIR/tt_home"
 export TRITON_CACHE_DIR="$WORKDIR/tt_cache"
+export CUDA_TILE_CACHE_DIR="$WORKDIR/ct_cache"
 
-# AI-bench settings
-export AIBENCH_WARMUP=50
-export AIBENCH_REP=500
+# AI-bench settings (TODO: increase for final run)
+export AIBENCH_WARMUP=20
+export AIBENCH_REP=200
 export AIBENCH_CPU_MIN_CACHE_NUKE_MIB=5000
 
 # Build a fresh clone of AI-bench
@@ -82,6 +83,7 @@ Running DSL paper evaluation with the following settings:
   TORCHINDUCTOR_CACHE_DIR: $TORCHINDUCTOR_CACHE_DIR
   TRITON_HOME: $TRITON_HOME
   TRITON_CACHE_DIR: $TRITON_CACHE_DIR
+  CUDA_TILE_CACHE_DIR: $CUDA_TILE_CACHE_DIR
 
   AIBENCH_REV: $(git rev-parse HEAD)
   AIBENCH_WARMUP: $AIBENCH_WARMUP
