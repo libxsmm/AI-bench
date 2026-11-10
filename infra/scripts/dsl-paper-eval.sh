@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=dsl-paper-eval
 #SBATCH --partition=emr
-#SBATCH --constraint=ddr5600,notrb
+#SBATCH --constraint="ddr5600&notrb"
 #SBATCH --nodes=1
 #SBATCH --exclusive
 #SBATCH --time=8:00:00
@@ -70,6 +70,8 @@ mkdir -p $OUTPUT_DIR
 cat << EOF
 Running DSL paper evaluation with the following settings:
   SLURM_JOB_PARTITION: $SLURM_JOB_PARTITION
+  HOST: $(hostname -s)
+  NO_TURBO: $(cat /sys/devices/system/cpu/intel_pstate/no_turbo)
   OMP_NUM_THREADS: $OMP_NUM_THREADS
   KMP_AFFINITY: $KMP_AFFINITY
   NUMACTL_CMD: $NUMACTL_CMD
@@ -90,17 +92,19 @@ EOF
 # Enter virtual environment
 source .venv/bin/activate
 
+AIBENCH_COMMON="--bench --dtype bfloat16 --gflops"
+
 # PyTorch reference (eager mode)
-$NUMACTL_CMD ai-bench --bench                 --csv "$OUTPUT_DIR/torch-eager.csv"
+$NUMACTL_CMD ai-bench $AIBENCH_COMMON --csv "$OUTPUT_DIR/torch-eager.csv"
 
 # TorchInductor
 TORCHINDUCTOR_MAX_AUTOTUNE=0 \
-$NUMACTL_CMD ai-bench --bench --torch-compile --csv "$OUTPUT_DIR/torch-compile.csv"
+$NUMACTL_CMD ai-bench $AIBENCH_COMMON --torch-compile --csv "$OUTPUT_DIR/torch-compile.csv"
 TORCHINDUCTOR_MAX_AUTOTUNE=1 \
-$NUMACTL_CMD ai-bench --bench --torch-compile --csv "$OUTPUT_DIR/torch-compile-max-autotune.csv"
+$NUMACTL_CMD ai-bench $AIBENCH_COMMON --torch-compile --csv "$OUTPUT_DIR/torch-compile-max-autotune.csv"
 
 # Triton CPU
-$NUMACTL_CMD ai-bench --bench --triton        --csv "$OUTPUT_DIR/triton.csv"
+$NUMACTL_CMD ai-bench $AIBENCH_COMMON --triton        --csv "$OUTPUT_DIR/triton.csv"
 
 # Helion via MLIR
-$NUMACTL_CMD ai-bench --bench --helion-mlir   --csv "$OUTPUT_DIR/helion-mlir.csv"
+$NUMACTL_CMD ai-bench $AIBENCH_COMMON --helion-mlir   --csv "$OUTPUT_DIR/helion-mlir.csv"
