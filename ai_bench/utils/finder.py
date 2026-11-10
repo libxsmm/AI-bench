@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 _specs_dir: Path | None = None
 _kernels_dir: Path | None = None
 _triton_kernels_dir: Path | None = None
+_cutile_kernels_dir: Path | None = None
 _helion_kernels_dir: Path | None = None
 _helion_mlir_kernels_dir: Path | None = None
 _mlir_kernels_dir: Path | None = None
@@ -88,6 +89,7 @@ def configure(
     specs_dir: Path | str | None = None,
     kernels_dir: Path | str | None = None,
     triton_kernels_dir: Path | str | None = None,
+    cutile_kernels_dir: Path | str | None = None,
     helion_kernels_dir: Path | str | None = None,
     helion_mlir_kernels_dir: Path | str | None = None,
     mlir_kernels_dir: Path | str | None = None,
@@ -103,6 +105,7 @@ def configure(
         specs_dir: Path to YAML spec files directory
         kernels_dir: Path to PyTorch kernel implementations
         triton_kernels_dir: Path to Triton kernel implementations
+        cutile_kernels_dir: Path to CuTile kernel implementations
         helion_kernels_dir: Path to Helion kernel implementations
         helion_mlir_kernels_dir: Path to Helion-MLIR kernel implementations
         mlir_kernels_dir: Path to MLIR kernel implementations
@@ -121,6 +124,7 @@ def configure(
         _specs_dir, \
         _kernels_dir, \
         _triton_kernels_dir, \
+        _cutile_kernels_dir, \
         _helion_kernels_dir, \
         _helion_mlir_kernels_dir, \
         _mlir_kernels_dir, \
@@ -134,6 +138,8 @@ def configure(
         _kernels_dir = Path(kernels_dir)
     if triton_kernels_dir is not None:
         _triton_kernels_dir = Path(triton_kernels_dir)
+    if cutile_kernels_dir is not None:
+        _cutile_kernels_dir = Path(cutile_kernels_dir)
     if helion_kernels_dir is not None:
         _helion_kernels_dir = Path(helion_kernels_dir)
     if helion_mlir_kernels_dir is not None:
@@ -157,6 +163,7 @@ def reset_configuration() -> None:
         _specs_dir, \
         _kernels_dir, \
         _triton_kernels_dir, \
+        _cutile_kernels_dir, \
         _helion_kernels_dir, \
         _helion_mlir_kernels_dir, \
         _mlir_kernels_dir, \
@@ -167,6 +174,7 @@ def reset_configuration() -> None:
     _specs_dir = None
     _kernels_dir = None
     _triton_kernels_dir = None
+    _cutile_kernels_dir = None
     _helion_kernels_dir = None
     _helion_mlir_kernels_dir = None
     _mlir_kernels_dir = None
@@ -310,6 +318,23 @@ def triton_kernels_dir() -> Path:
         "AIBENCH_TRITON_KERNELS_DIR",
         default,
         "Triton kernels directory",
+    )
+
+
+def cutile_kernels_dir() -> Path:
+    """Path to the CuTile kernels directory."""
+
+    def default() -> Path:
+        path = project_root() / "backends" / "cutile"
+        if not path.exists():
+            raise FileNotFoundError(f"Default CuTile kernels path not found: {path}")
+        return path
+
+    return _get_path(
+        _cutile_kernels_dir,
+        "AIBENCH_CUTILE_KERNELS_DIR",
+        default,
+        "CuTile kernels directory",
     )
 
 

@@ -10,6 +10,7 @@ SCRIPTS_DIR=$(realpath $(dirname $0))
 BENCH_BACKEND_TORCH="torch"
 BENCH_BACKEND_TORCH_COMPILE="torch-compile"
 BENCH_BACKEND_TRITON="triton"
+BENCH_BACKEND_CUTILE="cutile"
 BENCH_BACKEND_MLIR="mlir"
 
 # Run modes
@@ -17,7 +18,7 @@ RUN_MODE_BENCH="bench"
 RUN_MODE_CI="ci"
 
 die_syntax() {
-  echo "Syntax: $0 [-b (${BENCH_BACKEND_TORCH}|${BENCH_BACKEND_TORCH_COMPILE}|${BENCH_BACKEND_TRITON}|${BENCH_BACKEND_MLIR})] [-m (${RUN_MODE_BENCH}|${RUN_MODE_CI})]"
+  echo "Syntax: $0 [-b (${BENCH_BACKEND_TORCH}|${BENCH_BACKEND_TORCH_COMPILE}|${BENCH_BACKEND_TRITON}|${BENCH_BACKEND_CUTILE}|${BENCH_BACKEND_MLIR})] [-m (${RUN_MODE_BENCH}|${RUN_MODE_CI})]"
   echo ""
   echo "  -b: Optional, backend to use (default: torch)"
   echo "  -m: Optional, run mode to use (default: bench)"
@@ -34,6 +35,7 @@ while getopts "b:m:" arg; do
       if [ "${OPTARG}" == "${BENCH_BACKEND_TORCH}" ] || \
          [ "${OPTARG}" == "${BENCH_BACKEND_TORCH_COMPILE}" ] || \
          [ "${OPTARG}" == "${BENCH_BACKEND_TRITON}" ] || \
+         [ "${OPTARG}" == "${BENCH_BACKEND_CUTILE}" ] || \
          [ "${OPTARG}" == "${BENCH_BACKEND_MLIR}" ]; then
         BENCH_BACKEND="${OPTARG}"
       else
@@ -78,14 +80,19 @@ pip install --upgrade --user uv
 AI_BENCH_UV=${HOME}/.local/bin/uv
 
 PROJECT_DEPS="--extra cpu"
+PROJECT_PYTHON=""
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TRITON}" ]]; then
   PROJECT_DEPS="${PROJECT_DEPS} --extra triton-cpu"
+fi
+if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_CUTILE}" ]]; then
+  PROJECT_DEPS="${PROJECT_DEPS} --extra cutile-cpu"
+  PROJECT_PYTHON="--python 3.12"
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
   PROJECT_DEPS="${PROJECT_DEPS} --extra mlir"
 fi
 
-${AI_BENCH_UV} sync ${PROJECT_DEPS} --link-mode copy
+${AI_BENCH_UV} sync ${PROJECT_DEPS} ${PROJECT_PYTHON} --link-mode copy
 echo ""
 
 # Run benchmark
@@ -107,6 +114,9 @@ if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_TRITON}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --triton"
   TRITON_PACKAGE_PATH=$(${AI_BENCH_UV} run python -c "import triton; print(triton.__path__[0])")
   export LD_LIBRARY_PATH=${TRITON_PACKAGE_PATH}/_C:${LD_LIBRARY_PATH}
+fi
+if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_CUTILE}" ]]; then
+  BENCH_FLAGS="${BENCH_FLAGS} --cutile"
 fi
 if [[ "${BENCH_BACKEND}" == "${BENCH_BACKEND_MLIR}" ]]; then
   BENCH_FLAGS="${BENCH_FLAGS} --mlir"
