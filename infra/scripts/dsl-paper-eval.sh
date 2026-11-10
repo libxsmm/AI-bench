@@ -9,16 +9,19 @@
 
 set -e
 
+WORKDIR="/local_scratch/dsl-paper-eval-$SLURM_JOB_ID"
+mkdir -p $WORKDIR
+
 # OpenMP configuration for EMR
 export LD_PRELOAD=/lib64/libomp.so:$LD_PRELOAD
 export OMP_NUM_THREADS=64
 export KMP_AFFINITY=granularity=fine,compact,1,0
 export NUMACTL_CMD="numactl -m 0 -C 0-63"
 
-# Allocate cache directories for TorchInductor and Triton on scratch partition
-export TORCHINDUCTOR_CACHE_DIR=/local_scratch/ti_cache
-export TRITON_HOME=/local_scratch/tt_home
-export TRITON_CACHE_DIR=/local_scratch/tt_cache
+# Allocate cache directories for TorchInductor and Triton in workdir
+export TORCHINDUCTOR_CACHE_DIR="$WORKDIR/ti_cache"
+export TRITON_HOME="$WORKDIR/tt_home"
+export TRITON_CACHE_DIR="$WORKDIR/tt_cache"
 
 # AI-bench settings
 export AIBENCH_WARMUP=50
@@ -26,7 +29,7 @@ export AIBENCH_REP=500
 export AIBENCH_CPU_MIN_CACHE_NUKE_MIB=5000
 
 # Build a fresh clone of AI-bench
-cd /local_scratch
+cd $WORKDIR
 git clone --recurse-submodules --branch dsl-paper-eval https://github.com/libxsmm/AI-bench.git
 cd AI-bench
 uv sync --python 3.12 --extra cpu --extra triton-cpu --extra helion-mlir
