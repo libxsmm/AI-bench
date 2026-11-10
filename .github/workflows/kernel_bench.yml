@@ -53,6 +53,10 @@ on:
         description: "Backend: Triton"
         type: boolean
         default: false
+      BACKEND_CUTILE:
+        description: "Backend: CuTile CPU"
+        type: boolean
+        default: false
       BACKEND_HELION:
         description: "Backend: Helion"
         type: boolean
@@ -104,6 +108,18 @@ jobs:
       - name: Intel Emerald Rapids
         run: "${{ env.SRUN }} --partition=emr --time=0:30:00 --constraint=\"notrb\" -- \
             'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} AIBENCH_VARIANT=${{ inputs.AIBENCH_VARIANT }} ${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b triton'"
+
+  CPU-CuTile:
+    runs-on: pcl-tiergarten
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.DEVICE_CPU && inputs.BACKEND_CUTILE)
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Intel Emerald Rapids
+        run: "${{ env.SRUN }} --partition=emr --time=0:30:00 --constraint=\"notrb\" -- \
+            'AIBENCH_WARMUP=${{ inputs.AIBENCH_WARMUP }} AIBENCH_REP=${{ inputs.AIBENCH_REP }} AIBENCH_VARIANT=${{ inputs.AIBENCH_VARIANT }} ${{ github.workspace }}/infra/scripts/ci-cpu-run-kernel-bench.sh -m ${{ inputs.RUN_MODE }} -b cutile'"
 
   CPU-MLIR:
     runs-on: pcl-tiergarten

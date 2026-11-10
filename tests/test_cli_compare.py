@@ -144,6 +144,21 @@ class TestMainBackends:
             ai_hc.Backend.TRITON,
         ]
 
+    def test_cutile_backend(self, mock_backend):
+        """Test that --backends accepts the CuTile backend."""
+        cli_compare.main(
+            [
+                "--problem",
+                "level1/double",
+                "--backends",
+                "cutile",
+            ]
+        )
+
+        assert mock_backend.benchmark.call_args.kwargs["backends"] == [
+            ai_hc.Backend.CUTILE,
+        ]
+
     def test_invalid_backend_exits(self, mock_backend):
         """Test that an unknown backend is rejected by argparse."""
         with pytest.raises(SystemExit):
