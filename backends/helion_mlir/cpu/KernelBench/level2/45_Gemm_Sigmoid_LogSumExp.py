@@ -18,5 +18,11 @@ class Model(nn.Module):
         x, self._linear1_cache = linear(
             x, self.linear1, torch.sigmoid, self._linear1_cache
         )
-        x, self._linear2_cache = linear(x, self.linear2, torch.exp, self._linear2_cache)
+        # Each thread computes whole rows of the second layer, so each row of
+        # its input is read by one core: the first layer rewrites that input
+        # on the next call, and lines cached by several cores make the rewrite
+        # slow.
+        x, self._linear2_cache = linear(
+            x, self.linear2, torch.exp, self._linear2_cache, whole_rows=True
+        )
         return row_sum(x, torch.log)[:, 0]

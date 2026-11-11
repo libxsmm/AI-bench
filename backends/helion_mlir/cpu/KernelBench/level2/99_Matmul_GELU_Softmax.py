@@ -18,4 +18,4 @@ class Model(nn.Module):
 
     def forward(self, x):
         y, self._linear_cache = linear(x, self.linear, _gelu, self._linear_cache)
-        return softmax(y)
+        return softmax(y, in_place=True)
