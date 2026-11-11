@@ -46,15 +46,15 @@ Repository = "https://github.com/libxsmm/AI-bench"
 
 [project.optional-dependencies]
 cpu = [
-  "torch==2.13.0+cpu",
+  "torch==2.15.0+cpu",
 ]
 xpu = [
-  "torch==2.13.0+xpu",
+  "torch==2.15.0+xpu",
   "helion==1.4.0",
 ]
 cuda = [
-  "torch==2.13.0+cu130",
-  "torchvision==0.28.0",
+  "torch==2.15.0+cu132",
+  "torchvision==0.29.2",
   "helion==1.4.0",
 ]
 mlir = [
@@ -137,7 +137,7 @@ torch = { index = "pytorch" }
 triton = { git = "https://github.com/triton-lang/triton-cpu.git", rev = "7798748" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "f75ba24" }
 mlir-python-bindings = { index = "eudsl" }
-helion-mlir-backend = { git = "https://github.com/libxsmm/helion-mlir-backend", rev = "c36388c" }
+helion-mlir-backend = { git = "https://github.com/libxsmm/helion-mlir-backend", rev = "01ba1c8" }
 triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }
 helion-mlir-cpu-utils = { path = "backends/utils/helion_mlir_cpu_utils", editable = true }
 cutile-cpu-utils = { path = "backends/utils/cutile_cpu_utils", editable = true }
