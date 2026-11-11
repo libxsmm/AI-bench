@@ -134,7 +134,7 @@ conflicts = [
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
-triton = { url = "https://github.com/libxsmm/triton-cpu/releases/download/v3.9.0%2Bcpu.gitd3bc1f63/triton-3.9.0+cpu.gitd3bc1f63-cp312-abi3-linux_x86_64.whl" }
+triton = { url = "https://github.com/libxsmm/triton-cpu/releases/download/v3.9.0%2Bcpu.git0d0e30ca/triton-3.9.0+cpu.git0d0e30ca-cp312-abi3-linux_x86_64.whl" }
 lighthouse = { git = "https://github.com/llvm/lighthouse", rev = "f75ba24" }
 mlir-python-bindings = { index = "eudsl" }
 helion-mlir-backend = { git = "https://github.com/libxsmm/helion-mlir-backend", rev = "01ba1c8" }
