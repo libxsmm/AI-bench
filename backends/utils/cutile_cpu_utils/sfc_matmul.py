@@ -1,14 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) <2026> Intel Corporation.
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import replace
+import ctypes
 import functools
 import threading
 
 import cuda.tile as ct
-from cuda.tile._backends._signature import build_signature
-from cuda.tile.compilation import ArrayConstraint
-from cuda.tile.compilation import KernelSignature
 import torch
 
 from .gilbert_d2xy import gilbert_d2xy
@@ -21,6 +18,7 @@ ConstInt = ct.Constant[int]
 _BLOCK_SIZE_M = 32
 _BLOCK_SIZE_N = 32
 _BLOCK_SIZE_K = 32
+_PERSISTENT_BLOCK_K = 128
 
 
 def _thread_lru_cache(maxsize=128, typed=False):
@@ -65,46 +63,6 @@ def _compile_options(options):
     if options:
         effective.update(options)
     return effective
-
-
-def _specialize_packed_argument(parameters, argument_index, array, strides):
-    if array.ndim != len(strides) or tuple(array.stride())[1:] != strides[1:]:
-        return False
-
-    constraint = parameters[argument_index]
-    assert isinstance(constraint, ArrayConstraint)
-    parameters[argument_index] = replace(constraint, stride_constant=strides)
-    return True
-
-
-def _build_matmul_signature(kernel, kernel_args):
-    signature = build_signature(kernel, kernel_args)
-    vnni = kernel_args[12]
-    parameters = list(signature.parameters)
-
-    changed = _specialize_packed_argument(
-        parameters,
-        0,
-        kernel_args[0],
-        (None, _BLOCK_SIZE_K * _BLOCK_SIZE_N, _BLOCK_SIZE_K, 1),
-    )
-    changed |= _specialize_packed_argument(
-        parameters,
-        1,
-        kernel_args[1],
-        (
-            None,
-            _BLOCK_SIZE_K * _BLOCK_SIZE_N,
-            _BLOCK_SIZE_N * vnni,
-            vnni,
-            1,
-        ),
-    )
-    if not changed:
-        return signature
-
-    signature = KernelSignature(parameters, signature.calling_convention)
-    return signature.with_mangled_symbol(kernel._annotated_function.pyfunc.__name__)
 
 
 @ct.kernel
@@ -376,6 +334,114 @@ def _make_matmul_kernel(post_op, reduction_block_op):
 
 
 @functools.lru_cache()
+def _make_persistent_kernel(post_op):
+    @ct.kernel
+    def _sfc_persistent_kernel(
+        A,
+        B,
+        C,
+        Scratch,
+        Bias,
+        PostOpArg,
+        SfcMap,
+        M,
+        N,
+        K: ConstInt,
+        TILES,
+        HAS_BIAS: ConstBool,
+        POST_OP_HAS_ARG: ConstBool,
+    ):
+        program = ct.bid(0)
+        for tile in range(TILES):
+            coordinates = ct.load(
+                SfcMap, index=(program * TILES + tile, 0), shape=(1, 2)
+            )
+            block_m = ct.extract(coordinates, index=(0, 0), shape=()).item()
+            block_n = ct.extract(coordinates, index=(0, 1), shape=()).item()
+            accumulator = ct.full((_BLOCK_SIZE_M, _BLOCK_SIZE_N), 0, dtype=ct.float32)
+            for block_k in range(K // _PERSISTENT_BLOCK_K):
+                a = ct.load(
+                    A,
+                    index=(block_m, block_k, 0, 0),
+                    shape=(1, 1, _BLOCK_SIZE_M, _PERSISTENT_BLOCK_K),
+                )
+                a = ct.reshape(a, (_BLOCK_SIZE_M, _PERSISTENT_BLOCK_K))
+                b = ct.load(
+                    B,
+                    index=(block_n, block_k, 0, 0, 0),
+                    shape=(1, 1, _PERSISTENT_BLOCK_K // 2, _BLOCK_SIZE_N, 2),
+                )
+                b = ct.reshape(
+                    ct.permute(b, (0, 1, 2, 4, 3)),
+                    (_PERSISTENT_BLOCK_K, _BLOCK_SIZE_N),
+                )
+                accumulator = ct.mma(a, b, accumulator)
+            # Storing the MMA result directly avoids a per-tile stack copy.
+            ct.store(Scratch, index=(program, 0), tile=accumulator)
+
+            if HAS_BIAS:
+                bias = ct.load(Bias, index=(block_n,), shape=(_BLOCK_SIZE_N,)).astype(
+                    ct.float32
+                )
+            for row in range(_BLOCK_SIZE_M):
+                m = block_m * _BLOCK_SIZE_M + row
+                value = ct.load(
+                    Scratch,
+                    index=(program * _BLOCK_SIZE_M + row, 0),
+                    shape=(1, _BLOCK_SIZE_N),
+                )
+                if HAS_BIAS:
+                    value += bias[None, :]
+                if POST_OP_HAS_ARG:
+                    value = post_op(
+                        value,
+                        block_m=m,
+                        block_n=block_n,
+                        post_op_arg_ptr=PostOpArg,
+                        M=M,
+                        N=N,
+                        BLOCK_SIZE_M=1,
+                        BLOCK_SIZE_N=_BLOCK_SIZE_N,
+                    )
+                else:
+                    value = post_op(value)
+                ct.store(C, index=(m, block_n), tile=value.astype(C.dtype))
+
+    return _sfc_persistent_kernel
+
+
+@_thread_lru_cache()
+def _make_persistent_scratch(programs):
+    return torch.empty((programs * _BLOCK_SIZE_M, _BLOCK_SIZE_N), dtype=torch.float32)
+
+
+@functools.lru_cache(maxsize=1)
+def _openmp_libraries():
+    from cuda.tile._backends.cpu import _cpu
+
+    return ctypes.CDLL(_cpu.__file__), ctypes.CDLL(None)
+
+
+def _persistent_workers(options):
+    workers = (options or {}).get("num_cpu_threads", 0)
+    if workers > 0:
+        return workers
+    linked, global_runtime = (
+        library.omp_get_max_threads() for library in _openmp_libraries()
+    )
+    # Distinct OpenMP runtimes can disagree; the launcher's count is then unknown.
+    return linked if linked == global_runtime else None
+
+
+def _persistent_tiles_per_program(tile_count, workers):
+    tiles = 256 if workers is not None else 16
+    min_programs = 4 * workers if workers is not None else 1024
+    while tiles > 1 and (tile_count % tiles or tile_count // tiles < min_programs):
+        tiles //= 2
+    return tiles
+
+
+@functools.lru_cache()
 def _make_finish_reduction_kernel(
     reduction_init_val, reduction_combine_op, reduction_post_op
 ):
@@ -506,7 +572,17 @@ def prepare_sfc_matmul(
     c_is_owned=False,
     blocking_factor_k=1,
     options=None,
+    persistent=False,
+    rowwise_callbacks=False,
 ) -> torch.Tensor:
+    """Prepare a matmul; persistent=True selects the persistent CPU path.
+
+    It needs prepacked B and no reduction, softmax or owned C; unsupported
+    dtypes and shapes fall back. It ignores blocking_factor_k, so rounding can
+    differ. Set rowwise_callbacks only for row-local post_ops: they receive 1x32
+    tiles with block_m as the row index. options["num_cpu_threads"] fixes the
+    worker count used for grouping.
+    """
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
     assert a.dtype == b.dtype, f"dtype mismatch: {a.dtype} vs {b.dtype}"
@@ -522,11 +598,27 @@ def prepare_sfc_matmul(
         "Masking currently not supported, matrix dimensions must be multiples of block size"
     )
 
+    accum_dtype = _get_accum_dtype(a.dtype)
+    out_dtype = a.dtype if trunc_output else accum_dtype
+    if persistent:
+        assert b_is_prepacked and not (
+            reduce_last_dim or softmax_last_dim or c_is_owned
+        ), "persistent=True needs prepacked B and no reduction, softmax or owned C"
+        if (
+            (rowwise_callbacks or post_op is None)
+            and a.dtype == torch.bfloat16
+            and a.is_contiguous()
+            and K % _PERSISTENT_BLOCK_K == 0
+            # Shorter reductions are not validated on this path.
+            and K >= 4 * _PERSISTENT_BLOCK_K
+        ):
+            return _prepare_persistent_sfc_matmul(
+                a, b, bias, post_op, post_op_arg, out_dtype, options
+            )
+
     blocks_m = M // _BLOCK_SIZE_M
     blocks_n = N // _BLOCK_SIZE_N
     blocks_k = K // _BLOCK_SIZE_K
-    accum_dtype = _get_accum_dtype(a.dtype)
-    out_dtype = a.dtype if trunc_output else accum_dtype
     sfc_map_mk = _make_sfc_tensor(blocks_m, blocks_k)
     sfc_map_kn = _make_sfc_tensor(blocks_k, blocks_n)
     sfc_map_mn = _make_sfc_tensor(blocks_m, blocks_n)
@@ -660,6 +752,46 @@ def prepare_sfc_matmul(
     return PreparedSFCMatmul(launches, output, options)
 
 
+def _prepare_persistent_sfc_matmul(
+    a, b, bias, post_op, post_op_arg, out_dtype, options
+):
+    M, K = a.shape
+    N = b.shape[1]
+    blocks_m = M // _BLOCK_SIZE_M
+    blocks_n = N // _BLOCK_SIZE_N
+    tiles = _persistent_tiles_per_program(
+        blocks_m * blocks_n, _persistent_workers(options)
+    )
+    programs = blocks_m * blocks_n // tiles
+    scratch = _make_persistent_scratch(programs)
+    c = torch.empty((M, N), device=a.device, dtype=out_dtype)
+    kernel_args = (
+        a.view(
+            blocks_m, _BLOCK_SIZE_M, K // _PERSISTENT_BLOCK_K, _PERSISTENT_BLOCK_K
+        ).permute(0, 2, 1, 3),
+        b.view(
+            blocks_n,
+            K // _PERSISTENT_BLOCK_K,
+            _PERSISTENT_BLOCK_K // 2,
+            _BLOCK_SIZE_N,
+            2,
+        ),
+        c,
+        scratch,
+        bias if bias is not None else scratch,
+        post_op_arg if post_op_arg is not None else scratch,
+        _make_sfc_tensor(blocks_m, blocks_n),
+        M,
+        N,
+        K,
+        tiles,
+        bias is not None,
+        post_op_arg is not None,
+    )
+    kernel = _make_persistent_kernel(post_op or _no_post_op)
+    return PreparedSFCMatmul([((programs, 1, 1), kernel, kernel_args)], c, options)
+
+
 def sfc_matmul(
     a: torch.Tensor,
     b: torch.Tensor,
@@ -678,7 +810,10 @@ def sfc_matmul(
     c_is_owned=False,
     blocking_factor_k=1,
     options=None,
+    persistent=False,
+    rowwise_callbacks=False,
 ) -> torch.Tensor:
+    """Run a matmul; see prepare_sfc_matmul for persistent callback requirements."""
     return prepare_sfc_matmul(
         a,
         b,
@@ -697,4 +832,6 @@ def sfc_matmul(
         c_is_owned=c_is_owned,
         blocking_factor_k=blocking_factor_k,
         options=options,
+        persistent=persistent,
+        rowwise_callbacks=rowwise_callbacks,
     )()
