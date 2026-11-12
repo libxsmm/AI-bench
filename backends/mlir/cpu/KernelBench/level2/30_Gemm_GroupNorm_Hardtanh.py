@@ -6,8 +6,7 @@ class Model(nn.Module):
     Simple model that performs a GEMM, applies Group Normalization, and then HardTanh.
     """
 
-    # TODO: Fix on newest Torch-MLIR.
-    # mlir_pipeline = "default"
+    mlir_pipeline = "default"
 
     def __init__(
         self, in_features, out_features, num_groups, hardtanh_min, hardtanh_max

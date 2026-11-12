@@ -6,8 +6,7 @@ class Model(nn.Module):
     A model that performs a matrix multiplication, group normalization, leaky ReLU activation, and element-wise sum.
     """
 
-    # TODO: Fix on newest Torch-MLIR.
-    # mlir_pipeline = "default"
+    mlir_pipeline = "default"
 
     def __init__(
         self, input_size, hidden_size, num_groups, eps=1e-5, negative_slope=0.01
