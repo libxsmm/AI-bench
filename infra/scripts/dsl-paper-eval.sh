@@ -116,3 +116,7 @@ $NUMACTL_CMD ai-bench $AIBENCH_COMMON --helion-mlir   --csv "$OUTPUT_DIR/helion-
 
 # CuTile
 $NUMACTL_CMD ai-bench $AIBENCH_COMMON --cutile        --csv "$OUTPUT_DIR/cutile.csv"
+
+# MLIR - requires older torch-mlir version
+uv sync --python 3.12 --extra cpu --extra triton-cpu --extra mlir --extra cutile-cpu
+$NUMACTL_CMD ai-bench $AIBENCH_COMMON --mlir          --csv "$OUTPUT_DIR/mlir.csv"
