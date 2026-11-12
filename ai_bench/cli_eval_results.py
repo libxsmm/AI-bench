@@ -59,11 +59,15 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
         raise ValueError("At least one run directory is required.")
 
     frames = [
-        pd.read_csv(directory / filename)
-        .drop_duplicates(subset="kernel_name", keep="first")
-        .set_index("kernel_name")
+        pd.read_csv(directory / filename).set_index("kernel_name")
         for directory in run_dirs
     ]
+    for directory, frame in zip(run_dirs, frames):
+        duplicates = frame.index[frame.index.duplicated()].unique().tolist()
+        if duplicates:
+            raise ValueError(
+                f"{directory / filename}: duplicate kernel_name entries: {duplicates}"
+            )
     first = frames[0]
     for directory, frame in zip(run_dirs[1:], frames[1:]):
         if set(frame.index) != set(first.index):
