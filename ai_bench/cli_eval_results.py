@@ -68,6 +68,12 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
             raise ValueError(
                 f"{directory / filename}: duplicate kernel_name entries: {duplicates}"
             )
+        # NaN compares False, so it is reported alongside zero and negative times.
+        invalid = frame.index[~(frame["time_us"] > 0)].tolist()
+        if invalid:
+            raise ValueError(
+                f"{directory / filename}: time_us must be > 0 for kernels: {invalid}"
+            )
     first = frames[0]
     for directory, frame in zip(run_dirs[1:], frames[1:]):
         if set(frame.index) != set(first.index):
