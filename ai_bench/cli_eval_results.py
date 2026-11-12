@@ -101,7 +101,7 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
 
 def plot_speedups(
     torch: pd.DataFrame,
-    compile: pd.DataFrame,
+    compile_: pd.DataFrame,
     compile_max_at: pd.DataFrame,
     backends: list[tuple[str, pd.DataFrame]],
     output: str | Path = "speedup.png",
@@ -118,7 +118,7 @@ def plot_speedups(
     # Align all frames on kernel_name so the bars line up per kernel.
     merged = torch.add_suffix("_torch").rename(columns={"kernel_name_torch": "kernel_name"})
     for suffix, frame in (
-        ("compile", compile),
+        ("compile", compile_),
         ("compile_max_at", compile_max_at),
         *((str(i), frame) for i, (_, frame) in enumerate(backends)),
     ):
@@ -237,7 +237,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     try:
-        torch, compile, compile_max_at = (
+        torch, compile_, compile_max_at = (
             average_runs(args.directories, filename)
             for filename in (TORCH_CSV, COMPILE_CSV, COMPILE_MAX_AT_CSV)
         )
@@ -245,7 +245,7 @@ def main() -> None:
             (label, average_runs(args.directories, filename)) for label, filename in args.backend
         ]
         plot_speedups(
-            torch, compile, compile_max_at, backend_frames,
+            torch, compile_, compile_max_at, backend_frames,
             output=args.output, sort_by_intensity=args.sort,
             annotate_gflops=args.gflops,
         )
