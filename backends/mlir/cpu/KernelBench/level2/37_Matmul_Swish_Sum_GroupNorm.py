@@ -7,8 +7,7 @@ class Model(nn.Module):
     A model that performs a matrix multiplication, applies Swish activation, sums with a bias term, and normalizes with GroupNorm.
     """
 
-    # TODO: Fix on newest Torch-MLIR.
-    # mlir_pipeline = "default"
+    mlir_pipeline = "default"
 
     def __init__(self, in_features, out_features, num_groups, bias_shape):
         super(Model, self).__init__()
