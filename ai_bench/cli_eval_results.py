@@ -3,10 +3,10 @@ import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator, MaxNLocator
+from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
-
 
 # Keys in the input_values dict that map to each matmul dimension.
 M_KEYS = ("BATCH_SIZE", "BATCH")
@@ -67,7 +67,9 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
     first = frames[0]
     for directory, frame in zip(run_dirs[1:], frames[1:]):
         if set(frame.index) != set(first.index):
-            raise ValueError(f"{directory / filename}: kernel set differs from {run_dirs[0]}")
+            raise ValueError(
+                f"{directory / filename}: kernel set differs from {run_dirs[0]}"
+            )
         for column in ("input_values", "dtype"):
             if column not in first:
                 continue
@@ -85,12 +87,14 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
     means = grouped.mean(numeric_only=True)
     averaged = first.copy()
     averaged[means.columns] = means
-    summary = pd.DataFrame({
-        "mean": averaged["time_us"],
-        "stddev": grouped["time_us"].std(ddof=1),
-        "min": grouped["time_us"].min(),
-        "max": grouped["time_us"].max(),
-    })
+    summary = pd.DataFrame(
+        {
+            "mean": averaged["time_us"],
+            "stddev": grouped["time_us"].std(ddof=1),
+            "min": grouped["time_us"].min(),
+            "max": grouped["time_us"].max(),
+        }
+    )
     print(
         f"\n{filename}: runtime across {len(frames)} run(s) "
         "(us; sample stddev, ddof=1; NaN for one run)"
@@ -116,7 +120,9 @@ def plot_speedups(
         raise ValueError(f"At most {len(BACKEND_COLORS)} backends are supported.")
 
     # Align all frames on kernel_name so the bars line up per kernel.
-    merged = torch.add_suffix("_torch").rename(columns={"kernel_name_torch": "kernel_name"})
+    merged = torch.add_suffix("_torch").rename(
+        columns={"kernel_name_torch": "kernel_name"}
+    )
     for suffix, frame in (
         ("compile", compile_),
         ("compile_max_at", compile_max_at),
@@ -131,7 +137,9 @@ def plot_speedups(
     if sort_by_intensity:
         # Arithmetic intensity is derived from the M, N, K input dims.
         merged = merged.sort_values(
-            by="input_values_torch", key=lambda col: col.map(arithmetic_intensity), kind="stable",
+            by="input_values_torch",
+            key=lambda col: col.map(arithmetic_intensity),
+            kind="stable",
         ).reset_index(drop=True)
 
     def speedup_and_gflops(time_us: pd.Series) -> tuple[pd.Series, pd.Series]:
@@ -142,8 +150,12 @@ def plot_speedups(
         return speedup, gflops
 
     # Best of compile and compile max-autotune per kernel.
-    best_compile_time_us = np.minimum(merged["time_us_compile"], merged["time_us_compile_max_at"])
-    series = [(*speedup_and_gflops(best_compile_time_us), "Torch Inductor", INDUCTOR_COLOR)]
+    best_compile_time_us = np.minimum(
+        merged["time_us_compile"], merged["time_us_compile_max_at"]
+    )
+    series = [
+        (*speedup_and_gflops(best_compile_time_us), "Torch Inductor", INDUCTOR_COLOR)
+    ]
     for i, ((label, _), color) in enumerate(zip(backends, BACKEND_COLORS)):
         series.append((*speedup_and_gflops(merged[f"time_us_{i}"]), label, color))
 
@@ -164,7 +176,7 @@ def plot_speedups(
     print("\\end{tabular}")
 
     kernels = merged["kernel_name"].tolist()
-    labels = [f"{name[:name.find('_')]}" for name in kernels]
+    labels = [f"{name[: name.find('_')]}" for name in kernels]
     x = np.arange(len(kernels))
 
     group_width = 0.8
@@ -215,24 +227,39 @@ def main() -> None:
         description="Average repeated DSL benchmark runs and plot speedups."
     )
     parser.add_argument(
-        "directories", nargs="*", type=Path, default=[Path(".")],
+        "directories",
+        nargs="*",
+        type=Path,
+        default=[Path(".")],
         help="Run directories containing the backend CSVs (default: current directory).",
     )
     parser.add_argument(
-        "-o", "--output", type=Path, default=Path("dsl-paper-eval-speedup.png"),
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("dsl-paper-eval-speedup.png"),
         help="Output image path (default: %(default)s).",
     )
     parser.add_argument(
-        "-b", "--backend", action="append", type=parse_backend, metavar="LABEL:CSV", default=[],
+        "-b",
+        "--backend",
+        action="append",
+        type=parse_backend,
+        metavar="LABEL:CSV",
+        default=[],
         help="Backend to plot next to Torch Inductor, as plot label and CSV filename "
         "(e.g. 'Triton CPU:triton.csv'). Repeatable.",
     )
     parser.add_argument(
-        "-s", "--sort", action="store_true",
+        "-s",
+        "--sort",
+        action="store_true",
         help="Sort kernels by arithmetic intensity instead of CSV order.",
     )
     parser.add_argument(
-        "-g", "--gflops", action="store_true",
+        "-g",
+        "--gflops",
+        action="store_true",
         help="Annotate each bar with its absolute throughput in GFLOPS.",
     )
     args = parser.parse_args()
@@ -242,11 +269,16 @@ def main() -> None:
             for filename in (TORCH_CSV, COMPILE_CSV, COMPILE_MAX_AT_CSV)
         )
         backend_frames = [
-            (label, average_runs(args.directories, filename)) for label, filename in args.backend
+            (label, average_runs(args.directories, filename))
+            for label, filename in args.backend
         ]
         plot_speedups(
-            torch, compile_, compile_max_at, backend_frames,
-            output=args.output, sort_by_intensity=args.sort,
+            torch,
+            compile_,
+            compile_max_at,
+            backend_frames,
+            output=args.output,
+            sort_by_intensity=args.sort,
             annotate_gflops=args.gflops,
         )
     except (OSError, ValueError) as exc:
