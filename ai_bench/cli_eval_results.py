@@ -128,11 +128,23 @@ def plot_speedups(
         ("compile_max_at", compile_max_at),
         *((str(i), frame) for i, (_, frame) in enumerate(backends)),
     ):
+        if torch.empty or frame.empty:
+            raise ValueError(f"{suffix}: cannot compare empty kernel sets")
+        if set(frame["kernel_name"]) != set(torch["kernel_name"]):
+            raise ValueError(f"{suffix}: kernel set differs from Torch eager")
         merged = merged.merge(
             frame.add_suffix(f"_{suffix}"),
             left_on="kernel_name",
             right_on=f"kernel_name_{suffix}",
         )
+        for column in ("input_values", "dtype"):
+            expected = merged[f"{column}_torch"]
+            actual = merged[f"{column}_{suffix}"]
+            if column == "input_values":
+                expected = expected.map(json.loads)
+                actual = actual.map(json.loads)
+            if not actual.equals(expected):
+                raise ValueError(f"{suffix}: {column} differs from Torch eager")
 
     if sort_by_intensity:
         # Arithmetic intensity is derived from the M, N, K input dims.
