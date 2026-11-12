@@ -7,8 +7,7 @@ class Model(nn.Module):
     Model that performs a GEMM, GroupNorm, Swish, Multiply, and Swish operations.
     """
 
-    # TODO: Fix on newest Torch-MLIR.
-    # mlir_pipeline = "default"
+    mlir_pipeline = "default"
 
     def __init__(self, in_features, out_features, num_groups, multiply_weight_shape):
         super(Model, self).__init__()
