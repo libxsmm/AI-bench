@@ -31,9 +31,9 @@ export AIBENCH_CPU_MIN_CACHE_NUKE_MIB=5000
 
 # Build a fresh clone of AI-bench
 cd $WORKDIR
-git clone --recurse-submodules --branch dsl-paper-eval https://github.com/libxsmm/AI-bench.git
+git clone --recurse-submodules --branch triton-cpu-dont-pack-a https://github.com/libxsmm/AI-bench.git
 cd AI-bench
-uv sync --python 3.12 --extra cpu --extra triton-cpu --extra helion-mlir --extra cutile-cpu
+uv sync --python 3.12 --extra cpu --extra triton-cpu 
 
 # Filter problems of interest
 AIBENCH_DIR=$PWD
@@ -110,13 +110,3 @@ $NUMACTL_CMD ai-bench $AIBENCH_COMMON --torch-compile --csv "$OUTPUT_DIR/torch-c
 
 # Triton CPU
 $NUMACTL_CMD ai-bench $AIBENCH_COMMON --triton        --csv "$OUTPUT_DIR/triton.csv"
-
-# Helion via MLIR
-$NUMACTL_CMD ai-bench $AIBENCH_COMMON --helion-mlir   --csv "$OUTPUT_DIR/helion-mlir.csv"
-
-# CuTile
-$NUMACTL_CMD ai-bench $AIBENCH_COMMON --cutile        --csv "$OUTPUT_DIR/cutile.csv"
-
-# MLIR - requires older torch-mlir version
-uv sync --python 3.12 --extra cpu --extra triton-cpu --extra mlir --extra cutile-cpu
-$NUMACTL_CMD ai-bench $AIBENCH_COMMON --mlir          --csv "$OUTPUT_DIR/mlir.csv"
