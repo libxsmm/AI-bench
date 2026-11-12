@@ -55,6 +55,4 @@ class Model(nn.Module):
             post_op_arg=self._scale,
             b_is_prepacked=True,
             blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
-            persistent=True,
-            rowwise_callbacks=True,
         )
