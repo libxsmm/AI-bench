@@ -608,6 +608,7 @@ def prepare_sfc_matmul(
             (rowwise_callbacks or post_op is None)
             and a.dtype == torch.bfloat16
             and a.is_contiguous()
+            and b.is_contiguous()
             and K % _PERSISTENT_BLOCK_K == 0
             # Shorter reductions are not validated on this path.
             and K >= 4 * _PERSISTENT_BLOCK_K
