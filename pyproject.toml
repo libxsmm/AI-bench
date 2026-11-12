@@ -58,8 +58,12 @@ cuda = [
   "helion==1.4.0",
 ]
 mlir = [
-  "lighthouse[ingress_torch_mlir]",
+  "lighthouse",
   "ml-dtypes",
+  "transformers",
+  # Use older torch-mlir version for compatibility with current
+  # Lighthouse pipeline.
+  "torch-mlir==20260805.836",
 ]
 # If triton-cpu build fails with a stale LLVM path, clear caches:
 #   rm -r ~/.triton/llvm
@@ -130,6 +134,10 @@ conflicts = [
     { extra = "cuda" },
     { extra = "cutile-cpu" },
   ],
+  [
+    { extra = "mlir" },
+    { extra = "helion-mlir" },
+  ]
 ]
 
 [tool.uv.sources]
@@ -141,6 +149,7 @@ helion-mlir-backend = { git = "https://github.com/libxsmm/helion-mlir-backend", 
 triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }
 helion-mlir-cpu-utils = { path = "backends/utils/helion_mlir_cpu_utils", editable = true }
 cutile-cpu-utils = { path = "backends/utils/cutile_cpu_utils", editable = true }
+torch-mlir = [{ index = "lh_torch_mlir", extra = "mlir" }]
 
 [[tool.uv.index]]
 name = "pytorch"
@@ -151,6 +160,11 @@ name = "eudsl"
 url = "https://llvm.github.io/eudsl"
 explicit = true
 format = "flat"
+
+[[tool.uv.index]]
+name = "lh_torch_mlir"
+url = "https://github.com/llvm/torch-mlir-release/releases/expanded_assets/dev-wheels"
+explicit = true
 
 [tool.setuptools.packages.find]
 where = ["."]
