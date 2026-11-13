@@ -6,108 +6,6 @@ from .gilbert_d2xy import gilbert_d2xy
 from .thread_lru_cache import thread_lru_cache
 
 
-# Transforms the A matrix into a tensor of shape:
-#
-#  (BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K)
-#
-# and the B matrix into a tensor of shape:
-#
-#  (BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K, BLOCK_SIZE_N)
-#
-# Data is block-packed into contiguous chunks of memory. Neighboring blocks in
-# the K dimension will also be neighboring in memory. In addition, the B matrix
-# is also packed in VNNI format.
-@triton.jit
-def _block_pack_kernel(
-    a_in_ptr,
-    a_out_ptr,
-    a_sfc_map_ptr,
-    b_in_ptr,
-    b_out_ptr,
-    b_sfc_map_ptr,
-    M,
-    N,
-    K,
-    BLOCK_SIZE_M: tl.constexpr,
-    BLOCK_SIZE_N: tl.constexpr,
-    BLOCK_SIZE_K: tl.constexpr,
-    B_IS_PREPACKED: tl.constexpr = False,
-):
-    VNNI: tl.constexpr = 32 // b_in_ptr.type.element_ty.primitive_bitwidth
-
-    pid = tl.program_id(axis=0)
-
-    BLOCKS_M = M // BLOCK_SIZE_M
-    BLOCKS_N = N // BLOCK_SIZE_N
-    BLOCKS_K = K // BLOCK_SIZE_K
-
-    # Block-pack A
-    if pid < BLOCKS_M * BLOCKS_K:
-        block_m = tl.load(a_sfc_map_ptr + 2 * pid)
-        block_k = tl.load(a_sfc_map_ptr + 2 * pid + 1)
-
-        a_in_desc = tl.make_tensor_descriptor(
-            base=a_in_ptr,
-            shape=(M, K),
-            strides=(K, 1),
-            block_shape=(BLOCK_SIZE_M, BLOCK_SIZE_K),
-        )
-        a_out_desc = tl.make_tensor_descriptor(
-            base=a_out_ptr,
-            shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
-            strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_M * BLOCK_SIZE_K, BLOCK_SIZE_K, 1),
-            block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
-        )
-
-        block = a_in_desc.load(
-            (block_m * BLOCK_SIZE_M, block_k * BLOCK_SIZE_K)
-        ).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K))
-        a_out_desc.store((block_m, block_k, 0, 0), block)
-
-    # Block-and-VNNI-pack B
-    if B_IS_PREPACKED:
-        return
-    if pid < BLOCKS_K * BLOCKS_N:
-        block_k = tl.load(b_sfc_map_ptr + 2 * pid)
-        block_n = tl.load(b_sfc_map_ptr + 2 * pid + 1)
-
-        b_in_desc = tl.make_tensor_descriptor(
-            base=b_in_ptr, shape=(K, N), strides=(N, 1), block_shape=(1, BLOCK_SIZE_N)
-        )
-        b_out_desc = tl.make_tensor_descriptor(
-            base=b_out_ptr,
-            shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
-            strides=(
-                BLOCK_SIZE_N * K,
-                BLOCK_SIZE_K * BLOCK_SIZE_N,
-                BLOCK_SIZE_N * VNNI,
-                1,
-            ),
-            block_shape=(1, 1, 1, BLOCK_SIZE_N * VNNI),
-        )
-        for i in tl.range(0, BLOCK_SIZE_K // VNNI):
-            row1 = b_in_desc.load(
-                (block_k * BLOCK_SIZE_K + i * VNNI, block_n * BLOCK_SIZE_N)
-            ).reshape((BLOCK_SIZE_N,))
-            if VNNI > 1:
-                row2 = b_in_desc.load(
-                    (block_k * BLOCK_SIZE_K + i * VNNI + 1, block_n * BLOCK_SIZE_N)
-                ).reshape((BLOCK_SIZE_N,))
-                if VNNI > 2:
-                    row3 = b_in_desc.load(
-                        (block_k * BLOCK_SIZE_K + i * VNNI + 2, block_n * BLOCK_SIZE_N)
-                    ).reshape((BLOCK_SIZE_N,))
-                    row4 = b_in_desc.load(
-                        (block_k * BLOCK_SIZE_K + i * VNNI + 3, block_n * BLOCK_SIZE_N)
-                    ).reshape((BLOCK_SIZE_N,))
-                    row1 = tl.ravel(tl.join(row1, row3))
-                    row2 = tl.ravel(tl.join(row2, row4))
-                row1 = tl.ravel(tl.join(row1, row2))
-            b_out_desc.store(
-                (block_n, block_k, i, 0), row1.reshape((1, 1, 1, BLOCK_SIZE_N * VNNI))
-            )
-
-
 # Matmul kernel using the space curve filling approach in
 # https://arxiv.org/abs/2601.16294v1, based on the generalized hilbert curve
 # implementation from https://github.com/jakubcerveny/gilbert
@@ -145,6 +43,7 @@ def _sfc_matmul_kernel(
     BLOCKING_FACTOR_K: tl.constexpr,
     IS_FIRST_K_BLOCK: tl.constexpr,
     IS_LAST_K_BLOCK: tl.constexpr,
+    B_IS_PREPACKED: tl.constexpr,
     ACCUM_DTYPE: tl.constexpr,
     OUT_DTYPE: tl.constexpr,
     HAS_BIAS: tl.constexpr,
@@ -169,16 +68,30 @@ def _sfc_matmul_kernel(
     a_desc = tl.make_tensor_descriptor(
         base=a_ptr,
         shape=(BLOCKS_M, BLOCKS_K, BLOCK_SIZE_M, BLOCK_SIZE_K),
-        strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_M * BLOCK_SIZE_K, BLOCK_SIZE_K, 1),
+        strides=(BLOCK_SIZE_M * K, BLOCK_SIZE_K, K, 1),
         block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_K),
     )
 
-    b_desc = tl.make_tensor_descriptor(
-        base=b_ptr,
-        shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
-        strides=(BLOCK_SIZE_N * K, BLOCK_SIZE_K * BLOCK_SIZE_N, BLOCK_SIZE_N * VNNI, 1),
-        block_shape=(1, 1, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
-    )
+    if B_IS_PREPACKED:
+        # Block-and-VNNI-packed layout produced by `pack_weights_for_sfc_matmul`
+        b_desc = tl.make_tensor_descriptor(
+            base=b_ptr,
+            shape=(BLOCKS_N, BLOCKS_K, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
+            strides=(
+                BLOCK_SIZE_N * K,
+                BLOCK_SIZE_K * BLOCK_SIZE_N,
+                BLOCK_SIZE_N * VNNI,
+                1,
+            ),
+            block_shape=(1, 1, BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI),
+        )
+    else:
+        b_desc = tl.make_tensor_descriptor(
+            base=b_ptr,
+            shape=(BLOCKS_K, BLOCKS_N, BLOCK_SIZE_K, BLOCK_SIZE_N),
+            strides=(BLOCK_SIZE_K * N, BLOCK_SIZE_N, N, 1),
+            block_shape=(1, 1, BLOCK_SIZE_K, BLOCK_SIZE_N),
+        )
 
     if BLOCKING_FACTOR_K > 1 or SOFTMAX_LAST_DIM:
         ctmp_desc = tl.make_tensor_descriptor(
@@ -188,23 +101,25 @@ def _sfc_matmul_kernel(
             block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
         )
 
-    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
+    if IS_FIRST_K_BLOCK:
+        c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
+    else:
+        c = ctmp_desc.load([block_m, block_n, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
 
     for block_ki in range(block_k, min(block_k + BLOCKS_K_PER_PROG, BLOCKS_K)):
         a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
-        b = b_desc.load([block_n, block_ki, 0, 0]).reshape(
-            (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
-        )
-
-        if VNNI > 1:
-            b = tl.extra.cpu.vnni_decode(b)
+        if B_IS_PREPACKED:
+            b = b_desc.load([block_n, block_ki, 0, 0]).reshape(
+                (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
+            )
+            if VNNI > 1:
+                b = tl.extra.cpu.vnni_decode(b)
+        else:
+            b = b_desc.load([block_ki, block_n, 0, 0]).reshape(
+                (BLOCK_SIZE_K, BLOCK_SIZE_N)
+            )
 
         c = tl.dot(a, b, acc=c, out_dtype=ACCUM_DTYPE)
-
-    if not IS_FIRST_K_BLOCK:
-        c += ctmp_desc.load([block_m, block_n, 0, 0]).reshape(
-            (BLOCK_SIZE_M, BLOCK_SIZE_N)
-        )
 
     if not IS_LAST_K_BLOCK:
         ctmp_desc.store(
@@ -473,21 +388,16 @@ def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
 def _make_intermediate_buffers(
     M,
     N,
-    K,
     BLOCK_SIZE_N,
-    in_dtype,
     accum_dtype,
     out_dtype,
     reduce_last_dim,
     softmax_last_dim,
-    b_is_prepacked,
     c_is_owned,
 ):
     BLOCKS_N = N // BLOCK_SIZE_N
     OUT_N = 1 if reduce_last_dim else N
 
-    ap_size = M * K * in_dtype.itemsize
-    bp_size = K * N * in_dtype.itemsize if not b_is_prepacked else 0
     ctmp_size = M * N * accum_dtype.itemsize
     cred_size = (
         M * BLOCKS_N * accum_dtype.itemsize
@@ -498,41 +408,25 @@ def _make_intermediate_buffers(
     )
     c_size = M * OUT_N * out_dtype.itemsize if c_is_owned else 0
 
-    buf = torch.empty(
-        ap_size + bp_size + ctmp_size + cred_size + c_size, dtype=torch.uint8
-    )
-    ap = buf[:ap_size].view(in_dtype).reshape((M, K))
-    bp = (
-        buf[ap_size : ap_size + bp_size].view(in_dtype).reshape((K, N))
-        if not b_is_prepacked
-        else None
-    )
-    ctmp = (
-        buf[ap_size + bp_size : ap_size + bp_size + ctmp_size]
-        .view(accum_dtype)
-        .reshape((M, N))
-    )
+    buf = torch.empty(ctmp_size + cred_size + c_size, dtype=torch.uint8)
+    ctmp = buf[:ctmp_size].view(accum_dtype).reshape((M, N))
     cred = (
-        buf[ap_size + bp_size + ctmp_size : ap_size + bp_size + ctmp_size + cred_size]
+        buf[ctmp_size : ctmp_size + cred_size]
         .view(accum_dtype)
         .reshape((BLOCKS_N, M))  # Transpose intentional
         if reduce_last_dim
-        else buf[
-            ap_size + bp_size + ctmp_size : ap_size + bp_size + ctmp_size + cred_size
-        ]
+        else buf[ctmp_size : ctmp_size + cred_size]
         .view(accum_dtype)
         .reshape((BLOCKS_N, 2 * M))  # Transpose intentional
         if softmax_last_dim
         else None
     )
     c = (
-        buf[ap_size + bp_size + ctmp_size + cred_size :]
-        .view(out_dtype)
-        .reshape((M, OUT_N))
+        buf[ctmp_size + cred_size :].view(out_dtype).reshape((M, OUT_N))
         if c_is_owned
         else None
     )
-    return ap, bp, ctmp, cred, c
+    return ctmp, cred, c
 
 
 def sfc_matmul(
@@ -559,6 +453,8 @@ def sfc_matmul(
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
     assert a.dtype == b.dtype, f"dtype mismatch: {a.dtype} vs {b.dtype}"
+    assert a.is_contiguous(), "A must be contiguous"
+    assert b.is_contiguous(), "B must be contiguous"
     M, K = a.shape
     K2, N = b.shape
     assert K == K2, f"Incompatible K dimensions: {K} vs {K2}"
@@ -576,30 +472,22 @@ def sfc_matmul(
 
     BLOCKS_M = M // BLOCK_SIZE_M
     BLOCKS_N = N // BLOCK_SIZE_N
-    BLOCKS_K = K // BLOCK_SIZE_K
 
-    sfc_map_mk = _make_sfc_tensor(BLOCKS_M, BLOCKS_K)
-    sfc_map_kn = _make_sfc_tensor(BLOCKS_K, BLOCKS_N)
     sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
 
     accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
 
-    ap, bp, ctmp, cred, c = _make_intermediate_buffers(
+    ctmp, cred, c = _make_intermediate_buffers(
         M,
         N,
-        K,
         BLOCK_SIZE_N,
-        a.dtype,
         accum_dtype,
         out_dtype,
         reduce_last_dim,
         softmax_last_dim,
-        b_is_prepacked,
         c_is_owned,
     )
-    if b_is_prepacked:
-        bp = b
     if not c_is_owned:
         if not reduce_last_dim:
             c = torch.empty((M, N), device=a.device, dtype=out_dtype)
@@ -608,30 +496,10 @@ def sfc_matmul(
         else:
             c = torch.empty((M,), device=a.device, dtype=out_dtype)
 
-    num_blocks = max(
-        BLOCKS_M * BLOCKS_K, BLOCKS_K * BLOCKS_N if not b_is_prepacked else 0
-    )
-    _block_pack_kernel[(num_blocks,)](
-        a,
-        ap,
-        sfc_map_mk,
-        b,
-        bp,
-        sfc_map_kn,
-        M,
-        N,
-        K,
-        BLOCK_SIZE_M=BLOCK_SIZE_M,
-        BLOCK_SIZE_N=BLOCK_SIZE_N,
-        BLOCK_SIZE_K=BLOCK_SIZE_K,
-        B_IS_PREPACKED=b_is_prepacked,
-        assume_in_bounds=True,
-    )
-
     for ik in range(blocking_factor_k):
         _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
-            ap,
-            bp,
+            a,
+            b,
             c,
             ctmp,
             cred,
@@ -648,6 +516,7 @@ def sfc_matmul(
             BLOCKING_FACTOR_K=blocking_factor_k,
             IS_FIRST_K_BLOCK=ik == 0,
             IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
+            B_IS_PREPACKED=b_is_prepacked,
             ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
             OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
             HAS_BIAS=bias is not None,
@@ -703,8 +572,9 @@ class SFCMatmulHelper:
     tensor is stored as-is.
 
     Invoking this class with an input tensor performs the matrix multiplication
-    for the given activation tensor, which is block-packed on the fly. The
-    K-dimension is blocked according to a heuristic based on the input size.
+    for the given activation tensor, which is read directly in row-major
+    layout. The K-dimension is blocked according to a heuristic based on the
+    input size.
 
     Intermediate buffers are cached and reused per thread. The output buffer
     is allocated by `torch.empty(...)`, unless the caller can guarantee (by
