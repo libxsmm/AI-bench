@@ -18,7 +18,7 @@ def _first(values: dict, keys: tuple) -> str:
     for key in keys:
         if key in values:
             return str(values[key])
-    return "?"
+    raise ValueError(f"None of the keys {keys} found in {values}")
 
 
 def arithmetic_intensity(input_values: str) -> float:
