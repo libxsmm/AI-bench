@@ -39,6 +39,7 @@ dependencies = [
 [project.scripts]
 ai-bench = "ai_bench.cli:main"
 ai-bench-compare = "ai_bench.cli_compare:main"
+ai-bench-eval-results = "ai_bench.cli_eval_results:main"
 
 [project.urls]
 Homepage = "https://github.com/libxsmm/AI-bench"
@@ -89,6 +90,11 @@ helion-mlir = [
   "lighthouse[ingress_torch_mlir]",
   "ml-dtypes",
   "helion-mlir-cpu-utils", # Local kernel helper package (see: backends/utils).
+]
+# Plotting dependencies for ai-bench-eval-results.
+eval-results = [
+  "matplotlib",
+  "pandas",
 ]
 
 [dependency-groups]
