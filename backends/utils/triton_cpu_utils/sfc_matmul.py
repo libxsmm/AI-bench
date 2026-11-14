@@ -10,19 +10,20 @@ from .thread_lru_cache import thread_lru_cache
 # https://arxiv.org/abs/2601.16294v1, based on the generalized hilbert curve
 # implementation from https://github.com/jakubcerveny/gilbert
 #
-# Each program computes a single output tile with the 2D coordinates derived
-# from the precomputed SFC mapping. If `BLOCKING_FACTOR_K == 1`, then the
-# program handles all
+# Each program computes a contiguous segment of output tiles along the SFC,
+# with the 2D tile coordinates derived from the precomputed SFC mapping. If
+# `BLOCKING_FACTOR_K == 1`, then each tile is accumulated over all
 #   `BLOCKS_K = K // BLOCK_SIZE_K`
-# blocks along the common dimension,  otherwise the program performs a partial
+# blocks along the common dimension in one go, otherwise the program makes
+# `BLOCKING_FACTOR_K` passes over its segment, each performing a partial
 # accumulation of
-#   `BLOCKS_K_PER_PROG = ⌈BLOCKS_K / BLOCKING_FACTOR_K⌉`
+#   `BLOCKS_K_PER_PASS = ⌈BLOCKS_K / BLOCKING_FACTOR_K⌉`
 # blocks, starting at
-#   `ik * BLOCKS_K_PER_PROG`
+#   `ik * BLOCKS_K_PER_PASS`
 # and ending at
-#   `min((ik + 1) * BLOCKS_K_PER_PROG, BLOCKS_K)`
-# The partial accumulation is stored in `c_tmp_ptr` and will be loaded and
-# accumulated in the next iteration of the outer loop.
+#   `min((ik + 1) * BLOCKS_K_PER_PASS, BLOCKS_K)`
+# The partial accumulation is stored in `ctmp_ptr` and will be loaded and
+# accumulated in the next pass.
 @triton.jit
 def _sfc_matmul_kernel(
     a_ptr,
@@ -36,13 +37,10 @@ def _sfc_matmul_kernel(
     M,
     N,
     K,
-    ik,
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
     BLOCKING_FACTOR_K: tl.constexpr,
-    IS_FIRST_K_BLOCK: tl.constexpr,
-    IS_LAST_K_BLOCK: tl.constexpr,
     B_IS_PREPACKED: tl.constexpr,
     ACCUM_DTYPE: tl.constexpr,
     OUT_DTYPE: tl.constexpr,
@@ -54,16 +52,18 @@ def _sfc_matmul_kernel(
     SOFTMAX_LAST_DIM: tl.constexpr,
 ):
     VNNI: tl.constexpr = 32 // b_ptr.type.element_ty.primitive_bitwidth
+    # The first, the middle and the last passes are specialized statically
+    NUM_PHASES: tl.constexpr = 3 if BLOCKING_FACTOR_K > 3 else BLOCKING_FACTOR_K
 
     BLOCKS_M = M // BLOCK_SIZE_M
     BLOCKS_N = N // BLOCK_SIZE_N
     BLOCKS_K = K // BLOCK_SIZE_K
-    BLOCKS_K_PER_PROG = tl.cdiv(BLOCKS_K, BLOCKING_FACTOR_K)
+    BLOCKS_K_PER_PASS = tl.cdiv(BLOCKS_K, BLOCKING_FACTOR_K)
 
-    pid = tl.program_id(axis=0)
-    block_m = tl.load(sfc_map_ptr + 2 * pid)
-    block_n = tl.load(sfc_map_ptr + 2 * pid + 1)
-    block_k = ik * BLOCKS_K_PER_PROG
+    # int64, as `pid * tiles` may exceed the int32 range
+    pid = tl.program_id(axis=0).to(tl.int64)
+    tile_begin = pid * (BLOCKS_M * BLOCKS_N) // tl.num_programs(axis=0)
+    tile_end = (pid + 1) * (BLOCKS_M * BLOCKS_N) // tl.num_programs(axis=0)
 
     a_desc = tl.make_tensor_descriptor(
         base=a_ptr,
@@ -101,32 +101,6 @@ def _sfc_matmul_kernel(
             block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
         )
 
-    if IS_FIRST_K_BLOCK:
-        c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
-    else:
-        c = ctmp_desc.load([block_m, block_n, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_N))
-
-    for block_ki in range(block_k, min(block_k + BLOCKS_K_PER_PROG, BLOCKS_K)):
-        a = a_desc.load([block_m, block_ki, 0, 0]).reshape((BLOCK_SIZE_M, BLOCK_SIZE_K))
-        if B_IS_PREPACKED:
-            b = b_desc.load([block_n, block_ki, 0, 0]).reshape(
-                (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
-            )
-            if VNNI > 1:
-                b = tl.extra.cpu.vnni_decode(b)
-        else:
-            b = b_desc.load([block_ki, block_n, 0, 0]).reshape(
-                (BLOCK_SIZE_K, BLOCK_SIZE_N)
-            )
-
-        c = tl.dot(a, b, acc=c, out_dtype=ACCUM_DTYPE)
-
-    if not IS_LAST_K_BLOCK:
-        ctmp_desc.store(
-            [block_m, block_n, 0, 0], c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
-        )
-        return
-
     if HAS_BIAS:
         bias_desc = tl.make_tensor_descriptor(
             base=bias_ptr,
@@ -134,68 +108,120 @@ def _sfc_matmul_kernel(
             strides=(1,),
             block_shape=(BLOCK_SIZE_N,),
         )
-        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(ACCUM_DTYPE)
-        c += bias[None, :]
-
-    if POST_OP_HAS_ARG:
-        c = POST_OP(
-            c,
-            block_m=block_m,
-            block_n=block_n,
-            post_op_arg_ptr=post_op_arg_ptr,
-            M=M,
-            N=N,
-            BLOCK_SIZE_M=BLOCK_SIZE_M,
-            BLOCK_SIZE_N=BLOCK_SIZE_N,
-        )
-    else:
-        c = POST_OP(c)
 
     if REDUCE_LAST_DIM:
-        cred = REDUCTION_BLOCK_OP(
-            c, BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N
-        )
         cred_desc = tl.make_tensor_descriptor(
             base=cred_ptr,
             shape=(BLOCKS_N, M),
             strides=(M, 1),
             block_shape=(1, BLOCK_SIZE_M),
         )
-        # Transposed write to intermediate buffer for final reduction
-        cred = cred.reshape((1, BLOCK_SIZE_M))
-        cred_desc.store([block_n, block_m * BLOCK_SIZE_M], cred)
-        return
-
-    if SOFTMAX_LAST_DIM:
-        # Write the unnormalized GEMM result to the ctmp buffer
-        corig = c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
-        ctmp_desc.store([block_m, block_n, 0, 0], corig)
-
-        cmax = tl.max(c, axis=1)
-        cexp = tl.exp(c - cmax[:, None])
-        cexpsum = tl.sum(cexp, axis=1)
-        cred = tl.interleave(cmax, cexpsum)
+    elif SOFTMAX_LAST_DIM:
         cred_desc = tl.make_tensor_descriptor(
             base=cred_ptr,
             shape=(BLOCKS_N, 2 * M),
             strides=(2 * M, 1),
             block_shape=(1, 2 * BLOCK_SIZE_M),
         )
-        # Transposed write of block stats to intermediate buffer for final normalization
-        cred = cred.reshape((1, 2 * BLOCK_SIZE_M))
-        cred_desc.store([block_n, block_m * 2 * BLOCK_SIZE_M], cred)
-        return
+    else:
+        c_desc = tl.make_tensor_descriptor(
+            base=c_ptr,
+            shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
+            strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_N, N, 1),
+            block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
+        )
 
-    # Normal writeback to output tensor
-    c = c.to(OUT_DTYPE).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+    for phase in tl.static_range(NUM_PHASES):
+        if phase == 0:
+            ik_begin = 0
+            ik_end = 1
+        elif phase == NUM_PHASES - 1:
+            ik_begin = BLOCKING_FACTOR_K - 1
+            ik_end = BLOCKING_FACTOR_K
+        else:
+            ik_begin = 1
+            ik_end = BLOCKING_FACTOR_K - 1
 
-    c_desc = tl.make_tensor_descriptor(
-        base=c_ptr,
-        shape=(BLOCKS_M, BLOCKS_N, BLOCK_SIZE_M, BLOCK_SIZE_N),
-        strides=(BLOCK_SIZE_M * N, BLOCK_SIZE_N, N, 1),
-        block_shape=(1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N),
-    )
-    c_desc.store([block_m, block_n, 0, 0], c)
+        for ik in range(ik_begin, ik_end):
+            block_k_begin = ik * BLOCKS_K_PER_PASS
+            block_k_end = min(block_k_begin + BLOCKS_K_PER_PASS, BLOCKS_K)
+
+            for tile in range(tile_begin, tile_end):
+                block_m = tl.load(sfc_map_ptr + 2 * tile)
+                block_n = tl.load(sfc_map_ptr + 2 * tile + 1)
+
+                if phase == 0:
+                    c = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=ACCUM_DTYPE)
+                else:
+                    c = ctmp_desc.load([block_m, block_n, 0, 0]).reshape(
+                        (BLOCK_SIZE_M, BLOCK_SIZE_N)
+                    )
+
+                for block_ki in range(block_k_begin, block_k_end):
+                    a = a_desc.load([block_m, block_ki, 0, 0]).reshape(
+                        (BLOCK_SIZE_M, BLOCK_SIZE_K)
+                    )
+                    if B_IS_PREPACKED:
+                        b = b_desc.load([block_n, block_ki, 0, 0]).reshape(
+                            (BLOCK_SIZE_K // VNNI, BLOCK_SIZE_N * VNNI)
+                        )
+                        if VNNI > 1:
+                            b = tl.extra.cpu.vnni_decode(b)
+                    else:
+                        b = b_desc.load([block_ki, block_n, 0, 0]).reshape(
+                            (BLOCK_SIZE_K, BLOCK_SIZE_N)
+                        )
+
+                    c = tl.dot(a, b, acc=c, out_dtype=ACCUM_DTYPE)
+
+                if phase < NUM_PHASES - 1:
+                    ctmp_desc.store(
+                        [block_m, block_n, 0, 0],
+                        c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N)),
+                    )
+                else:
+                    if HAS_BIAS:
+                        bias = bias_desc.load([block_n * BLOCK_SIZE_N]).to(ACCUM_DTYPE)
+                        c += bias[None, :]
+
+                    if POST_OP_HAS_ARG:
+                        c = POST_OP(
+                            c,
+                            block_m=block_m,
+                            block_n=block_n,
+                            post_op_arg_ptr=post_op_arg_ptr,
+                            M=M,
+                            N=N,
+                            BLOCK_SIZE_M=BLOCK_SIZE_M,
+                            BLOCK_SIZE_N=BLOCK_SIZE_N,
+                        )
+                    else:
+                        c = POST_OP(c)
+
+                    if REDUCE_LAST_DIM:
+                        cred = REDUCTION_BLOCK_OP(
+                            c, BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N
+                        )
+                        # Transposed write to intermediate buffer for final reduction
+                        cred = cred.reshape((1, BLOCK_SIZE_M))
+                        cred_desc.store([block_n, block_m * BLOCK_SIZE_M], cred)
+                    elif SOFTMAX_LAST_DIM:
+                        # Write the unnormalized GEMM result to the ctmp buffer
+                        corig = c.reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+                        ctmp_desc.store([block_m, block_n, 0, 0], corig)
+
+                        cmax = tl.max(c, axis=1)
+                        cexp = tl.exp(c - cmax[:, None])
+                        cexpsum = tl.sum(cexp, axis=1)
+                        cred = tl.interleave(cmax, cexpsum)
+                        # Transposed write of block stats to intermediate buffer
+                        # for final normalization
+                        cred = cred.reshape((1, 2 * BLOCK_SIZE_M))
+                        cred_desc.store([block_n, block_m * 2 * BLOCK_SIZE_M], cred)
+                    else:
+                        # Normal writeback to output tensor
+                        c = c.to(OUT_DTYPE).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
+                        c_desc.store([block_m, block_n, 0, 0], c)
 
 
 @triton.jit
@@ -496,38 +522,36 @@ def sfc_matmul(
         else:
             c = torch.empty((M,), device=a.device, dtype=out_dtype)
 
-    for ik in range(blocking_factor_k):
-        _sfc_matmul_kernel[(BLOCKS_M * BLOCKS_N,)](
-            a,
-            b,
-            c,
-            ctmp,
-            cred,
-            bias,
-            post_op_arg,
-            sfc_map_mn,
-            M,
-            N,
-            K,
-            ik,
-            BLOCK_SIZE_M=BLOCK_SIZE_M,
-            BLOCK_SIZE_N=BLOCK_SIZE_N,
-            BLOCK_SIZE_K=BLOCK_SIZE_K,  #
-            BLOCKING_FACTOR_K=blocking_factor_k,
-            IS_FIRST_K_BLOCK=ik == 0,
-            IS_LAST_K_BLOCK=ik == blocking_factor_k - 1,
-            B_IS_PREPACKED=b_is_prepacked,
-            ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
-            OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
-            HAS_BIAS=bias is not None,
-            POST_OP=post_op
-            or (_no_post_op if post_op_arg is None else _no_post_op_with_arg),
-            POST_OP_HAS_ARG=post_op_arg is not None,
-            REDUCE_LAST_DIM=reduce_last_dim,
-            REDUCTION_BLOCK_OP=reduction_block_op or _default_reduction_op,
-            SOFTMAX_LAST_DIM=softmax_last_dim,
-            assume_in_bounds=True,
-        )
+    # One program per thread, each handling a contiguous segment of the SFC
+    num_progs = min(BLOCKS_M * BLOCKS_N, torch.get_num_threads())
+    _sfc_matmul_kernel[(num_progs,)](
+        a,
+        b,
+        c,
+        ctmp,
+        cred,
+        bias,
+        post_op_arg,
+        sfc_map_mn,
+        M,
+        N,
+        K,
+        BLOCK_SIZE_M=BLOCK_SIZE_M,
+        BLOCK_SIZE_N=BLOCK_SIZE_N,
+        BLOCK_SIZE_K=BLOCK_SIZE_K, 
+        BLOCKING_FACTOR_K=blocking_factor_k,
+        B_IS_PREPACKED=b_is_prepacked,
+        ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
+        OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
+        HAS_BIAS=bias is not None,
+        POST_OP=post_op
+        or (_no_post_op if post_op_arg is None else _no_post_op_with_arg),
+        POST_OP_HAS_ARG=post_op_arg is not None,
+        REDUCE_LAST_DIM=reduce_last_dim,
+        REDUCTION_BLOCK_OP=reduction_block_op or _default_reduction_op,
+        SOFTMAX_LAST_DIM=softmax_last_dim,
+        assume_in_bounds=True,
+    )
 
     if reduce_last_dim:
         if M % 256 == 0:
@@ -631,6 +655,7 @@ class SFCMatmulHelper:
         softmax_last_dim=False,
         trunc_output=True,
         c_is_owned=False,
+        blocking_factor_k=None,
     ) -> torch.Tensor:
         return sfc_matmul(
             a=a,
@@ -648,7 +673,7 @@ class SFCMatmulHelper:
             trunc_output=trunc_output,
             b_is_prepacked=True,
             c_is_owned=c_is_owned,
-            blocking_factor_k=triton.next_power_of_2(max(1, a.shape[1] // 4096)),
+            blocking_factor_k=blocking_factor_k or triton.next_power_of_2(max(1, a.shape[1] // 4096)),
             BLOCK_SIZE_M=self.BLOCK_SIZE_M,
             BLOCK_SIZE_N=self.BLOCK_SIZE_N,
             BLOCK_SIZE_K=self.BLOCK_SIZE_K,
