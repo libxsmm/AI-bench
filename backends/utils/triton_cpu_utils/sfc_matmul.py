@@ -24,7 +24,7 @@ from .thread_lru_cache import thread_lru_cache
 #   `min((ik + 1) * BLOCKS_K_PER_PASS, BLOCKS_K)`
 # The partial accumulation is stored in `ctmp_ptr` and will be loaded and
 # accumulated in the next pass.
-@triton.jit
+@triton.jit(do_not_specialize=["progs_per_thread"])
 def _sfc_matmul_kernel(
     a_ptr,
     b_ptr,
@@ -37,6 +37,7 @@ def _sfc_matmul_kernel(
     M,
     N,
     K,
+    progs_per_thread,  # Only read by the launch grid, so that it can be autotuned
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
@@ -222,6 +223,34 @@ def _sfc_matmul_kernel(
                         # Normal writeback to output tensor
                         c = c.to(OUT_DTYPE).reshape((1, 1, BLOCK_SIZE_M, BLOCK_SIZE_N))
                         c_desc.store([block_m, block_n, 0, 0], c)
+
+
+def _prune_autotune_configs(configs, named_args, **kwargs):
+    def is_useful(config):
+        blocking_factor_k = config.kwargs["BLOCKING_FACTOR_K"]
+        if blocking_factor_k == 1:
+            # The segment size only matters for K-blocking
+            return config.kwargs["progs_per_thread"] == 1
+        # Don't split K into overly short passes
+        return named_args["K"] // blocking_factor_k >= 1024
+
+    return [config for config in configs if is_useful(config)]
+
+
+# One autotuner per thread, as it keeps per-call state. Benchmarking reruns
+# the kernel, which is safe as it only overwrites its outputs.
+@thread_lru_cache()
+def _autotuned_kernel():
+    candidates = (1, 2, 4, 8, 16)
+    return triton.autotune(
+        configs=[
+            triton.Config({"BLOCKING_FACTOR_K": f, "progs_per_thread": n})
+            for f in candidates
+            for n in candidates
+        ],
+        key=["M", "N", "K", "BLOCK_SIZE_M", "BLOCK_SIZE_N", "BLOCK_SIZE_K"],
+        prune_configs_by={"early_config_prune": _prune_autotune_configs},
+    )(_sfc_matmul_kernel)
 
 
 @triton.jit
@@ -471,7 +500,6 @@ def sfc_matmul(
     trunc_output=True,
     b_is_prepacked=False,
     c_is_owned=False,
-    blocking_factor_k=1,
     BLOCK_SIZE_M=32,
     BLOCK_SIZE_N=32,
     BLOCK_SIZE_K=32,
@@ -522,9 +550,15 @@ def sfc_matmul(
         else:
             c = torch.empty((M,), device=a.device, dtype=out_dtype)
 
-    # One program per thread, each handling a contiguous segment of the SFC
-    num_progs = min(BLOCKS_M * BLOCKS_N, torch.get_num_threads())
-    _sfc_matmul_kernel[(num_progs,)](
+    num_threads = torch.get_num_threads()
+
+    # Each program handles a contiguous segment of the SFC, and each thread
+    # runs `progs_per_thread` consecutive programs (static scheduling)
+    def grid(meta):
+        return (min(BLOCKS_M * BLOCKS_N, meta["progs_per_thread"] * num_threads),)
+
+    # `BLOCKING_FACTOR_K` and `progs_per_thread` are autotuned
+    _autotuned_kernel()[grid](
         a,
         b,
         c,
@@ -539,7 +573,6 @@ def sfc_matmul(
         BLOCK_SIZE_M=BLOCK_SIZE_M,
         BLOCK_SIZE_N=BLOCK_SIZE_N,
         BLOCK_SIZE_K=BLOCK_SIZE_K, 
-        BLOCKING_FACTOR_K=blocking_factor_k,
         B_IS_PREPACKED=b_is_prepacked,
         ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
         OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
@@ -597,8 +630,7 @@ class SFCMatmulHelper:
 
     Invoking this class with an input tensor performs the matrix multiplication
     for the given activation tensor, which is read directly in row-major
-    layout. The K-dimension is blocked according to a heuristic based on the
-    input size.
+    layout. The blocking of the K-dimension is autotuned.
 
     Intermediate buffers are cached and reused per thread. The output buffer
     is allocated by `torch.empty(...)`, unless the caller can guarantee (by
@@ -655,7 +687,6 @@ class SFCMatmulHelper:
         softmax_last_dim=False,
         trunc_output=True,
         c_is_owned=False,
-        blocking_factor_k=None,
     ) -> torch.Tensor:
         return sfc_matmul(
             a=a,
@@ -673,7 +704,6 @@ class SFCMatmulHelper:
             trunc_output=trunc_output,
             b_is_prepacked=True,
             c_is_owned=c_is_owned,
-            blocking_factor_k=blocking_factor_k or triton.next_power_of_2(max(1, a.shape[1] // 4096)),
             BLOCK_SIZE_M=self.BLOCK_SIZE_M,
             BLOCK_SIZE_N=self.BLOCK_SIZE_N,
             BLOCK_SIZE_K=self.BLOCK_SIZE_K,
