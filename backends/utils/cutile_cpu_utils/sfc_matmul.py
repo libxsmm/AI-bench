@@ -533,6 +533,7 @@ def prepare_sfc_matmul(
     blocking_factor_k=1,
     progs_per_thread=1,
     options=None,
+    _output=None,
 ) -> PreparedSFCMatmul:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
@@ -574,6 +575,8 @@ def prepare_sfc_matmul(
 
     if owned_c is not None:
         c = owned_c
+    elif _output is not None:
+        c = _output
     elif reduce_last_dim:
         c = torch.empty((M,), device=a.device, dtype=out_dtype)
     else:
@@ -724,6 +727,7 @@ def _make_autotuned_sfc_matmul(
         trunc_output=True,
         b_is_prepacked=False,
         c_is_owned=False,
+        _output=None,
         blocking_factor_k=1,
         progs_per_thread=1,
     ):
@@ -746,6 +750,7 @@ def _make_autotuned_sfc_matmul(
             blocking_factor_k=blocking_factor_k,
             progs_per_thread=progs_per_thread,
             options=options,
+            _output=_output,
         )
 
     return autotuned
@@ -794,6 +799,12 @@ def sfc_matmul(
         programs = (
             (progs_per_thread,) if progs_per_thread is not None else (1, 2, 4, 8, 16)
         )
+        # Candidates share one output, so tuning keeps a single result alive.
+        output = None
+        if not c_is_owned:
+            out_dtype = a.dtype if trunc_output else _get_accum_dtype(a.dtype)
+            shape = (a.shape[0],) if reduce_last_dim else (a.shape[0], b.shape[1])
+            output = torch.empty(shape, device=a.device, dtype=out_dtype)
         options_key = tuple(sorted(_compile_options(options).items()))
         autotuned = _make_autotuned_sfc_matmul(
             blocking_factors,
@@ -824,6 +835,7 @@ def sfc_matmul(
             trunc_output=trunc_output,
             b_is_prepacked=b_is_prepacked,
             c_is_owned=c_is_owned,
+            _output=output,
         )
 
     return prepare_sfc_matmul(

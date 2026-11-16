@@ -31,7 +31,7 @@ export AIBENCH_CPU_MIN_CACHE_NUKE_MIB=5000
 
 # Build a fresh clone of AI-bench
 cd $WORKDIR
-git clone --recurse-submodules --branch dsl-paper-eval https://github.com/libxsmm/AI-bench.git
+git clone --recurse-submodules --branch port-triton-tweaks https://github.com/libxsmm/AI-bench.git
 cd AI-bench
 uv sync --python 3.12 --extra cpu --extra triton-cpu --extra helion-mlir --extra cutile-cpu
 
