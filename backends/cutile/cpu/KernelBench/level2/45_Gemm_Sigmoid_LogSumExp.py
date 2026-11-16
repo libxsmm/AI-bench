@@ -11,10 +11,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _sigmoid(value):
     return value / (1.0 + ct.exp(-value))
 
@@ -65,7 +61,6 @@ class Model(nn.Module):
             trunc_output=True,
             b_is_prepacked=True,
             c_is_owned=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )
 
         return sfc_matmul(
@@ -76,5 +71,4 @@ class Model(nn.Module):
             reduction_block_op=_reduction_block,
             reduction_post_op=_reduction_post_op,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, res_mm1.shape[1] // 4096)),
         )

@@ -11,10 +11,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _make_reduction_block(kernel_size):
     kernel_size = int(kernel_size)
 
@@ -66,5 +62,4 @@ class Model(nn.Module):
             reduction_block_op=self._reduction_block,
             reduction_post_op=self._reduction_post_op,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )

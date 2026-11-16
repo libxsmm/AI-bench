@@ -12,10 +12,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _reduction_init(dtype, BLOCK_SIZE_M, **kwargs):
     return ct.full((BLOCK_SIZE_M,), float("-inf"), dtype=dtype)
 
@@ -68,5 +64,4 @@ class Model(nn.Module):
             reduction_block_op=self._reduction_block,
             reduction_combine_op=_reduction_combine,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )

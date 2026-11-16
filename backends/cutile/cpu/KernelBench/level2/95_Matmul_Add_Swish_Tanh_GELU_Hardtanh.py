@@ -14,10 +14,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _epilogue(value, block_n, post_op_arg_ptr, **kwargs):
     add_value = ct.load(
         post_op_arg_ptr,
@@ -58,5 +54,4 @@ class Model(nn.Module):
             post_op=_epilogue,
             post_op_arg=self._add_value,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )

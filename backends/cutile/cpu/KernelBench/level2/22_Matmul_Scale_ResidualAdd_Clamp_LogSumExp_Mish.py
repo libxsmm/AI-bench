@@ -12,10 +12,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _make_matmul_epilogue(scale_factor, clamp_min, clamp_max):
     scale = float(scale_factor) * 2.0
     clamp_min = float(clamp_min)
@@ -67,5 +63,4 @@ class Model(nn.Module):
             reduction_post_op=_reduction_post_op,
             keep_dim=True,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )
