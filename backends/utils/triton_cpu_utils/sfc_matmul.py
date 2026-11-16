@@ -572,7 +572,7 @@ def sfc_matmul(
         K,
         BLOCK_SIZE_M=BLOCK_SIZE_M,
         BLOCK_SIZE_N=BLOCK_SIZE_N,
-        BLOCK_SIZE_K=BLOCK_SIZE_K, 
+        BLOCK_SIZE_K=BLOCK_SIZE_K,
         B_IS_PREPACKED=b_is_prepacked,
         ACCUM_DTYPE=_torch_to_triton_dtype(accum_dtype),
         OUT_DTYPE=_torch_to_triton_dtype(out_dtype),
