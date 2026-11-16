@@ -688,7 +688,7 @@ def _autotune_configs(blocking_factors, programs_per_thread):
         )
         for blocking_factor in blocking_factors
         for programs in programs_per_thread
-        if blocking_factor != 1 or programs == 1
+        if blocking_factor != 1 or programs == 1 or 1 not in programs_per_thread
     ]
 
 
