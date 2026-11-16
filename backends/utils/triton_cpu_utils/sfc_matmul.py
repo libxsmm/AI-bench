@@ -248,7 +248,23 @@ def _autotuned_kernel():
             for f in candidates
             for n in candidates
         ],
-        key=["M", "N", "K", "BLOCK_SIZE_M", "BLOCK_SIZE_N", "BLOCK_SIZE_K"],
+        key=[
+            "M",
+            "N",
+            "K",
+            "BLOCK_SIZE_M",
+            "BLOCK_SIZE_N",
+            "BLOCK_SIZE_K",
+            "B_IS_PREPACKED",
+            "ACCUM_DTYPE",
+            "OUT_DTYPE",
+            "HAS_BIAS",
+            "POST_OP",
+            "POST_OP_HAS_ARG",
+            "REDUCE_LAST_DIM",
+            "REDUCTION_BLOCK_OP",
+            "SOFTMAX_LAST_DIM",
+        ],
         prune_configs_by={"early_config_prune": _prune_autotune_configs},
     )(_sfc_matmul_kernel)
 
