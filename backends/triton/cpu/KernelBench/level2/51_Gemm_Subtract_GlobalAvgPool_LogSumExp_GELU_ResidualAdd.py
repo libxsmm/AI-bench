@@ -8,6 +8,7 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
+from shared_cpu_utils import output_pool
 from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import gelu
 
@@ -79,12 +80,11 @@ class Model(nn.Module):
             reduction_post_op=_red_epi,
             keep_dim=True,
             trunc_output=False,
-            c_is_owned=True,
         )
 
         # The logsumexp after the first reduction is a no-op, so we fuse the gelu right away.
 
-        res = torch.empty_like(x)
+        res = output_pool.empty(x.shape, dtype=x.dtype, device=x.device)
         BLOCK_SIZE_K = 256
         assert x.shape[1] % BLOCK_SIZE_K == 0, "K must be divisible by BLOCK_SIZE_K"
         _residual_add[(x.shape[0],)](

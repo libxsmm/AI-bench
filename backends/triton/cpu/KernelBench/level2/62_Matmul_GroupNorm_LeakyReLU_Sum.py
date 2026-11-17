@@ -41,7 +41,6 @@ class Model(nn.Module):
         res_mm = self._matmul_helper(
             x,
             trunc_output=False,
-            c_is_owned=True,
         )
 
         return groupnorm(

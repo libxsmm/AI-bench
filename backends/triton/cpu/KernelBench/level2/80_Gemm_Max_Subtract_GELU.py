@@ -3,11 +3,11 @@
 # Expectation: Correctness-first, performance not representative
 
 
-import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
 
+from shared_cpu_utils import output_pool
 from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import gelu
 from triton_cpu_utils import reduce_first_dim
@@ -76,7 +76,6 @@ class Model(nn.Module):
             res_mm = self._matmul_helper(
                 x,
                 trunc_output=False,
-                c_is_owned=True,
             )
 
             res_max = reduce_first_dim(
@@ -91,7 +90,7 @@ class Model(nn.Module):
             assert M == 1 and N % BLOCK_SIZE_N == 0, (
                 "N must be divisible by BLOCK_SIZE_N"
             )
-            out = torch.empty((1, N), dtype=x.dtype)
+            out = output_pool.empty((1, N), dtype=x.dtype)
             _kernel_first_dim[(1,)](
                 res_max,
                 out,
