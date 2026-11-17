@@ -183,7 +183,7 @@ def _takes(count: int, dtype: torch.dtype) -> bool:
     # Deterministic mode fills empty tensors: left to torch.
     return (
         dtype in _DTYPES
-        and MIN_BYTES <= dtype.itemsize * count <= _max_bytes
+        and MIN_BYTES <= dtype.itemsize * count <= _max_bytes // _HUGE_PAGE * _HUGE_PAGE
         and not (
             torch.are_deterministic_algorithms_enabled()
             and torch.utils.deterministic.fill_uninitialized_memory
