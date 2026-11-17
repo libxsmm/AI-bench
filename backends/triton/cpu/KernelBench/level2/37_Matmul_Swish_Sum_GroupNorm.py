@@ -8,6 +8,7 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
+from shared_cpu_utils import output_pool
 from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import pack_weights_for_sfc_matmul
 from triton_cpu_utils.sfc_matmul import _make_sfc_tensor
@@ -145,7 +146,7 @@ class Model(nn.Module):
             self._cache = (key, packed, params)
 
         x = x.contiguous()
-        out = torch.empty((M, N), dtype=x.dtype, device=x.device)
+        out = output_pool.empty((M, N), dtype=x.dtype, device=x.device)
         blocks_m = M // BLOCK_SIZE_M
         sfc_map = _make_sfc_tensor(blocks_m, self.num_groups)
         _fused_groupnorm_kernel[(blocks_m * self.num_groups,)](

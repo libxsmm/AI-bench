@@ -8,6 +8,7 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
+from shared_cpu_utils import output_pool
 from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import groupnorm
 from triton_cpu_utils import reduce_last_dim
@@ -73,7 +74,6 @@ class Model(nn.Module):
         res_mm = self._matmul_helper(
             x,
             trunc_output=False,
-            c_is_owned=True,
         )
 
         res_gn = groupnorm(
@@ -93,7 +93,7 @@ class Model(nn.Module):
         )
 
         res_shape = torch.broadcast_shapes(res_red.shape, self._bias_extra.shape)
-        res = torch.empty(res_shape, dtype=x.dtype, device=x.device)
+        res = output_pool.empty(res_shape, dtype=x.dtype, device=x.device)
         n_bias_elements = torch.prod(
             torch.tensor(self._bias_extra.shape[:-2], dtype=torch.int32)
         ).item()

@@ -1,6 +1,7 @@
-import torch
 import triton
 import triton.language as tl
+
+from shared_cpu_utils import output_pool
 
 
 @triton.jit
@@ -95,7 +96,7 @@ def reduce_last_dim(
     assert inp.ndim == 2, "Input tensor must be 2D"
     M, N = inp.shape
     out_shape = (M, 1) if keep_dim else (M,)
-    out = torch.empty(out_shape, dtype=out_dtype, device=inp.device)
+    out = output_pool.empty(out_shape, dtype=out_dtype, device=inp.device)
     BLOCK_SIZE_N = 256  # AVX-512 optimized block size
     assert N % BLOCK_SIZE_N == 0, "N must be divisible by BLOCK_SIZE_N"
     _reduce_last_dim_kernel[(M,)](
@@ -118,7 +119,7 @@ def reduce_first_dim(
     assert inp.ndim == 2, "Input tensor must be 2D"
     M, N = inp.shape
     out_shape = (1, N) if keep_dim else (N,)
-    out = torch.empty(out_shape, dtype=out_dtype, device=inp.device)
+    out = output_pool.empty(out_shape, dtype=out_dtype, device=inp.device)
     BLOCK_SIZE_N = 256  # AVX-512 optimized block size
     assert N % BLOCK_SIZE_N == 0, "N must be divisible by BLOCK_SIZE_N"
     _reduce_first_dim_kernel[(N // BLOCK_SIZE_N,)](
@@ -178,7 +179,7 @@ def softmax(inp, out_dtype, try_inplace=False):
     if try_inplace and inp.dtype == out_dtype:
         out = inp
     else:
-        out = torch.empty_like(inp, dtype=out_dtype)
+        out = output_pool.empty((M, N), dtype=out_dtype, device=inp.device)
     _softmax_kernel[(M,)](
         inp,
         out,
@@ -295,7 +296,7 @@ def groupnorm(
     if try_inplace and inp.dtype == out_dtype:
         out = inp
     else:
-        out = torch.empty_like(inp, dtype=out_dtype)
+        out = output_pool.empty((N, C), dtype=out_dtype, device=inp.device)
     _affine_groupnorm_2d_kernel[(N * num_groups,)](
         inp,
         out,

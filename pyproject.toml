@@ -72,6 +72,7 @@ mlir = [
 triton-cpu = [
   "triton; python_version == '3.12' and sys_platform == 'linux' and platform_machine == 'x86_64'",
   "triton-cpu-utils", # Local kernel helper package (see: backends/utils).
+  "shared-cpu-utils", # Shared allocation helper package (see: backends/utils).
   # Extra build dependencies from triton-cpu requirements.txt.
   "setuptools>=40.8.0",
   "wheel",
@@ -83,6 +84,7 @@ triton-cpu = [
 cutile-cpu = [
   "cuda-tile; python_version >= '3.12' and python_version < '3.16' and sys_platform == 'linux' and platform_machine == 'x86_64'",
   "cutile-cpu-utils", # Local kernel helper package (see: backends/utils).
+  "shared-cpu-utils", # Shared allocation helper package (see: backends/utils).
 ]
 helion-mlir = [
   "helion-mlir-backend",
@@ -155,6 +157,7 @@ helion-mlir-backend = { git = "https://github.com/libxsmm/helion-mlir-backend", 
 triton-cpu-utils = { path = "backends/utils/triton_cpu_utils", editable = true }
 helion-mlir-cpu-utils = { path = "backends/utils/helion_mlir_cpu_utils", editable = true }
 cutile-cpu-utils = { path = "backends/utils/cutile_cpu_utils", editable = true }
+shared-cpu-utils = { path = "backends/utils/shared_cpu_utils", editable = true }
 torch-mlir = [{ index = "lh_torch_mlir", extra = "mlir" }]
 
 [[tool.uv.index]]
@@ -237,7 +240,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-local-folder = ["ai_bench"]
-known-first-party = ["triton_cpu_utils", "helion_mlir_cpu_utils"]
+known-first-party = ["triton_cpu_utils", "helion_mlir_cpu_utils", "shared_cpu_utils"]
 known-third-party = [
   "torch", "triton", "helion",
   "mlir", "lighthouse", "torch_mlir",
