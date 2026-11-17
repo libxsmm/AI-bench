@@ -11,10 +11,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 class Model(nn.Module):
     def __init__(self, in_features, out_features):
         super().__init__()
@@ -39,5 +35,4 @@ class Model(nn.Module):
             reduce_last_dim=True,
             keep_dim=True,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )

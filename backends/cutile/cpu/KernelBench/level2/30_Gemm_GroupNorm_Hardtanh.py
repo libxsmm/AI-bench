@@ -12,10 +12,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _make_norm_epilogue(hardtanh_min, hardtanh_max):
     hardtanh_min = float(hardtanh_min)
     hardtanh_max = float(hardtanh_max)
@@ -56,7 +52,6 @@ class Model(nn.Module):
             trunc_output=False,
             b_is_prepacked=True,
             c_is_owned=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )
 
         return groupnorm(
