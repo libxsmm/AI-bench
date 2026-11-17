@@ -7,6 +7,8 @@ from cutile_cpu_utils.sfc_matmul import _make_sfc_tensor
 import torch
 import torch.nn as nn
 
+from shared_cpu_utils import output_pool
+
 ct.set_backend("cpu")
 
 _BLOCK_M = 32
@@ -121,7 +123,7 @@ class Model(nn.Module):
             self._cache = (key, packed, params)
 
         x = x.contiguous()
-        out = torch.empty(
+        out = output_pool.empty(
             (x.shape[0], self.matmul.out_features), dtype=x.dtype, device=x.device
         )
         blocks_m = x.shape[0] // _BLOCK_M

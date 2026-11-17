@@ -10,6 +10,8 @@ from cutile_cpu_utils import sfc_matmul
 import torch
 import torch.nn as nn
 
+from shared_cpu_utils import output_pool
+
 ct.set_backend("cpu")
 ConstInt = ct.Constant[int]
 
@@ -87,10 +89,9 @@ class Model(nn.Module):
             keep_dim=True,
             trunc_output=False,
             b_is_prepacked=True,
-            c_is_owned=True,
         )
 
-        output = torch.empty_like(x)
+        output = output_pool.empty(x.shape, dtype=x.dtype, device=x.device)
         assert x.shape[1] % 256 == 0, "K must be divisible by BLOCK_SIZE_K"
         with ct.backend_options({"assume_in_bounds": True}):
             ct.launch(
