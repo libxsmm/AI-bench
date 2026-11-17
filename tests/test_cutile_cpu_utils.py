@@ -452,11 +452,18 @@ def test_pooled_models_match_reference(stem, model_args, atol):
     model = cutile_module.Model(*model_args).eval()
     assert copy_model_weights(reference, model)
     inputs = torch.randn(256, 512, dtype=torch.bfloat16)
-    with torch.no_grad():
+    with (
+        patch("shared_cpu_utils.output_pool.MIN_BYTES", 1),
+        patch("shared_cpu_utils.output_pool._max_bytes", 4 * 1024 * 1024),
+        torch.no_grad(),
+    ):
         expected = reference(inputs)
         actual = model(inputs)
+        # Pool storage comes from torch.frombuffer and cannot be resized.
+        assert not actual.untyped_storage().resizable()
         snapshot = actual.clone()
-        model(-inputs)
+        following = model(-inputs)
+        assert not following.untyped_storage().resizable()
     assert actual.shape == expected.shape
     assert actual.dtype == expected.dtype
     torch.testing.assert_close(actual, expected, rtol=0.02, atol=atol)
