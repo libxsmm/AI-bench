@@ -48,7 +48,6 @@ class Model(nn.Module):
             x,
             post_op=_mm1_epi,
             trunc_output=True,
-            c_is_owned=True,
         )
 
         return self._matmul_helper2(

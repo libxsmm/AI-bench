@@ -58,7 +58,6 @@ class Model(nn.Module):
             post_op=_epilogue,
             post_op_arg=self._bias_extra,
             trunc_output=False,
-            c_is_owned=True,
         )
 
         return groupnorm(
