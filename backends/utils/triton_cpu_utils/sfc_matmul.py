@@ -2,6 +2,8 @@ import torch
 import triton
 import triton.language as tl
 
+from shared_cpu_utils import output_pool
+
 from .gilbert_d2xy import gilbert_d2xy
 from .thread_lru_cache import thread_lru_cache
 
@@ -455,51 +457,6 @@ def _make_sfc_tensor(x, y, dtype=torch.int32, device="cpu"):
     return torch.tensor([c for xy in gilbert for c in xy], dtype=dtype, device=device)
 
 
-@thread_lru_cache()
-def _make_intermediate_buffers(
-    M,
-    N,
-    BLOCK_SIZE_N,
-    accum_dtype,
-    out_dtype,
-    reduce_last_dim,
-    softmax_last_dim,
-    c_is_owned,
-):
-    BLOCKS_N = N // BLOCK_SIZE_N
-    OUT_N = 1 if reduce_last_dim else N
-
-    ctmp_size = M * N * accum_dtype.itemsize
-    cred_size = (
-        M * BLOCKS_N * accum_dtype.itemsize
-        if reduce_last_dim
-        else 2 * M * BLOCKS_N * accum_dtype.itemsize
-        if softmax_last_dim
-        else 0
-    )
-    c_size = M * OUT_N * out_dtype.itemsize if c_is_owned else 0
-
-    buf = torch.empty(ctmp_size + cred_size + c_size, dtype=torch.uint8)
-    ctmp = buf[:ctmp_size].view(accum_dtype).reshape((M, N))
-    cred = (
-        buf[ctmp_size : ctmp_size + cred_size]
-        .view(accum_dtype)
-        .reshape((BLOCKS_N, M))  # Transpose intentional
-        if reduce_last_dim
-        else buf[ctmp_size : ctmp_size + cred_size]
-        .view(accum_dtype)
-        .reshape((BLOCKS_N, 2 * M))  # Transpose intentional
-        if softmax_last_dim
-        else None
-    )
-    c = (
-        buf[ctmp_size + cred_size :].view(out_dtype).reshape((M, OUT_N))
-        if c_is_owned
-        else None
-    )
-    return ctmp, cred, c
-
-
 def sfc_matmul(
     a: torch.Tensor,
     b: torch.Tensor,
@@ -515,7 +472,6 @@ def sfc_matmul(
     softmax_last_dim=False,
     trunc_output=True,
     b_is_prepacked=False,
-    c_is_owned=False,
     BLOCK_SIZE_M=32,
     BLOCK_SIZE_N=32,
     BLOCK_SIZE_K=32,
@@ -548,23 +504,21 @@ def sfc_matmul(
     accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
 
-    ctmp, cred, c = _make_intermediate_buffers(
-        M,
-        N,
-        BLOCK_SIZE_N,
-        accum_dtype,
-        out_dtype,
-        reduce_last_dim,
-        softmax_last_dim,
-        c_is_owned,
-    )
-    if not c_is_owned:
-        if not reduce_last_dim:
-            c = torch.empty((M, N), device=a.device, dtype=out_dtype)
-        elif keep_dim:
-            c = torch.empty((M, 1), device=a.device, dtype=out_dtype)
-        else:
-            c = torch.empty((M,), device=a.device, dtype=out_dtype)
+    ctmp = output_pool.empty((M, N), device=a.device, dtype=accum_dtype)
+    cred = None
+    if reduce_last_dim or softmax_last_dim:
+        # Transposed: per block of N, a value per row (softmax: two)
+        cred = output_pool.empty(
+            (BLOCKS_N, 2 * M if softmax_last_dim else M),
+            device=a.device,
+            dtype=accum_dtype,
+        )
+    if not reduce_last_dim:
+        c = output_pool.empty((M, N), device=a.device, dtype=out_dtype)
+    elif keep_dim:
+        c = output_pool.empty((M, 1), device=a.device, dtype=out_dtype)
+    else:
+        c = output_pool.empty((M,), device=a.device, dtype=out_dtype)
 
     num_threads = torch.get_num_threads()
 
@@ -648,11 +602,9 @@ class SFCMatmulHelper:
     for the given activation tensor, which is read directly in row-major
     layout. The blocking of the K-dimension is autotuned.
 
-    Intermediate buffers are cached and reused per thread. The output buffer
-    is allocated by `torch.empty(...)`, unless the caller can guarantee (by
-    passing `c_is_owned=True`) that the result is consumed before the next
-    activation tensor is processed. The output is truncated to the input
-    datatype unless `trunc_output` is set to False.
+    Intermediate and output buffers come from the shared output pool, which
+    reuses them across calls. The output is truncated to the input datatype
+    unless `trunc_output` is set to False.
     """
 
     # TODO: Document hooks for epilogue (elementwise, reduction, softmax).
@@ -702,7 +654,6 @@ class SFCMatmulHelper:
         keep_dim=False,
         softmax_last_dim=False,
         trunc_output=True,
-        c_is_owned=False,
     ) -> torch.Tensor:
         return sfc_matmul(
             a=a,
@@ -719,7 +670,6 @@ class SFCMatmulHelper:
             softmax_last_dim=softmax_last_dim,
             trunc_output=trunc_output,
             b_is_prepacked=True,
-            c_is_owned=c_is_owned,
             BLOCK_SIZE_M=self.BLOCK_SIZE_M,
             BLOCK_SIZE_N=self.BLOCK_SIZE_N,
             BLOCK_SIZE_K=self.BLOCK_SIZE_K,
