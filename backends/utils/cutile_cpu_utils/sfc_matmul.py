@@ -1,14 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) <2026> Intel Corporation.
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import replace
+import ctypes
 import functools
 import threading
 
 import cuda.tile as ct
-from cuda.tile._backends._signature import build_signature
-from cuda.tile.compilation import ArrayConstraint
-from cuda.tile.compilation import KernelSignature
 import torch
 
 from .gilbert_d2xy import gilbert_d2xy
@@ -67,103 +64,33 @@ def _compile_options(options):
     return effective
 
 
-def _specialize_packed_argument(parameters, argument_index, array, strides):
-    if array.ndim != len(strides) or tuple(array.stride())[1:] != strides[1:]:
-        return False
-
-    constraint = parameters[argument_index]
-    assert isinstance(constraint, ArrayConstraint)
-    parameters[argument_index] = replace(constraint, stride_constant=strides)
-    return True
-
-
-def _build_matmul_signature(kernel, kernel_args):
-    signature = build_signature(kernel, kernel_args)
-    vnni = kernel_args[12]
-    parameters = list(signature.parameters)
-
-    changed = _specialize_packed_argument(
-        parameters,
-        0,
-        kernel_args[0],
-        (None, _BLOCK_SIZE_K * _BLOCK_SIZE_N, _BLOCK_SIZE_K, 1),
-    )
-    changed |= _specialize_packed_argument(
-        parameters,
-        1,
-        kernel_args[1],
-        (
-            None,
-            _BLOCK_SIZE_K * _BLOCK_SIZE_N,
-            _BLOCK_SIZE_N * vnni,
-            vnni,
-            1,
-        ),
-    )
-    if not changed:
-        return signature
-
-    signature = KernelSignature(parameters, signature.calling_convention)
-    return signature.with_mangled_symbol(kernel._annotated_function.pyfunc.__name__)
-
-
 @ct.kernel
-def _block_pack_kernel(
-    A,
-    APacked,
-    ASfcMap,
+def _block_pack_b_kernel(
     B,
     BPacked,
     BSfcMap,
-    M,
-    N,
-    K,
     VNNI: ConstInt,
-    B_IS_PREPACKED: ConstBool,
 ):
     program_id = ct.bid(0)
-    blocks_m = M // _BLOCK_SIZE_M
-    blocks_n = N // _BLOCK_SIZE_N
-    blocks_k = K // _BLOCK_SIZE_K
-
-    if program_id < blocks_m * blocks_k:
-        coordinates = ct.load(ASfcMap, index=(program_id, 0), shape=(1, 2))
-        block_m = ct.extract(coordinates, index=(0, 0), shape=()).item()
-        block_k = ct.extract(coordinates, index=(0, 1), shape=()).item()
-        a = ct.load(
-            A,
-            index=(block_m, block_k),
-            shape=(_BLOCK_SIZE_M, _BLOCK_SIZE_K),
-        )
-        ct.store(
-            APacked,
-            index=(block_m, block_k, 0, 0),
-            tile=ct.reshape(a, (1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_K)),
-        )
-
-    if B_IS_PREPACKED:
-        return
-
-    if program_id < blocks_k * blocks_n:
-        coordinates = ct.load(BSfcMap, index=(program_id, 0), shape=(1, 2))
-        block_k = ct.extract(coordinates, index=(0, 0), shape=()).item()
-        block_n = ct.extract(coordinates, index=(0, 1), shape=()).item()
-        b = ct.load(
-            B,
-            index=(block_k, block_n),
-            shape=(_BLOCK_SIZE_K, _BLOCK_SIZE_N),
-        )
-        b = ct.reshape(
-            ct.permute(
-                ct.reshape(
-                    b,
-                    (_BLOCK_SIZE_K // VNNI, VNNI, _BLOCK_SIZE_N),
-                ),
-                (0, 2, 1),
+    coordinates = ct.load(BSfcMap, index=(program_id, 0), shape=(1, 2))
+    block_k = ct.extract(coordinates, index=(0, 0), shape=()).item()
+    block_n = ct.extract(coordinates, index=(0, 1), shape=()).item()
+    b = ct.load(
+        B,
+        index=(block_k, block_n),
+        shape=(_BLOCK_SIZE_K, _BLOCK_SIZE_N),
+    )
+    b = ct.reshape(
+        ct.permute(
+            ct.reshape(
+                b,
+                (_BLOCK_SIZE_K // VNNI, VNNI, _BLOCK_SIZE_N),
             ),
-            (1, 1, _BLOCK_SIZE_K // VNNI, _BLOCK_SIZE_N, VNNI),
-        )
-        ct.store(BPacked, index=(block_n, block_k, 0, 0, 0), tile=b)
+            (0, 2, 1),
+        ),
+        (1, 1, _BLOCK_SIZE_K // VNNI, _BLOCK_SIZE_N, VNNI),
+    )
+    ct.store(BPacked, index=(block_n, block_k, 0, 0, 0), tile=b)
 
 
 @_thread_lru_cache()
@@ -184,8 +111,6 @@ def _make_intermediate_buffers(
     blocks_n = N // BLOCK_SIZE_N
     blocks_k = K // _BLOCK_SIZE_K
     vnni = 32 // (in_dtype.itemsize * 8)
-    a_shape = (blocks_m, blocks_k, _BLOCK_SIZE_M, _BLOCK_SIZE_K)
-    a_size = M * K * in_dtype.itemsize
     b_size = 0 if b_is_prepacked else K * N * in_dtype.itemsize
     ctmp_size = M * N * accum_dtype.itemsize
     if reduce_last_dim:
@@ -195,37 +120,34 @@ def _make_intermediate_buffers(
     else:
         cred_size = 0
     c_size = M * (1 if reduce_last_dim else N) * out_dtype.itemsize if c_is_owned else 0
-    packed = torch.empty(
-        a_size + b_size + ctmp_size + cred_size + c_size, dtype=torch.uint8
-    )
-    ap = packed[:a_size].view(in_dtype).view(a_shape)
+    packed = torch.empty(b_size + ctmp_size + cred_size + c_size, dtype=torch.uint8)
     bp = (
-        packed[a_size : a_size + b_size]
+        packed[:b_size]
         .view(in_dtype)
         .view(blocks_n, blocks_k, _BLOCK_SIZE_K // vnni, BLOCK_SIZE_N, vnni)
         if not b_is_prepacked
         else None
     )
     ctmp = (
-        packed[a_size + b_size : a_size + b_size + ctmp_size]
+        packed[b_size : b_size + ctmp_size]
         .view(accum_dtype)
         .view(blocks_m, blocks_n, _BLOCK_SIZE_M, BLOCK_SIZE_N)
     )
     cred = (
-        packed[a_size + b_size + ctmp_size : a_size + b_size + ctmp_size + cred_size]
+        packed[b_size + ctmp_size : b_size + ctmp_size + cred_size]
         .view(accum_dtype)
         .view(blocks_n, 2 * M if softmax_last_dim else M)
         if cred_size
         else ctmp
     )
     c = (
-        packed[a_size + b_size + ctmp_size + cred_size :]
+        packed[b_size + ctmp_size + cred_size :]
         .view(out_dtype)
         .view(M, 1 if reduce_last_dim else N)
         if c_is_owned
         else None
     )
-    return ap, bp, ctmp, cred, c
+    return bp, ctmp, cred, c
 
 
 def _no_post_op(value, **kwargs):
@@ -259,120 +181,224 @@ def _make_matmul_kernel(post_op, reduction_block_op):
         M,
         N,
         K,
-        ik,
         VNNI: ConstInt,
         BLOCKING_FACTOR_K: ConstInt,
-        IS_FIRST_K_BLOCK: ConstBool,
-        IS_LAST_K_BLOCK: ConstBool,
         HAS_BIAS: ConstBool,
         POST_OP_HAS_ARG: ConstBool,
         REDUCE_LAST_DIM: ConstBool,
         SOFTMAX_LAST_DIM: ConstBool,
     ):
-        coordinates = ct.load(SfcMap, index=(ct.bid(0), 0), shape=(1, 2))
-        block_m = ct.extract(coordinates, index=(0, 0), shape=()).item()
-        block_n = ct.extract(coordinates, index=(0, 1), shape=()).item()
+        program = ct.bid(0)
+        programs = ct.num_blocks(0)
+        blocks_m = M // _BLOCK_SIZE_M
+        blocks_n = N // _BLOCK_SIZE_N
         blocks_k = K // _BLOCK_SIZE_K
-        blocks_k_per_program = ct.cdiv(blocks_k, BLOCKING_FACTOR_K)
-        first_block_k = ik * blocks_k_per_program
-        last_block_k = min(first_block_k + blocks_k_per_program, blocks_k)
+        blocks_k_per_pass = ct.cdiv(blocks_k, BLOCKING_FACTOR_K)
+        tile_count = blocks_m * blocks_n
+        tiles_per_program = tile_count // programs
+        remainder = tile_count % programs
+        tile_begin = program * tiles_per_program + min(program, remainder)
+        tile_end = (program + 1) * tiles_per_program + min(program + 1, remainder)
+        phases = 3 if BLOCKING_FACTOR_K > 3 else BLOCKING_FACTOR_K
         accum_dtype = ct.int32 if A.dtype == ct.int8 else ct.float32
-        accumulator = ct.full((_BLOCK_SIZE_M, _BLOCK_SIZE_N), 0, dtype=accum_dtype)
 
-        for block_k in range(first_block_k, last_block_k):
-            a = ct.load(
-                A,
-                index=(block_m, block_k, 0, 0),
-                shape=(1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_K),
-            )
-            a = ct.reshape(a, (_BLOCK_SIZE_M, _BLOCK_SIZE_K))
-            b = ct.load(
-                B,
-                index=(block_n, block_k, 0, 0, 0),
-                shape=(
-                    1,
-                    1,
-                    _BLOCK_SIZE_K // VNNI,
-                    _BLOCK_SIZE_N,
-                    VNNI,
-                ),
-            )
-            b = ct.reshape(
-                ct.permute(b, (0, 1, 2, 4, 3)),
-                (_BLOCK_SIZE_K, _BLOCK_SIZE_N),
-            )
-            accumulator = ct.mma(a, b, accumulator)
+        for phase in ct.static_iter(range(phases)):
+            if phase == 0:
+                pass_begin = 0
+                pass_end = 1
+            elif phase == phases - 1:
+                pass_begin = BLOCKING_FACTOR_K - 1
+                pass_end = BLOCKING_FACTOR_K
+            else:
+                pass_begin = 1
+                pass_end = BLOCKING_FACTOR_K - 1
 
-        if not IS_FIRST_K_BLOCK:
-            previous = ct.load(
-                Ctmp,
-                index=(block_m, block_n, 0, 0),
-                shape=(1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_N),
-            )
-            accumulator += ct.reshape(previous, (_BLOCK_SIZE_M, _BLOCK_SIZE_N))
+            for k_pass in range(pass_begin, pass_end):
+                first_block_k = k_pass * blocks_k_per_pass
+                last_block_k = min(first_block_k + blocks_k_per_pass, blocks_k)
 
-        if not IS_LAST_K_BLOCK:
-            ct.store(
-                Ctmp,
-                index=(block_m, block_n, 0, 0),
-                tile=ct.reshape(accumulator, (1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_N)),
-            )
-            return
+                for tile in range(tile_begin, tile_end):
+                    coordinates = ct.load(SfcMap, index=(tile, 0), shape=(1, 2))
+                    block_m = ct.extract(coordinates, index=(0, 0), shape=()).item()
+                    block_n = ct.extract(coordinates, index=(0, 1), shape=()).item()
 
-        if HAS_BIAS:
-            bias = ct.load(Bias, index=(block_n,), shape=(_BLOCK_SIZE_N,)).astype(
-                accum_dtype
-            )
-            accumulator += bias[None, :]
+                    if phase == 0:
+                        accumulator = ct.full(
+                            (_BLOCK_SIZE_M, _BLOCK_SIZE_N), 0, dtype=accum_dtype
+                        )
+                    else:
+                        previous = ct.load(
+                            Ctmp,
+                            index=(block_m, block_n, 0, 0),
+                            shape=(1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_N),
+                        )
+                        accumulator = ct.reshape(
+                            previous, (_BLOCK_SIZE_M, _BLOCK_SIZE_N)
+                        )
 
-        if POST_OP_HAS_ARG:
-            accumulator = post_op(
-                accumulator,
-                block_m=block_m,
-                block_n=block_n,
-                post_op_arg_ptr=PostOpArg,
-                M=M,
-                N=N,
-                BLOCK_SIZE_M=_BLOCK_SIZE_M,
-                BLOCK_SIZE_N=_BLOCK_SIZE_N,
-            )
-        else:
-            accumulator = post_op(accumulator)
+                    for block_k in range(first_block_k, last_block_k):
+                        a = ct.load(
+                            A,
+                            index=(block_m, block_k, 0, 0),
+                            shape=(1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_K),
+                        )
+                        a = ct.reshape(a, (_BLOCK_SIZE_M, _BLOCK_SIZE_K))
+                        b = ct.load(
+                            B,
+                            index=(block_n, block_k, 0, 0, 0),
+                            shape=(
+                                1,
+                                1,
+                                _BLOCK_SIZE_K // VNNI,
+                                _BLOCK_SIZE_N,
+                                VNNI,
+                            ),
+                        )
+                        b = ct.reshape(
+                            ct.permute(b, (0, 1, 2, 4, 3)),
+                            (_BLOCK_SIZE_K, _BLOCK_SIZE_N),
+                        )
+                        accumulator = ct.mma(a, b, accumulator)
 
-        if REDUCE_LAST_DIM:
-            reduced = reduction_block_op(
-                accumulator,
-                BLOCK_SIZE_M=_BLOCK_SIZE_M,
-                BLOCK_SIZE_N=_BLOCK_SIZE_N,
-            )
-            ct.store(
-                Cred,
-                index=(block_n, block_m),
-                tile=ct.reshape(reduced, (1, _BLOCK_SIZE_M)),
-            )
-            return
+                    if phase < phases - 1:
+                        ct.store(
+                            Ctmp,
+                            index=(block_m, block_n, 0, 0),
+                            tile=ct.reshape(
+                                accumulator,
+                                (1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_N),
+                            ),
+                        )
+                    else:
+                        if HAS_BIAS:
+                            bias = ct.load(
+                                Bias, index=(block_n,), shape=(_BLOCK_SIZE_N,)
+                            ).astype(accum_dtype)
+                            accumulator += bias[None, :]
 
-        if SOFTMAX_LAST_DIM:
-            ct.store(
-                Ctmp,
-                index=(block_m, block_n, 0, 0),
-                tile=ct.reshape(accumulator, (1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_N)),
-            )
-            block_max = ct.max(accumulator, axis=1, keepdims=True)
-            block_sum = ct.sum(ct.exp(accumulator - block_max), axis=1, keepdims=True)
-            stats = ct.reshape(
-                ct.cat((block_max, block_sum), axis=1), (1, 2 * _BLOCK_SIZE_M)
-            )
-            ct.store(Cred, index=(block_n, block_m), tile=stats)
-            return
+                        if POST_OP_HAS_ARG:
+                            accumulator = post_op(
+                                accumulator,
+                                block_m=block_m,
+                                block_n=block_n,
+                                post_op_arg_ptr=PostOpArg,
+                                M=M,
+                                N=N,
+                                BLOCK_SIZE_M=_BLOCK_SIZE_M,
+                                BLOCK_SIZE_N=_BLOCK_SIZE_N,
+                            )
+                        else:
+                            accumulator = post_op(accumulator)
 
-        ct.store(
-            C,
-            index=(block_m, block_n),
-            tile=accumulator.astype(C.dtype),
-        )
+                        if REDUCE_LAST_DIM:
+                            reduced = reduction_block_op(
+                                accumulator,
+                                BLOCK_SIZE_M=_BLOCK_SIZE_M,
+                                BLOCK_SIZE_N=_BLOCK_SIZE_N,
+                            )
+                            ct.store(
+                                Cred,
+                                index=(block_n, block_m),
+                                tile=ct.reshape(reduced, (1, _BLOCK_SIZE_M)),
+                            )
+                        elif SOFTMAX_LAST_DIM:
+                            ct.store(
+                                Ctmp,
+                                index=(block_m, block_n, 0, 0),
+                                tile=ct.reshape(
+                                    accumulator,
+                                    (1, 1, _BLOCK_SIZE_M, _BLOCK_SIZE_N),
+                                ),
+                            )
+                            block_max = ct.max(accumulator, axis=1, keepdims=True)
+                            block_sum = ct.sum(
+                                ct.exp(accumulator - block_max),
+                                axis=1,
+                                keepdims=True,
+                            )
+                            stats = ct.reshape(
+                                ct.cat((block_max, block_sum), axis=1),
+                                (1, 2 * _BLOCK_SIZE_M),
+                            )
+                            ct.store(Cred, index=(block_n, block_m), tile=stats)
+                        else:
+                            ct.store(
+                                C,
+                                index=(block_m, block_n),
+                                tile=accumulator.astype(C.dtype),
+                            )
 
     return _sfc_matmul_kernel
+
+
+@functools.lru_cache(maxsize=1)
+def _openmp_libraries():
+    from cuda.tile._backends.cpu import _cpu
+
+    return ctypes.CDLL(_cpu.__file__), ctypes.CDLL(None)
+
+
+def _worker_count(options):
+    workers = (options or {}).get("num_cpu_threads", 0)
+    if workers > 0:
+        return workers
+    linked, global_runtime = (
+        library.omp_get_max_threads() for library in _openmp_libraries()
+    )
+    return linked if linked == global_runtime else None
+
+
+def _matmul_programs(tile_count, progs_per_thread, options):
+    workers = _worker_count(options)
+    if workers is None:
+        return tile_count
+    return min(tile_count, workers * progs_per_thread)
+
+
+def _overlaps(lhs, rhs):
+    if rhs is None:
+        return False
+    lhs_begin = lhs.data_ptr()
+    lhs_end = lhs_begin + lhs.numel() * lhs.element_size()
+    rhs_begin = rhs.data_ptr()
+    rhs_end = rhs_begin + rhs.numel() * rhs.element_size()
+    return lhs_begin < rhs_end and rhs_begin < lhs_end
+
+
+def _clone_overlapping_inputs(a, b, buffers):
+    if any(_overlaps(a, buffer) for buffer in buffers):
+        a = a.clone()
+    if any(_overlaps(b, buffer) for buffer in buffers):
+        b = b.clone()
+    return a, b
+
+
+def _snapshot_autotune_inputs(
+    a,
+    b,
+    reduce_last_dim,
+    softmax_last_dim,
+    trunc_output,
+    b_is_prepacked,
+):
+    M, K = a.shape
+    _, N = b.shape
+    accum_dtype = _get_accum_dtype(a.dtype)
+    out_dtype = a.dtype if trunc_output else accum_dtype
+    buffers = _make_intermediate_buffers(
+        M,
+        N,
+        K,
+        _BLOCK_SIZE_N,
+        a.dtype,
+        accum_dtype,
+        out_dtype,
+        reduce_last_dim,
+        softmax_last_dim,
+        b_is_prepacked,
+        True,
+    )
+    return _clone_overlapping_inputs(a, b, buffers)
 
 
 @functools.lru_cache()
@@ -505,11 +531,15 @@ def prepare_sfc_matmul(
     b_is_prepacked=False,
     c_is_owned=False,
     blocking_factor_k=1,
+    progs_per_thread=1,
     options=None,
-) -> torch.Tensor:
+    _output=None,
+) -> PreparedSFCMatmul:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
     assert a.dtype == b.dtype, f"dtype mismatch: {a.dtype} vs {b.dtype}"
+    assert a.is_contiguous(), "A must be contiguous"
+    assert b.is_contiguous(), "B must be contiguous"
     M, K = a.shape
     K2, N = b.shape
     assert K == K2, f"Incompatible K dimensions: {K} vs {K2}"
@@ -527,10 +557,9 @@ def prepare_sfc_matmul(
     blocks_k = K // _BLOCK_SIZE_K
     accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
-    sfc_map_mk = _make_sfc_tensor(blocks_m, blocks_k)
     sfc_map_kn = _make_sfc_tensor(blocks_k, blocks_n)
     sfc_map_mn = _make_sfc_tensor(blocks_m, blocks_n)
-    ap, bp, ctmp, cred, owned_c = _make_intermediate_buffers(
+    bp, ctmp, cred, owned_c = _make_intermediate_buffers(
         M,
         N,
         K,
@@ -546,10 +575,14 @@ def prepare_sfc_matmul(
 
     if owned_c is not None:
         c = owned_c
+    elif _output is not None:
+        c = _output
     elif reduce_last_dim:
         c = torch.empty((M,), device=a.device, dtype=out_dtype)
     else:
         c = torch.empty((M, N), device=a.device, dtype=out_dtype)
+
+    a, b = _clone_overlapping_inputs(a, b, (bp, ctmp, cred, owned_c))
 
     vnni = 32 // (b.element_size() * 8)
     kernel_b = (
@@ -565,61 +598,49 @@ def prepare_sfc_matmul(
 
     launches = []
     with ct.backend_options(_compile_options(options)):
-        pack_args = (
-            a,
-            ap,
-            sfc_map_mk,
-            b,
+        if not b_is_prepacked:
+            pack_args = (b, kernel_b, sfc_map_kn, vnni)
+            launches.append(
+                (
+                    (blocks_k * blocks_n, 1, 1),
+                    _block_pack_b_kernel,
+                    pack_args,
+                )
+            )
+
+        a_view = a.view(blocks_m, _BLOCK_SIZE_M, blocks_k, _BLOCK_SIZE_K).permute(
+            0, 2, 1, 3
+        )
+        kernel_args = (
+            a_view,
             kernel_b,
-            sfc_map_kn,
+            c,
+            ctmp,
+            cred,
+            bias if bias is not None else placeholder,
+            post_op_arg if post_op_arg is not None else placeholder,
+            sfc_map_mn,
             M,
             N,
             K,
             vnni,
-            b_is_prepacked,
-        )
-        pack_grid = max(
-            blocks_m * blocks_k,
-            0 if b_is_prepacked else blocks_k * blocks_n,
+            blocking_factor_k,
+            bias is not None,
+            post_op_arg is not None,
+            reduce_last_dim,
+            softmax_last_dim,
         )
         launches.append(
             (
-                (pack_grid, 1, 1),
-                _block_pack_kernel,
-                pack_args,
+                (
+                    _matmul_programs(blocks_m * blocks_n, progs_per_thread, options),
+                    1,
+                    1,
+                ),
+                matmul_kernel,
+                kernel_args,
             )
         )
-
-        for ik in range(blocking_factor_k):
-            kernel_args = (
-                ap,
-                kernel_b,
-                c,
-                ctmp,
-                cred,
-                bias if bias is not None else placeholder,
-                post_op_arg if post_op_arg is not None else placeholder,
-                sfc_map_mn,
-                M,
-                N,
-                K,
-                ik,
-                vnni,
-                blocking_factor_k,
-                ik == 0,
-                ik == blocking_factor_k - 1,
-                bias is not None,
-                post_op_arg is not None,
-                reduce_last_dim,
-                softmax_last_dim,
-            )
-            launches.append(
-                (
-                    (blocks_m * blocks_n, 1, 1),
-                    matmul_kernel,
-                    kernel_args,
-                )
-            )
 
         if reduce_last_dim:
             finish_block_size_m = 256 if M % 256 == 0 else _BLOCK_SIZE_M
@@ -660,6 +681,81 @@ def prepare_sfc_matmul(
     return PreparedSFCMatmul(launches, output, options)
 
 
+def _autotune_configs(blocking_factors, programs_per_thread):
+    return [
+        ct.tune.Config(
+            {
+                "blocking_factor_k": blocking_factor,
+                "progs_per_thread": programs,
+            }
+        )
+        for blocking_factor in blocking_factors
+        for programs in programs_per_thread
+        if blocking_factor != 1 or programs == 1 or 1 not in programs_per_thread
+    ]
+
+
+@_thread_lru_cache()
+def _make_autotuned_sfc_matmul(
+    blocking_factors, programs_per_thread, options_key, _specialization_key
+):
+    options = dict(options_key)
+
+    @ct.autotune(
+        configs=_autotune_configs(blocking_factors, programs_per_thread),
+        key=(
+            "reduce_last_dim",
+            "keep_dim",
+            "softmax_last_dim",
+            "trunc_output",
+            "c_is_owned",
+        ),
+    )
+    def autotuned(
+        a,
+        b,
+        bias=None,
+        post_op=None,
+        post_op_arg=None,
+        reduce_last_dim=False,
+        reduction_init_val=None,
+        reduction_block_op=None,
+        reduction_combine_op=None,
+        reduction_post_op=None,
+        keep_dim=False,
+        softmax_last_dim=False,
+        trunc_output=True,
+        b_is_prepacked=False,
+        c_is_owned=False,
+        _output=None,
+        blocking_factor_k=1,
+        progs_per_thread=1,
+    ):
+        return prepare_sfc_matmul(
+            a,
+            b,
+            bias=bias,
+            post_op=post_op,
+            post_op_arg=post_op_arg,
+            reduce_last_dim=reduce_last_dim,
+            reduction_init_val=reduction_init_val,
+            reduction_block_op=reduction_block_op,
+            reduction_combine_op=reduction_combine_op,
+            reduction_post_op=reduction_post_op,
+            keep_dim=keep_dim,
+            softmax_last_dim=softmax_last_dim,
+            trunc_output=trunc_output,
+            b_is_prepacked=b_is_prepacked,
+            c_is_owned=c_is_owned,
+            blocking_factor_k=blocking_factor_k,
+            progs_per_thread=progs_per_thread,
+            options=options,
+            _output=_output,
+        )
+
+    return autotuned
+
+
 def sfc_matmul(
     a: torch.Tensor,
     b: torch.Tensor,
@@ -676,9 +772,72 @@ def sfc_matmul(
     trunc_output=True,
     b_is_prepacked=False,
     c_is_owned=False,
-    blocking_factor_k=1,
+    blocking_factor_k=None,
+    progs_per_thread=None,
     options=None,
 ) -> torch.Tensor:
+    if blocking_factor_k is None or progs_per_thread is None:
+        if c_is_owned:
+            a, b = _snapshot_autotune_inputs(
+                a,
+                b,
+                reduce_last_dim,
+                softmax_last_dim,
+                trunc_output,
+                b_is_prepacked,
+            )
+        K = a.shape[1]
+        blocking_factors = (
+            (blocking_factor_k,)
+            if blocking_factor_k is not None
+            else tuple(
+                factor
+                for factor in (1, 2, 4, 8, 16)
+                if factor == 1 or K // factor >= 1024
+            )
+        )
+        programs = (
+            (progs_per_thread,) if progs_per_thread is not None else (1, 2, 4, 8, 16)
+        )
+        # Candidates share one output, so tuning keeps a single result alive.
+        output = None
+        if not c_is_owned:
+            out_dtype = a.dtype if trunc_output else _get_accum_dtype(a.dtype)
+            shape = (a.shape[0],) if reduce_last_dim else (a.shape[0], b.shape[1])
+            output = torch.empty(shape, device=a.device, dtype=out_dtype)
+        options_key = tuple(sorted(_compile_options(options).items()))
+        autotuned = _make_autotuned_sfc_matmul(
+            blocking_factors,
+            programs,
+            options_key,
+            (
+                b_is_prepacked,
+                post_op,
+                reduction_init_val,
+                reduction_block_op,
+                reduction_combine_op,
+                reduction_post_op,
+            ),
+        )
+        return autotuned(
+            a,
+            b,
+            bias=bias,
+            post_op=post_op,
+            post_op_arg=post_op_arg,
+            reduce_last_dim=reduce_last_dim,
+            reduction_init_val=reduction_init_val,
+            reduction_block_op=reduction_block_op,
+            reduction_combine_op=reduction_combine_op,
+            reduction_post_op=reduction_post_op,
+            keep_dim=keep_dim,
+            softmax_last_dim=softmax_last_dim,
+            trunc_output=trunc_output,
+            b_is_prepacked=b_is_prepacked,
+            c_is_owned=c_is_owned,
+            _output=output,
+        )
+
     return prepare_sfc_matmul(
         a,
         b,
@@ -696,5 +855,6 @@ def sfc_matmul(
         b_is_prepacked=b_is_prepacked,
         c_is_owned=c_is_owned,
         blocking_factor_k=blocking_factor_k,
+        progs_per_thread=progs_per_thread,
         options=options,
     )()
