@@ -5,7 +5,7 @@
 #SBATCH --constraint="ddr5600&notrb"
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --time=8:00:00
+#SBATCH --time=10:00:00
 
 set -e
 
@@ -24,9 +24,9 @@ export TRITON_HOME="$WORKDIR/tt_home"
 export TRITON_CACHE_DIR="$WORKDIR/tt_cache"
 export CUDA_TILE_CACHE_DIR="$WORKDIR/ct_cache"
 
-# AI-bench settings (TODO: increase for final run)
-export AIBENCH_WARMUP=20
-export AIBENCH_REP=200
+# AI-bench settings
+export AIBENCH_WARMUP=100
+export AIBENCH_REP=1000
 export AIBENCH_CPU_MIN_CACHE_NUKE_MIB=5000
 
 # Build a fresh clone of AI-bench
