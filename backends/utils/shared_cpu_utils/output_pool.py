@@ -200,16 +200,18 @@ def empty(
     """``torch.empty(*size, dtype=dtype, device=device, **kwargs)``, from the pool
     if it takes the tensor: a plain CPU one of ``MIN_BYTES`` or more, no other
     arguments. Its storage cannot grow (``resize_`` beyond it raises)."""
+    if _max_bytes < MIN_BYTES or kwargs:
+        return torch.empty(*size, dtype=dtype, device=device, **kwargs)
     sizes = size[0] if len(size) == 1 and isinstance(size[0], (tuple, list)) else size
-    if (
-        not kwargs
-        and (torch.get_default_device() if device is None else torch.device(device))
-        == _CPU
-        and all(type(n) is int and n >= 0 for n in sizes)
-    ):
+    if all(type(n) is int and n >= 0 for n in sizes):
         kind = torch.get_default_dtype() if dtype is None else dtype
         count = math.prod(sizes)
-        if _takes(count, kind) and _plain_dispatch():
+        if (
+            _takes(count, kind)
+            and (torch.get_default_device() if device is None else torch.device(device))
+            == _CPU
+            and _plain_dispatch()
+        ):
             try:
                 return _allocate(tuple(sizes), count, kind)
             except OSError:
