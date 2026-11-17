@@ -225,7 +225,9 @@ def plot_speedups(
             )
 
     ax.axhline(1.0, color="black", linewidth=1.0, linestyle="--", alpha=0.7)
-    ax.set_xlim(x[0] - group_width / 2 - 0.2, x[-1] + group_width / 2 + 0.2)
+    for xi in x[::2]:
+        ax.axvspan(xi - 0.5, xi + 0.5, color="black", alpha=0.05, linewidth=0)
+    ax.set_xlim(x[0] - 0.5, x[-1] + 0.5)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=16)
     ax.tick_params(axis="y", labelsize=16)
