@@ -51,7 +51,6 @@ class Model(nn.Module):
             bias=self._bias,
             trunc_output=False,
             b_is_prepacked=True,
-            c_is_owned=True,
         )
 
         return groupnorm(

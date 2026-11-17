@@ -60,7 +60,6 @@ class Model(nn.Module):
             post_op=_mm1_epilogue,
             trunc_output=True,
             b_is_prepacked=True,
-            c_is_owned=True,
         )
 
         return sfc_matmul(

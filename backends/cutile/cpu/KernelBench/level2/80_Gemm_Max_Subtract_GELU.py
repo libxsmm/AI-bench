@@ -8,8 +8,9 @@ from cutile_cpu_utils import gelu
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
 from cutile_cpu_utils import reduce_first_dim
 from cutile_cpu_utils import sfc_matmul
-import torch
 import torch.nn as nn
+
+from shared_cpu_utils import output_pool
 
 ct.set_backend("cpu")
 
@@ -68,7 +69,6 @@ class Model(nn.Module):
                 bias=self._bias,
                 trunc_output=False,
                 b_is_prepacked=True,
-                c_is_owned=True,
             )
             res_max = reduce_first_dim(
                 res_mm,
@@ -80,7 +80,7 @@ class Model(nn.Module):
             _, n = res_max.shape
             block_size_n = 256
             assert n % block_size_n == 0
-            output = torch.empty((1, n), dtype=x.dtype)
+            output = output_pool.empty((1, n), dtype=x.dtype, device=x.device)
             with ct.backend_options({"assume_in_bounds": True}):
                 ct.launch(
                     None,
