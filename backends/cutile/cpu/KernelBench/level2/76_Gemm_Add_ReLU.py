@@ -12,10 +12,6 @@ import torch.nn as nn
 ct.set_backend("cpu")
 
 
-def _next_power_of_2(n):
-    return 1 << (n - 1).bit_length()
-
-
 def _epilogue(value):
     return ct.maximum(value, 0.0)
 
@@ -45,5 +41,4 @@ class Model(nn.Module):
             bias=self._bias,
             post_op=self._epilogue_fun,
             b_is_prepacked=True,
-            blocking_factor_k=_next_power_of_2(max(1, x.shape[1] // 4096)),
         )

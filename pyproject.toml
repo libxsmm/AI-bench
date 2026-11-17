@@ -120,7 +120,7 @@ filterwarnings = [
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
-find-links = ["https://github.com/libxsmm/cutile-python/releases/expanded_assets/cpuv1"]
+find-links = ["https://github.com/libxsmm/cutile-python/releases/expanded_assets/cpuv2"]
 conflicts = [
   # Restrict to one device to avoid incompatible dependencies.
   [
