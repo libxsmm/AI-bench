@@ -183,7 +183,7 @@ def _takes(count: int, dtype: torch.dtype) -> bool:
     # Deterministic mode fills empty tensors: left to torch.
     return (
         dtype in _DTYPES
-        and MIN_BYTES <= dtype.itemsize * count <= _max_bytes
+        and MIN_BYTES <= dtype.itemsize * count <= _max_bytes // _HUGE_PAGE * _HUGE_PAGE
         and not (
             torch.are_deterministic_algorithms_enabled()
             and torch.utils.deterministic.fill_uninitialized_memory
@@ -200,16 +200,18 @@ def empty(
     """``torch.empty(*size, dtype=dtype, device=device, **kwargs)``, from the pool
     if it takes the tensor: a plain CPU one of ``MIN_BYTES`` or more, no other
     arguments. Its storage cannot grow (``resize_`` beyond it raises)."""
+    if _max_bytes < MIN_BYTES or kwargs:
+        return torch.empty(*size, dtype=dtype, device=device, **kwargs)
     sizes = size[0] if len(size) == 1 and isinstance(size[0], (tuple, list)) else size
-    if (
-        not kwargs
-        and (torch.get_default_device() if device is None else torch.device(device))
-        == _CPU
-        and all(type(n) is int and n >= 0 for n in sizes)
-    ):
+    if all(type(n) is int and n >= 0 for n in sizes):
         kind = torch.get_default_dtype() if dtype is None else dtype
         count = math.prod(sizes)
-        if _takes(count, kind) and _plain_dispatch():
+        if (
+            _takes(count, kind)
+            and (torch.get_default_device() if device is None else torch.device(device))
+            == _CPU
+            and _plain_dispatch()
+        ):
             try:
                 return _allocate(tuple(sizes), count, kind)
             except OSError:

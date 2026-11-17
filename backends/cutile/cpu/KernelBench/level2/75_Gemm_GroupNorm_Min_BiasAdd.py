@@ -11,6 +11,8 @@ from cutile_cpu_utils import sfc_matmul
 import torch
 import torch.nn as nn
 
+from shared_cpu_utils import output_pool
+
 ct.set_backend("cpu")
 
 
@@ -77,7 +79,6 @@ class Model(nn.Module):
             bias=self._bias,
             trunc_output=False,
             b_is_prepacked=True,
-            c_is_owned=True,
         )
         res_gn = groupnorm(
             res_mm,
@@ -94,7 +95,7 @@ class Model(nn.Module):
             keep_dim=True,
         )
         output_shape = torch.broadcast_shapes(res_red.shape, self._bias_extra.shape)
-        output = torch.empty(output_shape, dtype=x.dtype, device=x.device)
+        output = output_pool.empty(output_shape, dtype=x.dtype, device=x.device)
         n_bias_elements = int(torch.tensor(self._bias_extra.shape[:-2]).prod().item())
         block_size_r = 256
         assert res_red.shape[0] % block_size_r == 0

@@ -1,7 +1,8 @@
 import functools
 
 import cuda.tile as ct
-import torch
+
+from shared_cpu_utils import output_pool
 
 ct.set_backend("cpu")
 
@@ -85,7 +86,7 @@ def reduce_last_dim(
     M, N = inp.shape
     block_size_n = 256
     assert N % block_size_n == 0, "N must be divisible by BLOCK_SIZE_N"
-    out = torch.empty((M,), dtype=out_dtype, device=inp.device)
+    out = output_pool.empty((M,), dtype=out_dtype, device=inp.device)
     kernel = _make_reduce_last_dim_kernel(
         init_val or _default_init_val_last_dim,
         reduction_op,
@@ -113,7 +114,7 @@ def reduce_first_dim(
     M, N = inp.shape
     block_size_n = 256
     assert N % block_size_n == 0, "N must be divisible by BLOCK_SIZE_N"
-    out = torch.empty((N,), dtype=out_dtype, device=inp.device)
+    out = output_pool.empty((N,), dtype=out_dtype, device=inp.device)
     kernel = _make_reduce_first_dim_kernel(
         init_val or _default_init_val_first_dim,
         reduction_op,
@@ -220,7 +221,7 @@ def groupnorm(
     if try_inplace and inp.dtype == out_dtype:
         out = inp
     else:
-        out = torch.empty_like(inp, dtype=out_dtype)
+        out = output_pool.empty((N, C), dtype=out_dtype, device=inp.device)
 
     input_view = inp.view(N, num_groups, group_size)
     output_view = out.view(N, num_groups, group_size)

@@ -8,6 +8,8 @@ import threading
 import cuda.tile as ct
 import torch
 
+from shared_cpu_utils import output_pool
+
 from .gilbert_d2xy import gilbert_d2xy
 
 ct.set_backend("cpu")
@@ -93,59 +95,47 @@ def _block_pack_b_kernel(
     ct.store(BPacked, index=(block_n, block_k, 0, 0, 0), tile=b)
 
 
-@_thread_lru_cache()
-def _make_intermediate_buffers(
-    M,
-    N,
-    K,
-    BLOCK_SIZE_N,
-    in_dtype,
-    accum_dtype,
-    out_dtype,
+def _make_buffers(
+    a,
+    b,
     reduce_last_dim,
     softmax_last_dim,
+    trunc_output,
     b_is_prepacked,
-    c_is_owned,
 ):
+    M, K = a.shape
+    _, N = b.shape
     blocks_m = M // _BLOCK_SIZE_M
-    blocks_n = N // BLOCK_SIZE_N
+    blocks_n = N // _BLOCK_SIZE_N
     blocks_k = K // _BLOCK_SIZE_K
-    vnni = 32 // (in_dtype.itemsize * 8)
-    b_size = 0 if b_is_prepacked else K * N * in_dtype.itemsize
-    ctmp_size = M * N * accum_dtype.itemsize
-    if reduce_last_dim:
-        cred_size = blocks_n * M * accum_dtype.itemsize
-    elif softmax_last_dim:
-        cred_size = blocks_n * 2 * M * accum_dtype.itemsize
-    else:
-        cred_size = 0
-    c_size = M * (1 if reduce_last_dim else N) * out_dtype.itemsize if c_is_owned else 0
-    packed = torch.empty(b_size + ctmp_size + cred_size + c_size, dtype=torch.uint8)
+    vnni = 32 // (a.element_size() * 8)
+    accum_dtype = _get_accum_dtype(a.dtype)
+    out_dtype = a.dtype if trunc_output else accum_dtype
     bp = (
-        packed[:b_size]
-        .view(in_dtype)
-        .view(blocks_n, blocks_k, _BLOCK_SIZE_K // vnni, BLOCK_SIZE_N, vnni)
+        output_pool.empty(
+            (blocks_n, blocks_k, _BLOCK_SIZE_K // vnni, _BLOCK_SIZE_N, vnni),
+            dtype=a.dtype,
+            device=a.device,
+        )
         if not b_is_prepacked
         else None
     )
-    ctmp = (
-        packed[b_size : b_size + ctmp_size]
-        .view(accum_dtype)
-        .view(blocks_m, blocks_n, _BLOCK_SIZE_M, BLOCK_SIZE_N)
+    ctmp = output_pool.empty(
+        (blocks_m, blocks_n, _BLOCK_SIZE_M, _BLOCK_SIZE_N),
+        dtype=accum_dtype,
+        device=a.device,
     )
     cred = (
-        packed[b_size + ctmp_size : b_size + ctmp_size + cred_size]
-        .view(accum_dtype)
-        .view(blocks_n, 2 * M if softmax_last_dim else M)
-        if cred_size
+        output_pool.empty(
+            (blocks_n, 2 * M if softmax_last_dim else M),
+            dtype=accum_dtype,
+            device=a.device,
+        )
+        if reduce_last_dim or softmax_last_dim
         else ctmp
     )
-    c = (
-        packed[b_size + ctmp_size + cred_size :]
-        .view(out_dtype)
-        .view(M, 1 if reduce_last_dim else N)
-        if c_is_owned
-        else None
+    c = output_pool.empty(
+        (M,) if reduce_last_dim else (M, N), dtype=out_dtype, device=a.device
     )
     return bp, ctmp, cred, c
 
@@ -355,52 +345,6 @@ def _matmul_programs(tile_count, progs_per_thread, options):
     return min(tile_count, workers * progs_per_thread)
 
 
-def _overlaps(lhs, rhs):
-    if rhs is None:
-        return False
-    lhs_begin = lhs.data_ptr()
-    lhs_end = lhs_begin + lhs.numel() * lhs.element_size()
-    rhs_begin = rhs.data_ptr()
-    rhs_end = rhs_begin + rhs.numel() * rhs.element_size()
-    return lhs_begin < rhs_end and rhs_begin < lhs_end
-
-
-def _clone_overlapping_inputs(a, b, buffers):
-    if any(_overlaps(a, buffer) for buffer in buffers):
-        a = a.clone()
-    if any(_overlaps(b, buffer) for buffer in buffers):
-        b = b.clone()
-    return a, b
-
-
-def _snapshot_autotune_inputs(
-    a,
-    b,
-    reduce_last_dim,
-    softmax_last_dim,
-    trunc_output,
-    b_is_prepacked,
-):
-    M, K = a.shape
-    _, N = b.shape
-    accum_dtype = _get_accum_dtype(a.dtype)
-    out_dtype = a.dtype if trunc_output else accum_dtype
-    buffers = _make_intermediate_buffers(
-        M,
-        N,
-        K,
-        _BLOCK_SIZE_N,
-        a.dtype,
-        accum_dtype,
-        out_dtype,
-        reduce_last_dim,
-        softmax_last_dim,
-        b_is_prepacked,
-        True,
-    )
-    return _clone_overlapping_inputs(a, b, buffers)
-
-
 @functools.lru_cache()
 def _make_finish_reduction_kernel(
     reduction_init_val, reduction_combine_op, reduction_post_op
@@ -529,11 +473,10 @@ def prepare_sfc_matmul(
     softmax_last_dim=False,
     trunc_output=True,
     b_is_prepacked=False,
-    c_is_owned=False,
     blocking_factor_k=1,
     progs_per_thread=1,
     options=None,
-    _output=None,
+    _buffers=None,
 ) -> PreparedSFCMatmul:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
@@ -555,34 +498,20 @@ def prepare_sfc_matmul(
     blocks_m = M // _BLOCK_SIZE_M
     blocks_n = N // _BLOCK_SIZE_N
     blocks_k = K // _BLOCK_SIZE_K
-    accum_dtype = _get_accum_dtype(a.dtype)
-    out_dtype = a.dtype if trunc_output else accum_dtype
     sfc_map_kn = _make_sfc_tensor(blocks_k, blocks_n)
     sfc_map_mn = _make_sfc_tensor(blocks_m, blocks_n)
-    bp, ctmp, cred, owned_c = _make_intermediate_buffers(
-        M,
-        N,
-        K,
-        _BLOCK_SIZE_N,
-        a.dtype,
-        accum_dtype,
-        out_dtype,
-        reduce_last_dim,
-        softmax_last_dim,
-        b_is_prepacked,
-        c_is_owned,
+    bp, ctmp, cred, c = (
+        _buffers
+        if _buffers is not None
+        else _make_buffers(
+            a,
+            b,
+            reduce_last_dim,
+            softmax_last_dim,
+            trunc_output,
+            b_is_prepacked,
+        )
     )
-
-    if owned_c is not None:
-        c = owned_c
-    elif _output is not None:
-        c = _output
-    elif reduce_last_dim:
-        c = torch.empty((M,), device=a.device, dtype=out_dtype)
-    else:
-        c = torch.empty((M, N), device=a.device, dtype=out_dtype)
-
-    a, b = _clone_overlapping_inputs(a, b, (bp, ctmp, cred, owned_c))
 
     vnni = 32 // (b.element_size() * 8)
     kernel_b = (
@@ -674,7 +603,7 @@ def prepare_sfc_matmul(
                 )
             )
 
-    if reduce_last_dim and (keep_dim or c_is_owned):
+    if reduce_last_dim and keep_dim:
         output = c.reshape(M, 1)
     else:
         output = c
@@ -708,7 +637,6 @@ def _make_autotuned_sfc_matmul(
             "keep_dim",
             "softmax_last_dim",
             "trunc_output",
-            "c_is_owned",
         ),
     )
     def autotuned(
@@ -726,8 +654,7 @@ def _make_autotuned_sfc_matmul(
         softmax_last_dim=False,
         trunc_output=True,
         b_is_prepacked=False,
-        c_is_owned=False,
-        _output=None,
+        _buffers=None,
         blocking_factor_k=1,
         progs_per_thread=1,
     ):
@@ -746,11 +673,10 @@ def _make_autotuned_sfc_matmul(
             softmax_last_dim=softmax_last_dim,
             trunc_output=trunc_output,
             b_is_prepacked=b_is_prepacked,
-            c_is_owned=c_is_owned,
             blocking_factor_k=blocking_factor_k,
             progs_per_thread=progs_per_thread,
             options=options,
-            _output=_output,
+            _buffers=_buffers,
         )
 
     return autotuned
@@ -771,21 +697,11 @@ def sfc_matmul(
     softmax_last_dim=False,
     trunc_output=True,
     b_is_prepacked=False,
-    c_is_owned=False,
     blocking_factor_k=None,
     progs_per_thread=None,
     options=None,
 ) -> torch.Tensor:
     if blocking_factor_k is None or progs_per_thread is None:
-        if c_is_owned:
-            a, b = _snapshot_autotune_inputs(
-                a,
-                b,
-                reduce_last_dim,
-                softmax_last_dim,
-                trunc_output,
-                b_is_prepacked,
-            )
         K = a.shape[1]
         blocking_factors = (
             (blocking_factor_k,)
@@ -799,12 +715,9 @@ def sfc_matmul(
         programs = (
             (progs_per_thread,) if progs_per_thread is not None else (1, 2, 4, 8, 16)
         )
-        # Candidates share one output, so tuning keeps a single result alive.
-        output = None
-        if not c_is_owned:
-            out_dtype = a.dtype if trunc_output else _get_accum_dtype(a.dtype)
-            shape = (a.shape[0],) if reduce_last_dim else (a.shape[0], b.shape[1])
-            output = torch.empty(shape, device=a.device, dtype=out_dtype)
+        buffers = _make_buffers(
+            a, b, reduce_last_dim, softmax_last_dim, trunc_output, b_is_prepacked
+        )
         options_key = tuple(sorted(_compile_options(options).items()))
         autotuned = _make_autotuned_sfc_matmul(
             blocking_factors,
@@ -834,8 +747,7 @@ def sfc_matmul(
             softmax_last_dim=softmax_last_dim,
             trunc_output=trunc_output,
             b_is_prepacked=b_is_prepacked,
-            c_is_owned=c_is_owned,
-            _output=output,
+            _buffers=buffers,
         )
 
     return prepare_sfc_matmul(
@@ -853,7 +765,6 @@ def sfc_matmul(
         softmax_last_dim=softmax_last_dim,
         trunc_output=trunc_output,
         b_is_prepacked=b_is_prepacked,
-        c_is_owned=c_is_owned,
         blocking_factor_k=blocking_factor_k,
         progs_per_thread=progs_per_thread,
         options=options,

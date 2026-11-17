@@ -63,7 +63,6 @@ class Model(nn.Module):
             post_op_arg=self._bias_extra,
             trunc_output=False,
             b_is_prepacked=True,
-            c_is_owned=True,
         )
         return groupnorm(
             res_mm,
