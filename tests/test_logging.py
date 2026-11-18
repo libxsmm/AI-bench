@@ -93,6 +93,12 @@ class Model(torch.nn.Module):
     assert row.get("mem_bw_unit") == "GB/s"
     assert row.get("dtype") == "float32"
     assert row.get("note") == "Unit test note"
+    assert float(row["time_min_us"]) <= float(row["time_median_us"])
+    assert float(row["time_median_us"]) <= float(row["time_max_us"])
+    assert float(row["time_min_us"]) <= float(row["time_us"])
+    assert float(row["time_us"]) <= float(row["time_max_us"])
+    assert float(row["time_std_us"]) >= 0
+    assert float(row["time_rel_std_pct"]) >= 0
     assert row.get("AIBENCH_CARD") == "D770"
     assert row.get("AIBENCH_SYSTEM") == "TestSystem"
 

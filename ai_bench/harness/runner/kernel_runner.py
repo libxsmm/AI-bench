@@ -31,6 +31,7 @@ class KernelStats:
         mem_bw: Memory bandwidth
         mem_bw_unit: Memory bandwidth measurement unit
         mem_note: Memory bandwidth annotation
+        time_stats: Per-iteration runtime statistics, if available
     """
 
     variant: dict
@@ -43,6 +44,7 @@ class KernelStats:
     mem_bw: float | None
     mem_bw_unit: config.MemBwUnit
     mem_note: config.NotesSymbols | None
+    time_stats: testing.TimeStats | None = None
 
 
 class KernelRunner:
@@ -279,7 +281,7 @@ class KernelRunner:
 
         # Measure performance.
         with torch.no_grad():
-            meas_us = testing.time(
+            time_stats = testing.time(
                 fn,
                 args,
                 warmup=self.warmup,
@@ -287,6 +289,7 @@ class KernelRunner:
                 min_cache_nuke_mib=self.min_cache_nuke_mib,
                 device=self.device,
             )
+        meas_us = time_stats.mean
 
         # Statistics - FLOPs.
         flop = ai_hc.get_flop(variant)
@@ -313,6 +316,11 @@ class KernelRunner:
 
         self.logger.info(
             f"  time [us]: {meas_us:.6f} {str(flops_unit or '')}: {str(flops_val or '')} {str(flops_note or '')}"
+        )
+        self.logger.info(
+            f"  time stats [us]: min: {time_stats.min:.6f} max: {time_stats.max:.6f} "
+            f"median: {time_stats.median:.6f} std: {time_stats.std:.6f} "
+            f"rel std: {time_stats.rel_std * 100:.2f}%"
         )
 
         # Statistics - memory bandwidth.
@@ -355,6 +363,7 @@ class KernelRunner:
             mem_bw=mem_bw_val,
             mem_bw_unit=mem_bw_unit,
             mem_note=mem_note,
+            time_stats=time_stats,
         )
         return kernel_stats
 
