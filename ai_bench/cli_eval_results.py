@@ -44,6 +44,50 @@ BACKEND_COLORS = (
     "#F0E442",  # yellow
     "#000000",  # black
 )
+# Plot order of the categories and of the kernels they contain.
+KERNEL_CATEGORIES = {
+    "Element-wise only": (
+        "9_Matmul_Subtract_Multiply_ReLU",
+        "12_Gemm_Multiply_LeakyReLU",
+        "33_Gemm_Scale_BatchNorm",
+        "39_Gemm_Scale_BatchNorm",
+        "40_Matmul_Scaling_ResidualAdd",
+        "63_Gemm_ReLU_Divide",
+        "68_Matmul_Min_Subtract",
+        "76_Gemm_Add_ReLU",
+    ),
+    "Transcendental": (
+        "29_Matmul_Mish_Mish",
+        "41_Gemm_BatchNorm_GELU_ReLU",
+        "53_Gemm_Scaling_Hardtanh_GELU",
+        "59_Matmul_Swish_Scaling",
+        "70_Gemm_Sigmoid_Scaling_ResidualAdd",
+        "81_Gemm_Swish_Divide_Clamp_Tanh_Clamp",
+        "86_Matmul_Divide_GELU",
+        "95_Matmul_Add_Swish_Tanh_GELU_Hardtanh",
+        "97_Matmul_BatchNorm_BiasAdd_Divide_Swish",
+    ),
+    "Reduction": (
+        "14_Gemm_Divide_Sum_Scaling",
+        "30_Gemm_GroupNorm_Hardtanh",
+        "62_Matmul_GroupNorm_LeakyReLU_Sum",
+    ),
+    "Transcendental and reduction": (
+        "37_Matmul_Swish_Sum_GroupNorm",
+        "56_Matmul_Sigmoid_Sum",
+        "88_Gemm_GroupNorm_Swish_Multiply_Swish",
+        "94_Gemm_BiasAdd_Hardtanh_Mish_GroupNorm",
+    ),
+}
+
+
+def kernel_category(kernel_name: str) -> int:
+    """Position in KERNEL_CATEGORIES of the category containing the kernel."""
+    stem = kernel_name.removesuffix(".yaml")
+    for index, kernels in enumerate(KERNEL_CATEGORIES.values()):
+        if stem in kernels:
+            return index
+    raise ValueError(f"{kernel_name}: kernel is not assigned to a category")
 
 
 def parse_backend(spec: str) -> tuple[str, str]:
@@ -121,6 +165,7 @@ def plot_speedups(
     output: str | Path = "speedup.png",
     sort_by_intensity: bool = False,
     annotate_gflops: bool = False,
+    group_by_category: bool = False,
 ) -> None:
     """Plot speedups over torch eager for Torch Inductor and the given backends.
 
@@ -161,6 +206,14 @@ def plot_speedups(
         merged = merged.sort_values(
             by="input_values_torch",
             key=lambda col: col.map(arithmetic_intensity),
+            kind="stable",
+        ).reset_index(drop=True)
+
+    if group_by_category:
+        # Stable, so kernels keep their CSV or intensity order within a category.
+        merged = merged.sort_values(
+            by="kernel_name",
+            key=lambda col: col.map(kernel_category),
             kind="stable",
         ).reset_index(drop=True)
 
@@ -233,6 +286,27 @@ def plot_speedups(
     ax.tick_params(axis="y", labelsize=16)
     ax.set_ylabel("Speedup over Torch eager execution", fontsize=20)
     ax.set_xlabel("KernelBench - level2/...", fontsize=20)
+    if group_by_category:
+        category_of_kernel = merged["kernel_name"].map(kernel_category).to_numpy()
+        for index, name in enumerate(KERNEL_CATEGORIES):
+            members = x[category_of_kernel == index]
+            if not members.size:
+                continue
+            if members[0] > x[0]:
+                ax.axvline(members[0] - 0.5, color="black", linewidth=1.5)
+            ax.annotate(
+                name,
+                (members.mean(), 0),
+                xycoords=ax.get_xaxis_transform(),
+                textcoords="offset points",
+                xytext=(0, -32),
+                ha="center",
+                va="top",
+                fontsize=16,
+                fontweight="bold",
+            )
+        # Make room for the category names between tick labels and axis label.
+        ax.xaxis.labelpad = 34
     ax.legend(fontsize=16)
     ax.yaxis.set_major_locator(MaxNLocator(nbins=10, steps=[1, 2, 5, 10]))
     ax.yaxis.set_minor_locator(AutoMinorLocator(2))
@@ -286,6 +360,14 @@ def main() -> None:
         action="store_true",
         help="Annotate each bar with its absolute throughput in GFLOPS.",
     )
+    parser.add_argument(
+        "-c",
+        "--categories",
+        action="store_true",
+        help="Group kernels by operation category ("
+        + ", ".join(name.lower() for name in KERNEL_CATEGORIES)
+        + ").",
+    )
     args = parser.parse_args()
     try:
         torch, compile_, compile_max_at = (
@@ -304,6 +386,7 @@ def main() -> None:
             output=args.output,
             sort_by_intensity=args.sort,
             annotate_gflops=args.gflops,
+            group_by_category=args.categories,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
