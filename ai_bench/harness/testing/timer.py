@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import dataclass
 import math
 import os
 import time as pytime
@@ -10,11 +11,39 @@ from torch.profiler import profile
 from torch.profiler import record_function
 
 
-def _trim_extremes(times: torch.Tensor) -> torch.Tensor:
-    """Drop min and max measurements if there are enough samples."""
-    if len(times) >= 10:
-        times = torch.sort(times).values[1:-1]
-    return times
+@dataclass
+class TimeStats:
+    """
+    Per-iteration runtime statistics in microseconds.
+
+    Args:
+        mean: Mean
+        min: Minimum
+        max: Maximum
+        median: Median
+        std: Sample standard deviation
+        rel_std: Standard deviation relative to the mean
+    """
+
+    mean: float
+    min: float
+    max: float
+    median: float
+    std: float
+    rel_std: float
+
+
+def _summarize(times: torch.Tensor) -> TimeStats:
+    mean = times.mean()
+    std = times.std() if len(times) > 1 else torch.zeros(())
+    return TimeStats(
+        mean=mean.item(),
+        min=times.min().item(),
+        max=times.max().item(),
+        median=times.quantile(0.5).item(),
+        std=std.item(),
+        rel_std=(std / mean).item(),
+    )
 
 
 def time_cpu(
@@ -23,7 +52,7 @@ def time_cpu(
     warmup: int = 25,
     rep: int = 100,
     min_cache_nuke_mib: int = 0,
-) -> float:
+) -> TimeStats:
     """Measure execution time of the provided function on CPU.
     Args:
         fn: Function to measure
@@ -32,7 +61,7 @@ def time_cpu(
         rep: Measurement iterations
         min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations, or 0 to disable
     Returns:
-        Mean runtime in microseconds
+        Runtime statistics in microseconds
     """
     # Supress profiler's warning, no event accumulation is needed.
     warnings.filterwarnings(
@@ -85,15 +114,12 @@ def time_cpu(
             fallback_times.append((end - start) / 1e3)
         times = torch.tensor(fallback_times, dtype=torch.float)
 
-    # Trim extremes if there are enough measurements.
-    times = _trim_extremes(times)
-
-    return torch.mean(times).item()
+    return _summarize(times)
 
 
 def _time_gpu_wallclock(
     device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
-) -> float:
+) -> TimeStats:
     """Measure host wall-clock time of each call, with device synchronization
     before and after it.
     """
@@ -118,15 +144,12 @@ def _time_gpu_wallclock(
         times.append((end - start) / 1e3)
     times = torch.tensor(times, dtype=torch.float)
 
-    # Trim extremes if there are enough measurements.
-    times = _trim_extremes(times)
-
-    return torch.mean(times).item()
+    return _summarize(times)
 
 
 def _time_gpu_events(
     device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
-) -> float:
+) -> TimeStats:
     """Measure GPU-side execution time using device events.
 
     Only accurate when all work of the function is enqueued asynchronously
@@ -179,15 +202,12 @@ def _time_gpu_events(
         dtype=torch.float,
     )
 
-    # Trim extremes if there are enough measurements.
-    times = _trim_extremes(times)
-
-    return torch.mean(times).item()
+    return _summarize(times)
 
 
 def time_gpu(
     device: torch.device, fn: Callable, args: tuple, warmup: int = 25, rep: int = 100
-) -> float:
+) -> TimeStats:
     """Measure execution time of the provided function on GPU.
 
     The timing strategy is selected with AIBENCH_GPU_TIMER:
@@ -203,7 +223,7 @@ def time_gpu(
         warmup: Warmup iterations
         rep: Measurement iterations
     Returns:
-        Mean runtime in microseconds
+        Runtime statistics in microseconds
     """
     current_device = torch.accelerator.current_accelerator().type
     assert current_device == device.type, (
@@ -225,7 +245,7 @@ def time(
     rep: int = 100,
     min_cache_nuke_mib: int = 0,
     device: torch.device | None = None,
-) -> float:
+) -> TimeStats:
     """Measure execution time of the provided function.
     Args:
         fn: Function to measure
@@ -235,7 +255,7 @@ def time(
         min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU, or 0 to disable
         device: Device type to use
     Returns:
-        Mean runtime in microseconds
+        Runtime statistics in microseconds
     """
     if not device or device.type == "cpu":
         return time_cpu(

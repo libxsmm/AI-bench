@@ -236,7 +236,9 @@ The CSV file includes the following columns:
 - `mem_bw_val`: Computed memory bandwidth value
 - `mem_bw_unit`: Memory bandwidth unit (MB/s or GB/s)
 - `mem_note`: Memory measurement annotation (see 'Notes legend')
-- `time_us`: Execution time in microseconds
+- `time_us`: Mean execution time over all timed iterations in microseconds
+- `time_min_us`, `time_max_us`, `time_median_us`, `time_std_us`: Minimum, maximum, median and sample standard deviation of the per-iteration runtimes in microseconds
+- `time_rel_std_pct`: Standard deviation relative to the mean in percent
 - `input_values`: Input dimensions as JSON
 - `dtype`: Variant's data type if specified
 - `note`: User-provided note

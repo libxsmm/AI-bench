@@ -68,6 +68,11 @@ class KernelBenchRunner(KernelRunner):
             "mem_bw_unit",
             "mem_note",
             "time_us",
+            "time_min_us",
+            "time_max_us",
+            "time_median_us",
+            "time_std_us",
+            "time_rel_std_pct",
             "input_values",
             "dtype",
             "note",
@@ -165,6 +170,7 @@ class KernelBenchRunner(KernelRunner):
                         k: v for k, v in os.environ.items() if k.startswith("AIBENCH_")
                     }
                     for run in run_stats:
+                        ts = run.time_stats
                         row = {
                             "kernel_name": file,
                             "kernel_type": str(self.backend),
@@ -178,6 +184,11 @@ class KernelBenchRunner(KernelRunner):
                             "mem_bw_unit": str(run.mem_bw_unit or ""),
                             "mem_note": str(run.mem_note or ""),
                             "time_us": run.meas_us,
+                            "time_min_us": ts.min if ts else "",
+                            "time_max_us": ts.max if ts else "",
+                            "time_median_us": ts.median if ts else "",
+                            "time_std_us": ts.std if ts else "",
+                            "time_rel_std_pct": ts.rel_std * 100 if ts else "",
                             "input_values": json.dumps(
                                 run.variant.get(ai_hc.VKey.DIMS, {})
                             ),

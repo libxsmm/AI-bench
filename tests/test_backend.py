@@ -1162,10 +1162,13 @@ class TestTimerFunctions:
             return x * 2
 
         x = torch.randn(100)
-        time_us = testing.time_cpu(simple_fn, (x,), warmup=2, rep=5)
+        stats = testing.time_cpu(simple_fn, (x,), warmup=2, rep=5)
 
-        assert time_us > 0
-        assert isinstance(time_us, float)
+        assert isinstance(stats.mean, float)
+        assert 0 < stats.min <= stats.median <= stats.max
+        assert stats.min <= stats.mean <= stats.max
+        assert stats.std >= 0
+        assert stats.rel_std == pytest.approx(stats.std / stats.mean)
 
     def test_time_cpu_consistency(self):
         """Test that CPU timing is reasonably consistent."""
@@ -1177,7 +1180,9 @@ class TestTimerFunctions:
             return x
 
         x = torch.randn(1000)
-        times = [testing.time_cpu(sleep_fn, (x,), warmup=2, rep=10) for _ in range(3)]
+        times = [
+            testing.time_cpu(sleep_fn, (x,), warmup=2, rep=10).mean for _ in range(3)
+        ]
 
         # Times should be within 10x of each other (very loose bound).
         assert max(times) / min(times) < 10
@@ -1191,14 +1196,14 @@ class TestTimerFunctions:
         x = torch.randn(100)
 
         # CPU should work.
-        time_us = testing.time(
+        stats = testing.time(
             simple_fn, (x,), warmup=2, rep=5, device=torch.device("cpu")
         )
-        assert time_us > 0
+        assert stats.mean > 0
 
         # None device should default to CPU.
-        time_us = testing.time(simple_fn, (x,), warmup=2, rep=5, device=None)
-        assert time_us > 0
+        stats = testing.time(simple_fn, (x,), warmup=2, rep=5, device=None)
+        assert stats.mean > 0
 
     def test_time_unsupported_device(self):
         """Test that unsupported device raises error."""
