@@ -81,6 +81,13 @@ KERNEL_CATEGORIES = {
         "94_Gemm_BiasAdd_Hardtanh_Mish_GroupNorm",
     ),
 }
+# The full names do not fit under the single-column hero plot.
+CATEGORY_ABBREVIATIONS = {
+    "Element-wise only": "(E)",
+    "Transcendental": "(T)",
+    "Reduction": "(R)",
+    "Transcendental and reduction": "(T+R)",
+}
 
 
 def kernel_category(kernel_name: str) -> int:
@@ -192,10 +199,12 @@ def plot_speedups(
     sort_by_intensity: bool = False,
     annotate_gflops: bool = False,
     group_by_category: bool = False,
+    hero_output: str | Path | None = None,
 ) -> None:
     """Plot speedups over torch eager for Torch Inductor and the given backends.
 
-    Each dataframe must have unique kernel_name values.
+    Each dataframe must have unique kernel_name values. If hero_output is given,
+    the same speedups are also saved there as a single-column line chart.
     """
     if len(backends) > len(BACKEND_COLORS):
         raise ValueError(f"At most {len(BACKEND_COLORS)} backends are supported.")
@@ -345,6 +354,62 @@ def plot_speedups(
     plt.close(fig)
     print(f"Saved {output}")
 
+    if hero_output is None:
+        return
+
+    # One column of a two-column paper, so the fonts are not scaled down in print.
+    fig, ax = plt.subplots(figsize=(3.3, 2.0))
+    for values, _, label, color in series:
+        ax.plot(x, np.asarray(values, dtype=float), label=label, color=color)
+    ax.axhline(1.0, color="black", linewidth=0.8, linestyle="--", alpha=0.7)
+    ax.margins(x=0)
+    ax.set_ylim(bottom=0)
+    ax.set_xticks(x)
+    ax.tick_params(axis="x", labelbottom=False)
+    ax.tick_params(axis="y", labelsize=8)
+    ax.set_xlabel("KernelBench level2 kernels", fontsize=8)
+    ax.set_ylabel("Speedup over Torch eager", fontsize=8)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", linestyle="-", alpha=0.4)
+    if group_by_category:
+        for index, name in enumerate(KERNEL_CATEGORIES):
+            members = x[category_of_kernel == index]
+            if not members.size:
+                continue
+            if members[0] > x[0]:
+                ax.axvline(members[0] - 0.5, color="black", linewidth=0.8)
+            # The outer categories end at the axis limits, not half a kernel beyond.
+            left = max(members[0] - 0.5, x[0])
+            right = min(members[-1] + 0.5, x[-1])
+            ax.annotate(
+                CATEGORY_ABBREVIATIONS[name],
+                ((left + right) / 2, 0),
+                xycoords=ax.get_xaxis_transform(),
+                textcoords="offset points",
+                xytext=(0, -4),
+                ha="center",
+                va="top",
+                fontsize=8,
+            )
+        # Make room for the category labels above the axis label.
+        ax.xaxis.labelpad = 11
+    # Above the axes, since the lines leave no free corner at this size.
+    ax.legend(
+        fontsize=7,
+        ncol=3,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+        frameon=False,
+        handlelength=1.5,
+        columnspacing=1.0,
+    )
+
+    fig.tight_layout(pad=0.3)
+    fig.savefig(hero_output, dpi=300)
+    plt.close(fig)
+    print(f"Saved {hero_output}")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -394,6 +459,12 @@ def main() -> None:
         + ", ".join(name.lower() for name in KERNEL_CATEGORIES)
         + ").",
     )
+    parser.add_argument(
+        "--hero",
+        type=Path,
+        metavar="PATH",
+        help="Also save a single-column line chart of the speedups to PATH.",
+    )
     args = parser.parse_args()
     warnings: list[str] = []
     try:
@@ -414,6 +485,7 @@ def main() -> None:
             sort_by_intensity=args.sort,
             annotate_gflops=args.gflops,
             group_by_category=args.categories,
+            hero_output=args.hero,
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
