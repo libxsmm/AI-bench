@@ -1,6 +1,7 @@
 import argparse
 import json
 from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
@@ -33,6 +34,7 @@ def arithmetic_intensity(input_values: str) -> float:
 TORCH_CSV = "torch-eager.csv"
 COMPILE_CSV = "torch-compile.csv"
 COMPILE_MAX_AT_CSV = "torch-compile-max-autotune.csv"
+REL_STD_WARN_PCT = 5.0
 # Okabe-Ito colorblind-safe palette; orange is reserved for Torch Inductor.
 INDUCTOR_COLOR = "#E69F00"
 BACKEND_COLORS = (
@@ -97,8 +99,14 @@ def parse_backend(spec: str) -> tuple[str, str]:
     return label, filename
 
 
-def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
-    """Average numeric columns by kernel and print runtime mean/stddev/min/max."""
+def average_runs(
+    run_dirs: list[Path], filename: str, warnings: list[str]
+) -> pd.DataFrame:
+    """Average numeric columns by kernel and print runtime statistics across runs.
+
+    Kernels whose relative standard deviation exceeds REL_STD_WARN_PCT, within a
+    run or across runs, are appended to warnings.
+    """
     if not run_dirs:
         raise ValueError("At least one run directory is required.")
 
@@ -118,6 +126,14 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
             raise ValueError(
                 f"{directory / filename}: time_us must be > 0 for kernels: {invalid}"
             )
+        # CSVs written before the per-iteration statistics lack this column.
+        if "time_rel_std_pct" in frame:
+            rel_std = frame["time_rel_std_pct"]
+            for kernel, value in rel_std[rel_std > REL_STD_WARN_PCT].items():
+                warnings.append(
+                    f"{directory / filename}: {kernel}: "
+                    f"rel std across iterations = {value:.2f}%"
+                )
     first = frames[0]
     for directory, frame in zip(run_dirs[1:], frames[1:]):
         if set(frame.index) != set(first.index):
@@ -141,17 +157,27 @@ def average_runs(run_dirs: list[Path], filename: str) -> pd.DataFrame:
     means = grouped.mean(numeric_only=True)
     averaged = first.copy()
     averaged[means.columns] = means
+    # Statistics over the per-run mean runtimes, not over individual iterations.
+    run_times = grouped["time_us"]
+    std = run_times.std(ddof=1)
+    rel_std = 100 * std / averaged["time_us"]
     summary = pd.DataFrame(
         {
             "mean": averaged["time_us"],
-            "stddev": grouped["time_us"].std(ddof=1),
-            "min": grouped["time_us"].min(),
-            "max": grouped["time_us"].max(),
+            "min": run_times.min(),
+            "max": run_times.max(),
+            "median": run_times.median(),
+            "std": std,
+            "rel std [%]": rel_std,
         }
     )
+    for kernel, value in rel_std[rel_std > REL_STD_WARN_PCT].items():
+        warnings.append(
+            f"{filename}: {kernel}: rel std across {len(frames)} runs = {value:.2f}%"
+        )
     print(
-        f"\n{filename}: runtime across {len(frames)} run(s) "
-        "(us; sample stddev, ddof=1; NaN for one run)"
+        f"\n{filename}: per-run mean runtime across {len(frames)} run(s) "
+        "(us; sample std, ddof=1; NaN for one run)"
     )
     print(summary.to_string(float_format=lambda value: f"{value:.3f}"))
     return averaged.reset_index()
@@ -369,13 +395,14 @@ def main() -> None:
         + ").",
     )
     args = parser.parse_args()
+    warnings: list[str] = []
     try:
         torch, compile_, compile_max_at = (
-            average_runs(args.directories, filename)
+            average_runs(args.directories, filename, warnings)
             for filename in (TORCH_CSV, COMPILE_CSV, COMPILE_MAX_AT_CSV)
         )
         backend_frames = [
-            (label, average_runs(args.directories, filename))
+            (label, average_runs(args.directories, filename, warnings))
             for label, filename in args.backend
         ]
         plot_speedups(
@@ -390,6 +417,16 @@ def main() -> None:
         )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
+
+    if warnings:
+        # Keeps the block last when stdout and stderr share a pipe or file.
+        sys.stdout.flush()
+        print(
+            f"\nWarning: relative standard deviation > {REL_STD_WARN_PCT:g}%:",
+            file=sys.stderr,
+        )
+        for warning in warnings:
+            print(f"  {warning}", file=sys.stderr)
 
 
 if __name__ == "__main__":
