@@ -1,7 +1,10 @@
+import base64
+import io
 import logging
 import os
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
@@ -33,7 +36,8 @@ def _create_kernel_file(kernels_dir, name, content):
     (kernels_dir / name).write_text(content)
 
 
-def test_csv_logging_and_env_capture(monkeypatch, temp_csv_file):
+@pytest.mark.parametrize("csv_times", [False, True])
+def test_csv_logging_and_env_capture(monkeypatch, temp_csv_file, csv_times):
     root_dir = Path("tests/output/project_root")
     spec_dir = root_dir / "problems" / "specs" / "KernelBench" / "level1"
     kernel_dir = root_dir / "third_party" / "KernelBench" / "KernelBench" / "level1"
@@ -77,6 +81,7 @@ class Model(torch.nn.Module):
         mem_bw_unit=ai_hr.MemBwUnit.GBS,
         csv_path=temp_csv_file,
         note="Unit test note",
+        csv_times=csv_times,
     )
     runner.run_kernels()
 
@@ -87,6 +92,7 @@ class Model(torch.nn.Module):
     with open(temp_csv_file, newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
+        fieldnames = reader.fieldnames
     assert len(rows) > 0, "No rows were logged to the CSV file"
     row = rows[0]
     assert row.get("flops_unit") == "TFLOPS"
@@ -101,6 +107,16 @@ class Model(torch.nn.Module):
     assert float(row["time_rel_std_pct"]) >= 0
     assert row.get("AIBENCH_CARD") == "D770"
     assert row.get("AIBENCH_SYSTEM") == "TestSystem"
+    if csv_times:
+        assert fieldnames[-1] == "times_us_npy_b64"
+        times = np.load(io.BytesIO(base64.b64decode(row["times_us_npy_b64"])))
+        assert times.dtype == np.float32
+        assert times.shape == (runner.rep,)
+        assert times.mean() == pytest.approx(float(row["time_us"]))
+        assert times.min() == pytest.approx(float(row["time_min_us"]))
+        assert times.max() == pytest.approx(float(row["time_max_us"]))
+    else:
+        assert "times_us_npy_b64" not in fieldnames
 
 
 def test_env_var_log_levels(monkeypatch, caplog):

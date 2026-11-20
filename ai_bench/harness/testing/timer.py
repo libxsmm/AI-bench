@@ -26,6 +26,7 @@ class TimeStats:
         median: Median
         std: Sample standard deviation
         rel_std: Standard deviation relative to the mean
+        times: Runtime of each iteration, in execution order
     """
 
     mean: float
@@ -34,6 +35,7 @@ class TimeStats:
     median: float
     std: float
     rel_std: float
+    times: torch.Tensor
 
 
 def _summarize(times: torch.Tensor) -> TimeStats:
@@ -46,6 +48,7 @@ def _summarize(times: torch.Tensor) -> TimeStats:
         median=times.quantile(0.5).item(),
         std=std.item(),
         rel_std=(std / mean).item(),
+        times=times,
     )
 
 
