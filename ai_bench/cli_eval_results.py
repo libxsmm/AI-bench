@@ -1,6 +1,8 @@
 import argparse
+from fractions import Fraction
 import json
 from pathlib import Path
+import re
 import sys
 
 import matplotlib.pyplot as plt
@@ -22,12 +24,16 @@ def _first(values: dict, keys: tuple) -> str:
     raise ValueError(f"None of the keys {keys} found in {values}")
 
 
+def matmul_dims(input_values: str) -> tuple[int, int, int]:
+    """M, N and K of the matmul underlying the kernel."""
+    values = json.loads(input_values)
+    m, n, k = (int(_first(values, keys)) for keys in (M_KEYS, N_KEYS, K_KEYS))
+    return m, n, k
+
+
 def arithmetic_intensity(input_values: str) -> float:
     """Matmul arithmetic intensity: 2*M*N*K flops / (M*K + K*N + M*N) elems."""
-    values = json.loads(input_values)
-    m = float(_first(values, M_KEYS))
-    n = float(_first(values, N_KEYS))
-    k = float(_first(values, K_KEYS))
+    m, n, k = matmul_dims(input_values)
     return 2.0 * m * n * k / (m * k + k * n + m * n)
 
 
@@ -36,6 +42,14 @@ COMPILE_CSV = "torch-compile.csv"
 COMPILE_MAX_AT_CSV = "torch-compile-max-autotune.csv"
 REL_STD_WARN_PCT = 5.0
 MEAN_MEDIAN_WARN_PCT = 1.0
+# Per-iteration mean, min, max, median and std, in LaTeX table order.
+TABLE_TIME_COLUMNS = (
+    "time_us",
+    "time_min_us",
+    "time_max_us",
+    "time_median_us",
+    "time_std_us",
+)
 # Okabe-Ito colorblind-safe palette; orange is reserved for Torch Inductor.
 INDUCTOR_COLOR = "#E69F00"
 BACKEND_COLORS = (
@@ -98,6 +112,30 @@ def kernel_category(kernel_name: str) -> int:
         if stem in kernels:
             return index
     raise ValueError(f"{kernel_name}: kernel is not assigned to a category")
+
+
+def order_kernels(
+    frame: pd.DataFrame,
+    input_values: str,
+    sort_by_intensity: bool,
+    group_by_category: bool,
+) -> pd.DataFrame:
+    """Sort rows by arithmetic intensity, then group them by category."""
+    if sort_by_intensity:
+        # Arithmetic intensity is derived from the M, N, K input dims.
+        frame = frame.sort_values(
+            by=input_values,
+            key=lambda col: col.map(arithmetic_intensity),
+            kind="stable",
+        )
+    if group_by_category:
+        # Stable, so kernels keep their CSV or intensity order within a category.
+        frame = frame.sort_values(
+            by="kernel_name",
+            key=lambda col: col.map(kernel_category),
+            kind="stable",
+        )
+    return frame.reset_index(drop=True)
 
 
 def parse_backend(spec: str) -> tuple[str, str]:
@@ -185,14 +223,16 @@ def average_runs(
     # Statistics over the per-run mean runtimes, not over individual iterations.
     run_times = grouped["time_us"]
     mean = run_times.mean()
+    min_ = run_times.min()
+    max_ = run_times.max()
     median = run_times.median()
     std = run_times.std(ddof=1)
     rel_std = 100 * std / mean
     summary = pd.DataFrame(
         {
             "mean": mean,
-            "min": run_times.min(),
-            "max": run_times.max(),
+            "min": min_,
+            "max": max_,
             "median": median,
             "std": std,
             "rel std [%]": rel_std,
@@ -214,17 +254,123 @@ def average_runs(
     print(summary.to_string(float_format=lambda value: f"{value:.3f}"))
 
     # Produce summary frame for plotting.
-    means = grouped.mean(numeric_only=True)
     averaged = first.copy()
-    averaged[means.columns] = means
-    assert all(mean == averaged["time_us"])
+    averaged["time_us"] = mean
     return averaged.reset_index()
+
+
+def best_of(first: pd.DataFrame, second: pd.DataFrame) -> pd.DataFrame:
+    """Per kernel, the row of whichever frame has the lower mean runtime."""
+    if set(first["kernel_name"]) != set(second["kernel_name"]):
+        raise ValueError("cannot pick the best of differing kernel sets")
+    first = first.set_index("kernel_name")
+    second = second.set_index("kernel_name").loc[first.index]
+    second_wins = second["time_us"] < first["time_us"]
+    best = pd.concat([first[~second_wins], second[second_wins]])
+    return best.loc[first.index].reset_index()
+
+
+def _tex_escape(text: str) -> str:
+    return re.sub(r"([&%$#_{}])", r"\\\1", text)
+
+
+def write_latex_tables(
+    entries: list[tuple[str, pd.DataFrame]],
+    output: Path,
+    sort_by_intensity: bool = False,
+    group_by_category: bool = False,
+) -> None:
+    """Save one booktabs table of per-iteration statistics per entry as a document.
+
+    Each frame must stem from a single run. The throughput is that of the
+    underlying matmul alone, 2*M*N*K flops over the mean runtime, so it ignores
+    the epilogue.
+    """
+    for label, frame in entries:
+        missing = [
+            column
+            for column in (*TABLE_TIME_COLUMNS, "time_rel_std_pct")
+            if column not in frame
+        ]
+        if missing:
+            raise ValueError(f"{label}: CSV lacks the statistics columns {missing}")
+    ordered = order_kernels(
+        entries[0][1], "input_values", sort_by_intensity, group_by_category
+    )
+    kernels = ordered["kernel_name"]
+    categories = list(KERNEL_CATEGORIES)
+    # N and K get a common width, so that the multiplication signs line up.
+    nk_digits = max(
+        len(str(size // 1024))
+        for _, *nk in ordered["input_values"].map(matmul_dims)
+        for size in nk
+    )
+
+    def number(value: float, digits: int) -> str:
+        # Backends that do not time individual iterations leave the cells empty.
+        return "--" if pd.isna(value) else f"{value:.{digits}f}"
+
+    def dim(size: int, digits: int = 0) -> str:
+        # In units of 1024; non-multiples as a slanted fraction, e.g. 1/8 for 128.
+        units = Fraction(size, 1024)
+        if units.denominator == 1:
+            text = str(units.numerator)
+            return "\\phantom{0}" * (digits - len(text)) + text
+        return f"{{}}^{{{units.numerator}}}\\!/\\!_{{{units.denominator}}}"
+
+    lines = [
+        "\\documentclass[letterpaper]{article}",
+        "\\usepackage[margin=0.75in]{geometry}",
+        "\\usepackage{booktabs}",
+        "\\begin{document}",
+    ]
+    for label, frame in entries:
+        lines += [
+            "",
+            "\\begin{table}[p]",
+            "\\centering",
+            "\\footnotesize",
+            "\\setlength{\\tabcolsep}{4pt}",
+            f"\\caption{{{_tex_escape(label)}. Runtime statistics over the timed "
+            "iterations of a single run; throughput of the $2MNK$ matmul flops at "
+            "the mean runtime.}",
+            "\\begin{tabular}{@{}lrrrrrrrr@{}}",
+            "\\toprule",
+            " & $M \\times N \\times K$ & \\multicolumn{4}{c}{Runtime [$\\mu$s]} "
+            "& \\multicolumn{2}{c}{Std} & Matmul \\\\",
+            "\\cmidrule(lr){3-6} \\cmidrule(lr){7-8}",
+            "Model & [$\\times 1024$] & Mean & Min & Max & Median & "
+            "[$\\mu$s] & [\\%] & GFLOPS \\\\",
+            "\\midrule",
+        ]
+        previous = None
+        for kernel, row in frame.set_index("kernel_name").loc[kernels].iterrows():
+            if group_by_category and (category := kernel_category(kernel)) != previous:
+                if previous is not None:
+                    lines.append("\\addlinespace")
+                name = _tex_escape(categories[category])
+                lines.append(f"\\multicolumn{{9}}{{@{{}}l}}{{\\textit{{{name}}}}} \\\\")
+                previous = category
+            m, n, k = matmul_dims(row["input_values"])
+            gflops = 2.0 * m * n * k / (row["time_us"] * 1e-6) / 1e9
+            cells = [
+                _tex_escape(kernel.removesuffix(".yaml")),
+                f"${dim(m)}{{\\times}}{dim(n, nk_digits)}{{\\times}}"
+                f"{dim(k, nk_digits)}$",
+                *(number(row[column], 0) for column in TABLE_TIME_COLUMNS),
+                number(row["time_rel_std_pct"], 2),
+                number(gflops, 0),
+            ]
+            lines.append(" & ".join(cells) + " \\\\")
+        lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
+    lines += ["", "\\end{document}"]
+    output.write_text("\n".join(lines) + "\n")
+    print(f"Saved {output}")
 
 
 def plot_speedups(
     torch: pd.DataFrame,
-    compile_: pd.DataFrame,
-    compile_max_at: pd.DataFrame,
+    inductor: pd.DataFrame,
     backends: list[tuple[str, pd.DataFrame]],
     output: str | Path = "speedup.png",
     sort_by_intensity: bool = False,
@@ -245,8 +391,7 @@ def plot_speedups(
         columns={"kernel_name_torch": "kernel_name"}
     )
     for suffix, frame in (
-        ("compile", compile_),
-        ("compile_max_at", compile_max_at),
+        ("inductor", inductor),
         *((str(i), frame) for i, (_, frame) in enumerate(backends)),
     ):
         if torch.empty or frame.empty:
@@ -267,21 +412,9 @@ def plot_speedups(
             if not actual.equals(expected):
                 raise ValueError(f"{suffix}: {column} differs from Torch eager")
 
-    if sort_by_intensity:
-        # Arithmetic intensity is derived from the M, N, K input dims.
-        merged = merged.sort_values(
-            by="input_values_torch",
-            key=lambda col: col.map(arithmetic_intensity),
-            kind="stable",
-        ).reset_index(drop=True)
-
-    if group_by_category:
-        # Stable, so kernels keep their CSV or intensity order within a category.
-        merged = merged.sort_values(
-            by="kernel_name",
-            key=lambda col: col.map(kernel_category),
-            kind="stable",
-        ).reset_index(drop=True)
+    merged = order_kernels(
+        merged, "input_values_torch", sort_by_intensity, group_by_category
+    )
 
     def speedup_and_gflops(time_us: pd.Series) -> tuple[pd.Series, pd.Series]:
         # Speedup over torch-eager = torch runtime / candidate runtime.
@@ -290,13 +423,8 @@ def plot_speedups(
         gflops = merged["flops_torch"] / (time_us * 1e-6) / 1e9
         return speedup, gflops
 
-    # Best of compile and compile max-autotune per kernel.
-    best_compile_time_us = np.minimum(
-        merged["time_us_compile"], merged["time_us_compile_max_at"]
-    )
-    series = [
-        (*speedup_and_gflops(best_compile_time_us), "Torch Inductor", INDUCTOR_COLOR)
-    ]
+    inductor_time_us = merged["time_us_inductor"]
+    series = [(*speedup_and_gflops(inductor_time_us), "Torch Inductor", INDUCTOR_COLOR)]
     for i, ((label, _), color) in enumerate(zip(backends, BACKEND_COLORS)):
         series.append((*speedup_and_gflops(merged[f"time_us_{i}"]), label, color))
 
@@ -311,7 +439,7 @@ def plot_speedups(
     for i, (label, _) in enumerate(backends):
         time_us = merged[f"time_us_{i}"]
         vs_eager = geomean(merged["time_us_torch"] / time_us)
-        vs_inductor = geomean(best_compile_time_us / time_us)
+        vs_inductor = geomean(inductor_time_us / time_us)
         print(f"{label} & {vs_eager:.2f}$\\times$ & {vs_inductor:.2f}$\\times$ \\\\")
     print("\\bottomrule")
     print("\\end{tabular}")
@@ -496,21 +624,33 @@ def main() -> None:
         metavar="PATH",
         help="Also save a single-column line chart of the speedups to PATH.",
     )
+    parser.add_argument(
+        "-t",
+        "--table",
+        type=Path,
+        metavar="PATH",
+        help="Also save the full results of a single run directory, one table per "
+        "backend, as a standalone LaTeX document to PATH.",
+    )
     args = parser.parse_args()
+    if args.table and len(args.directories) > 1:
+        # The CSVs lack the data to merge per-iteration statistics across runs.
+        parser.error("--table requires a single run directory")
     warnings: list[str] = []
     try:
         torch, compile_, compile_max_at = (
             average_runs(args.directories, filename, warnings)
             for filename in (TORCH_CSV, COMPILE_CSV, COMPILE_MAX_AT_CSV)
         )
+        # Best of compile and compile max-autotune per kernel.
+        inductor = best_of(compile_, compile_max_at)
         backend_frames = [
             (label, average_runs(args.directories, filename, warnings))
             for label, filename in args.backend
         ]
         plot_speedups(
             torch,
-            compile_,
-            compile_max_at,
+            inductor,
             backend_frames,
             output=args.output,
             sort_by_intensity=args.sort,
@@ -518,6 +658,17 @@ def main() -> None:
             group_by_category=args.categories,
             hero_output=args.hero,
         )
+        if args.table:
+            write_latex_tables(
+                [
+                    ("Torch eager", torch),
+                    ("Torch Inductor", inductor),
+                    *backend_frames,
+                ],
+                args.table,
+                sort_by_intensity=args.sort,
+                group_by_category=args.categories,
+            )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
 
