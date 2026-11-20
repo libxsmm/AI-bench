@@ -398,7 +398,7 @@ def plot_speedups(
     ax.set_xticks(x)
     ax.tick_params(axis="x", labelbottom=False)
     ax.tick_params(axis="y", labelsize=8)
-    ax.set_xlabel("KernelBench level2 kernels", fontsize=8)
+    ax.set_xlabel("Selected KernelBench level2 kernels", fontsize=8)
     ax.set_ylabel("Speedup over Torch eager", fontsize=8)
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_axisbelow(True)
