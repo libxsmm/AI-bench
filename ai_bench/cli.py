@@ -295,6 +295,13 @@ Environment file (.env) example:
         default="",
         help="Note to include in CSV output",
     )
+    csv_group.add_argument(
+        "--csv-times",
+        action="store_true",
+        default=False,
+        help="Also log the per-iteration runtimes in microseconds as a "
+        "base64-encoded .npy array in the last CSV column (requires --csv)",
+    )
 
     return parser
 
@@ -310,6 +317,8 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = create_parser()
     args = parser.parse_args(argv)
+    if args.csv_times and not args.csv:
+        parser.error("--csv-times requires --csv")
 
     # Load .env file (unless disabled)
     if not args.no_env:
@@ -431,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
             mem_bw_unit=mem_bw_unit,
             csv_path=args.csv,
             note=args.note,
+            csv_times=args.csv_times,
             validate_only=args.ci,
             dtype=args.dtype,
         )

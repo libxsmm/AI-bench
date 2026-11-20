@@ -243,6 +243,19 @@ The CSV file includes the following columns:
 - `dtype`: Variant's data type if specified
 - `note`: User-provided note
 
+With `--csv-times`, the runtime of every timed iteration is stored as well, in a last column `times_us_npy_b64`. It holds a base64-encoded, uncompressed `.npy` array of float32 microseconds in iteration order:
+
+```python
+import base64
+import io
+
+import numpy as np
+import pandas as pd
+
+frame = pd.read_csv("results.csv")
+times = np.load(io.BytesIO(base64.b64decode(frame["times_us_npy_b64"][0])))
+```
+
 Additionally, any environment variables prefixed with `AIBENCH_` are automatically captured and included in the CSV output. This is useful for recording system configuration:
 
 ```bash
@@ -279,6 +292,7 @@ Notes legend:
 | `--mbs` | Report MB/s (default: GB/s) |
 | `--csv PATH` | Log results to specified CSV file |
 | `--note TEXT` | Add a note to CSV output for identifying runs |
+| `--csv-times` | Also log the per-iteration runtimes to the CSV file (requires `--csv`) |
 | `--specs-dir PATH` | Path to specs directory (CLI only) |
 | `--kernels-dir PATH` | Path to kernels directory (CLI only) |
 | `--triton-kernels-dir PATH` | Path to Triton kernels directory (CLI only) |
