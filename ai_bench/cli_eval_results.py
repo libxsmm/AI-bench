@@ -153,9 +153,9 @@ def _warn_above(
 
 
 def average_runs(
-    run_dirs: list[Path], filename: str, warnings: list[str]
+    run_dirs: list[Path], filename: str, warnings: list[str], verbose: bool = False
 ) -> pd.DataFrame:
-    """Average numeric columns by kernel and print runtime statistics across runs.
+    """Average the runtime by kernel; if verbose, print its statistics across runs.
 
     Kernels whose relative standard deviation exceeds REL_STD_WARN_PCT or whose
     mean and median differ by more than MEAN_MEDIAN_WARN_PCT, within a run or
@@ -219,25 +219,13 @@ def average_runs(
                 )
 
     grouped = pd.concat(frames).groupby(level="kernel_name", sort=False)
-    
+
     # Statistics over the per-run mean runtimes, not over individual iterations.
     run_times = grouped["time_us"]
     mean = run_times.mean()
-    min_ = run_times.min()
-    max_ = run_times.max()
     median = run_times.median()
     std = run_times.std(ddof=1)
     rel_std = 100 * std / mean
-    summary = pd.DataFrame(
-        {
-            "mean": mean,
-            "min": min_,
-            "max": max_,
-            "median": median,
-            "std": std,
-            "rel std [%]": rel_std,
-        }
-    )
     runs = f"across {len(frames)} runs"
     _warn_above(warnings, filename, f"rel std {runs}", rel_std, REL_STD_WARN_PCT)
     _warn_above(
@@ -247,11 +235,22 @@ def average_runs(
         100 * (mean - median).abs() / mean,
         MEAN_MEDIAN_WARN_PCT,
     )
-    print(
-        f"\n{filename}: per-run mean runtime across {len(frames)} run(s) "
-        "(us; sample std, ddof=1; NaN for one run)"
-    )
-    print(summary.to_string(float_format=lambda value: f"{value:.3f}"))
+    if verbose:
+        summary = pd.DataFrame(
+            {
+                "mean": mean,
+                "min": run_times.min(),
+                "max": run_times.max(),
+                "median": median,
+                "std": std,
+                "rel std [%]": rel_std,
+            }
+        )
+        print(
+            f"\n{filename}: per-run mean runtime across {len(frames)} run(s) "
+            "(us; sample std, ddof=1; NaN for one run)"
+        )
+        print(summary.to_string(float_format=lambda value: f"{value:.3f}"))
 
     # Produce summary frame for plotting.
     averaged = first.copy()
@@ -272,6 +271,57 @@ def best_of(first: pd.DataFrame, second: pd.DataFrame) -> pd.DataFrame:
 
 def _tex_escape(text: str) -> str:
     return re.sub(r"([&%$#_{}])", r"\\\1", text)
+
+
+def _write_latex_document(output: Path, body: list[str]) -> None:
+    lines = [
+        "\\documentclass[letterpaper]{article}",
+        "\\usepackage[margin=0.75in]{geometry}",
+        "\\usepackage{booktabs}",
+        "\\begin{document}",
+        "",
+        *body,
+        "\\end{document}",
+    ]
+    output.write_text("\n".join(lines) + "\n")
+    print(f"Saved {output}")
+
+
+def write_geomean_table(
+    torch: pd.DataFrame,
+    inductor: pd.DataFrame,
+    backends: list[tuple[str, pd.DataFrame]],
+    output: Path,
+) -> None:
+    """Save the geomean speedups of the backends as a LaTeX document.
+
+    The speedups are relative to Torch eager and to Torch Inductor. All frames
+    must cover the same kernels.
+    """
+
+    def geomean(speedups: pd.Series) -> float:
+        return float(np.exp(np.log(speedups).mean()))
+
+    torch_time_us = torch.set_index("kernel_name")["time_us"]
+    inductor_time_us = inductor.set_index("kernel_name")["time_us"]
+    lines = [
+        "\\begin{center}",
+        "\\begin{tabular}{lrr}",
+        "\\toprule",
+        "Backend & vs. Torch eager & vs. Torch Inductor \\\\",
+        "\\midrule",
+    ]
+    for label, frame in backends:
+        # The divisions align on the kernel name.
+        time_us = frame.set_index("kernel_name")["time_us"]
+        vs_eager = geomean(torch_time_us / time_us)
+        vs_inductor = geomean(inductor_time_us / time_us)
+        lines.append(
+            f"{_tex_escape(label)} & {vs_eager:.2f}$\\times$ & "
+            f"{vs_inductor:.2f}$\\times$ \\\\"
+        )
+    lines += ["\\bottomrule", "\\end{tabular}", "\\end{center}", ""]
+    _write_latex_document(output, lines)
 
 
 def write_latex_tables(
@@ -318,15 +368,9 @@ def write_latex_tables(
             return "\\phantom{0}" * (digits - len(text)) + text
         return f"{{}}^{{{units.numerator}}}\\!/\\!_{{{units.denominator}}}"
 
-    lines = [
-        "\\documentclass[letterpaper]{article}",
-        "\\usepackage[margin=0.75in]{geometry}",
-        "\\usepackage{booktabs}",
-        "\\begin{document}",
-    ]
+    lines = []
     for label, frame in entries:
         lines += [
-            "",
             "\\begin{table}[p]",
             "\\centering",
             "\\footnotesize",
@@ -362,10 +406,8 @@ def write_latex_tables(
                 number(gflops, 0),
             ]
             lines.append(" & ".join(cells) + " \\\\")
-        lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
-    lines += ["", "\\end{document}"]
-    output.write_text("\n".join(lines) + "\n")
-    print(f"Saved {output}")
+        lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}", ""]
+    _write_latex_document(output, lines)
 
 
 def plot_speedups(
@@ -427,22 +469,6 @@ def plot_speedups(
     series = [(*speedup_and_gflops(inductor_time_us), "Torch Inductor", INDUCTOR_COLOR)]
     for i, ((label, _), color) in enumerate(zip(backends, BACKEND_COLORS)):
         series.append((*speedup_and_gflops(merged[f"time_us_{i}"]), label, color))
-
-    def geomean(series: pd.Series) -> float:
-        return float(np.exp(np.log(series).mean()))
-
-    # Geomean speedups per backend vs. eager and vs. best-of Torch Inductor.
-    print("\\begin{tabular}{lrr}")
-    print("\\toprule")
-    print("Backend & vs. Torch eager & vs. Torch Inductor \\\\")
-    print("\\midrule")
-    for i, (label, _) in enumerate(backends):
-        time_us = merged[f"time_us_{i}"]
-        vs_eager = geomean(merged["time_us_torch"] / time_us)
-        vs_inductor = geomean(inductor_time_us / time_us)
-        print(f"{label} & {vs_eager:.2f}$\\times$ & {vs_inductor:.2f}$\\times$ \\\\")
-    print("\\bottomrule")
-    print("\\end{tabular}")
 
     kernels = merged["kernel_name"].tolist()
     labels = [f"{name[: name.find('_')]}" for name in kernels]
@@ -605,8 +631,8 @@ def main() -> None:
         help="Sort kernels by arithmetic intensity instead of CSV order.",
     )
     parser.add_argument(
-        "-g",
-        "--gflops",
+        "-a",
+        "--absolute",
         action="store_true",
         help="Annotate each bar with its absolute throughput in GFLOPS.",
     )
@@ -632,6 +658,20 @@ def main() -> None:
         help="Also save the full results of a single run directory, one table per "
         "backend, as a standalone LaTeX document to PATH.",
     )
+    parser.add_argument(
+        "-g",
+        "--geomean",
+        type=Path,
+        metavar="PATH",
+        help="Also save the geomean speedups of the backends over Torch eager and "
+        "Torch Inductor as a standalone LaTeX document to PATH.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print the statistics of the per-run mean runtimes across the runs.",
+    )
     args = parser.parse_args()
     if args.table and len(args.directories) > 1:
         # The CSVs lack the data to merge per-iteration statistics across runs.
@@ -639,13 +679,13 @@ def main() -> None:
     warnings: list[str] = []
     try:
         torch, compile_, compile_max_at = (
-            average_runs(args.directories, filename, warnings)
+            average_runs(args.directories, filename, warnings, args.verbose)
             for filename in (TORCH_CSV, COMPILE_CSV, COMPILE_MAX_AT_CSV)
         )
         # Best of compile and compile max-autotune per kernel.
         inductor = best_of(compile_, compile_max_at)
         backend_frames = [
-            (label, average_runs(args.directories, filename, warnings))
+            (label, average_runs(args.directories, filename, warnings, args.verbose))
             for label, filename in args.backend
         ]
         plot_speedups(
@@ -654,10 +694,12 @@ def main() -> None:
             backend_frames,
             output=args.output,
             sort_by_intensity=args.sort,
-            annotate_gflops=args.gflops,
+            annotate_gflops=args.absolute,
             group_by_category=args.categories,
             hero_output=args.hero,
         )
+        if args.geomean:
+            write_geomean_table(torch, inductor, backend_frames, args.geomean)
         if args.table:
             write_latex_tables(
                 [
