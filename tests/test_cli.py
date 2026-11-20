@@ -100,6 +100,7 @@ class TestCreateParser:
         assert args.no_env is False
         assert args.csv is None
         assert args.note == ""
+        assert args.csv_times is False
         assert args.variant is None
         assert args.ci is False
         assert args.dtype is None
@@ -335,6 +336,20 @@ class TestMainCsv:
         kwargs = mock_kb_runner.call_args.kwargs
         assert kwargs["csv_path"] is None
         assert kwargs["note"] == ""
+        assert kwargs["csv_times"] is False
+
+    def test_csv_times(self, mock_kb_runner):
+        """Test that --csv-times is forwarded to the runner."""
+        cli.main(["--no-env", "--csv", "out.csv", "--csv-times"])
+
+        assert mock_kb_runner.call_args.kwargs["csv_times"] is True
+
+    def test_csv_times_requires_csv(self, mock_kb_runner):
+        """Test that --csv-times is rejected without --csv."""
+        with pytest.raises(SystemExit):
+            cli.main(["--no-env", "--csv-times"])
+
+        mock_kb_runner.assert_not_called()
 
 
 class TestMainKernelMode:
