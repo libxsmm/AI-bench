@@ -24,6 +24,9 @@ export TRITON_HOME="$WORKDIR/tt_home"
 export TRITON_CACHE_DIR="$WORKDIR/tt_cache"
 export CUDA_TILE_CACHE_DIR="$WORKDIR/ct_cache"
 
+# Dump Inductor's code to inspect differences with DSLs
+export TORCH_LOGS=output_code
+
 # AI-bench settings
 export AIBENCH_WARMUP=100
 export AIBENCH_REP=1000
