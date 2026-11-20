@@ -31,7 +31,7 @@ export AIBENCH_CPU_MIN_CACHE_NUKE_MIB=5000
 
 # Build a fresh clone of AI-bench
 cd $WORKDIR
-git clone --recurse-submodules --branch dsl-paper-eval https://github.com/libxsmm/AI-bench.git
+git clone --recurse-submodules --branch test-samples https://github.com/libxsmm/AI-bench.git
 cd AI-bench
 uv sync --python 3.12 --extra cpu --extra triton-cpu --extra helion-mlir --extra cutile-cpu
 
@@ -97,7 +97,7 @@ EOF
 # Enter virtual environment
 source .venv/bin/activate
 
-AIBENCH_COMMON="--bench --dtype bfloat16 --gflops"
+AIBENCH_COMMON="--bench --dtype bfloat16 --gflops --csv-times"
 
 # PyTorch reference (eager mode)
 $NUMACTL_CMD ai-bench $AIBENCH_COMMON --csv "$OUTPUT_DIR/torch-eager.csv"
