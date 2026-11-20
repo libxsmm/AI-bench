@@ -1,8 +1,11 @@
+import base64
+import io
 import json
 import os
 from pathlib import Path
 
 from natsort import natsorted
+import numpy as np
 import torch
 
 from . import config
@@ -14,6 +17,13 @@ from ai_bench.utils.csv_logger import CSVLogger
 
 _NATIVE_BACKENDS = frozenset({ai_hc.Backend.SYCL})
 _NATIVE_EXTENSIONS = {ai_hc.Backend.SYCL: ".cpp"}
+_TIMES_COLUMN = "times_us_npy_b64"
+
+
+def _npy_base64(times: torch.Tensor) -> str:
+    buffer = io.BytesIO()
+    np.save(buffer, times.numpy(), allow_pickle=False)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 class KernelBenchRunner(KernelRunner):
@@ -27,6 +37,7 @@ class KernelBenchRunner(KernelRunner):
         flops_unit: FLOPS unit to use for reporting
         csv_path: Path to CSV file for logging (optional)
         note: Optional note to include in CSV
+        csv_times: Also log the per-iteration runtimes to the CSV file
         validate_only: Force a single validation run instead of benchmarking
         dtype: Run only variants whose problem-spec dtype matches this value
     """
@@ -42,6 +53,7 @@ class KernelBenchRunner(KernelRunner):
         note: str = "",
         validate_only: bool = False,
         dtype: str | None = None,
+        csv_times: bool = False,
     ):
         super().__init__(
             spec_type=spec_type,
@@ -55,6 +67,7 @@ class KernelBenchRunner(KernelRunner):
         self.specs = ai_utils.specs() / "KernelBench"
         self.csv_path = csv_path
         self.note = note
+        self.csv_times = csv_times
         self.csv_fieldnames = [
             "kernel_name",
             "kernel_type",
@@ -81,6 +94,9 @@ class KernelBenchRunner(KernelRunner):
             [k for k in os.environ.keys() if k.startswith("AIBENCH_")]
         )
         self.csv_fieldnames.extend(aibench_env_keys)
+        # Last, so the long cell does not push the other columns out of view.
+        if csv_times:
+            self.csv_fieldnames.append(_TIMES_COLUMN)
 
         if csv_path:
             self.csv_logger = CSVLogger(csv_path, self.csv_fieldnames)
@@ -196,6 +212,8 @@ class KernelBenchRunner(KernelRunner):
                             "note": self.note,
                         }
                         row.update(aibench_env)
+                        if self.csv_times:
+                            row[_TIMES_COLUMN] = _npy_base64(ts.times) if ts else ""
                         self.csv_logger.log(row)
 
     def run_kernel_spec(
