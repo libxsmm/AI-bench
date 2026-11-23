@@ -1,5 +1,7 @@
 import argparse
+import base64
 from fractions import Fraction
+import io
 import json
 from pathlib import Path
 import re
@@ -50,6 +52,19 @@ TABLE_TIME_COLUMNS = (
     "time_median_us",
     "time_std_us",
 )
+# Base64-encoded .npy array of the individual iteration times.
+SAMPLES_COLUMN = "times_us_npy_b64"
+EXCEL_DROPPED_COLUMNS = [
+    "kernel_type",
+    "problem_level",
+    "flops_note",
+    "mem_bytes",
+    "mem_bw_val",
+    "mem_bw_unit",
+    "mem_note",
+    "note",
+    "AIBENCH_SPECS_DIR",
+]
 # Okabe-Ito colorblind-safe palette; orange is reserved for Torch Inductor.
 INDUCTOR_COLOR = "#E69F00"
 BACKEND_COLORS = (
@@ -410,6 +425,40 @@ def write_latex_tables(
     _write_latex_document(output, lines)
 
 
+def write_excel(run_dirs: list[Path], filenames: list[str], output: Path) -> None:
+    """Save the CSVs as an Excel workbook with one sheet per run directory.
+
+    Each sheet stacks the CSVs of its directory in the given order, with the
+    raw time samples unpacked into one column per sample.
+    """
+    sheets = {}
+    for directory in run_dirs:
+        frames = []
+        for filename in filenames:
+            frame = pd.read_csv(directory / filename)
+            frame = frame.drop(columns=EXCEL_DROPPED_COLUMNS, errors="ignore")
+            frame.insert(0, "backend", Path(filename).stem)
+            if SAMPLES_COLUMN in frame:
+                samples = pd.DataFrame(
+                    [
+                        np.load(io.BytesIO(base64.b64decode(encoded)))
+                        for encoded in frame.pop(SAMPLES_COLUMN)
+                    ]
+                )
+                frame = frame.join(samples.add_prefix("sample_us_"))
+            frames.append(frame)
+        # Resolved, so that "." yields the name of the current directory.
+        sheets[directory.resolve().name] = pd.concat(frames, ignore_index=True)
+    if len(sheets) != len(run_dirs):
+        raise ValueError(
+            "run directory names are used as sheet names and must be unique"
+        )
+    with pd.ExcelWriter(output) as writer:
+        for name, frame in sheets.items():
+            frame.to_excel(writer, sheet_name=name, index=False)
+    print(f"Saved {output}")
+
+
 def plot_speedups(
     torch: pd.DataFrame,
     inductor: pd.DataFrame,
@@ -667,6 +716,14 @@ def main() -> None:
         "Torch Inductor as a standalone LaTeX document to PATH.",
     )
     parser.add_argument(
+        "-x",
+        "--excel",
+        type=Path,
+        metavar="PATH",
+        help="Also save the Torch and backend CSVs, including their raw time samples, "
+        "as an Excel workbook with one sheet per run directory to PATH.",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -710,6 +767,17 @@ def main() -> None:
                 args.table,
                 sort_by_intensity=args.sort,
                 group_by_category=args.categories,
+            )
+        if args.excel:
+            write_excel(
+                args.directories,
+                [
+                    TORCH_CSV,
+                    COMPILE_CSV,
+                    COMPILE_MAX_AT_CSV,
+                    *(filename for _, filename in args.backend),
+                ],
+                args.excel,
             )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
