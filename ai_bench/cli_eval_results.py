@@ -280,6 +280,14 @@ def best_of(first: pd.DataFrame, second: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("cannot pick the best of differing kernel sets")
     first = first.set_index("kernel_name")
     second = second.set_index("kernel_name").loc[first.index]
+    for column in ("input_values", "dtype"):
+        expected = first[column]
+        actual = second[column]
+        if column == "input_values":
+            expected = expected.map(json.loads)
+            actual = actual.map(json.loads)
+        if not actual.equals(expected):
+            raise ValueError(f"cannot pick the best of frames with differing {column}")
     second_wins = second["time_us"] < first["time_us"]
     best = pd.concat([first[~second_wins], second[second_wins]])
     return best.loc[first.index].reset_index()
@@ -449,11 +457,13 @@ def write_excel(run_dirs: list[Path], filenames: list[str], output: Path) -> Non
                 frame = frame.join(samples.add_prefix("sample_us_"))
             frames.append(frame)
         # Resolved, so that "." yields the name of the current directory.
-        sheets[directory.resolve().name] = pd.concat(frames, ignore_index=True)
-    if len(sheets) != len(run_dirs):
-        raise ValueError(
-            "run directory names are used as sheet names and must be unique"
-        )
+        name = re.sub(r"[\\/*?:\[\]]", "_", directory.resolve().name)
+        name = name[:31].strip("'") or "Run"
+        if any(name.casefold() == existing.casefold() for existing in sheets):
+            raise ValueError(
+                f"{directory}: normalized Excel sheet name {name!r} is not unique"
+            )
+        sheets[name] = pd.concat(frames, ignore_index=True)
     with pd.ExcelWriter(output) as writer:
         for name, frame in sheets.items():
             frame.to_excel(writer, sheet_name=name, index=False)
