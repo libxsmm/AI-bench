@@ -16,7 +16,7 @@ ci:
       INPUT_SIZE: 32
       HIDDEN_SIZE: 64
       OUTPUT_SIZE: 16
-    flop: "2*BATCH_SIZE*(INPUT_SIZE*HIDDEN_SIZE + HIDDEN_SIZE*OUTPUT_SIZE)"
+    flop: "2*BATCH_SIZE*INPUT_SIZE*HIDDEN_SIZE"
 
 mlir-cpu-bench:
   - params: [X]
@@ -28,7 +28,7 @@ mlir-cpu-bench:
       OUTPUT_SIZE: 1024
     rtol: 2.e-2
     atol: 1.e-1
-    flop: "2*BATCH_SIZE*(INPUT_SIZE*HIDDEN_SIZE + HIDDEN_SIZE*OUTPUT_SIZE)"
+    flop: "2*BATCH_SIZE*INPUT_SIZE*HIDDEN_SIZE"
 
 bench-cpu:
   - params: [X]
@@ -38,4 +38,4 @@ bench-cpu:
       INPUT_SIZE: 2048
       HIDDEN_SIZE: 4096
       OUTPUT_SIZE: 1024
-    flop: "2*BATCH_SIZE*(INPUT_SIZE*HIDDEN_SIZE + HIDDEN_SIZE*OUTPUT_SIZE)"
+    flop: "2*BATCH_SIZE*INPUT_SIZE*HIDDEN_SIZE"
