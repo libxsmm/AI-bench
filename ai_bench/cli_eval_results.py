@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import sys
 
+from matplotlib.colors import to_rgb
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.ticker import MaxNLocator
@@ -465,14 +466,16 @@ def plot_speedups(
     backends: list[tuple[str, pd.DataFrame]],
     output: str | Path = "speedup.png",
     sort_by_intensity: bool = False,
-    annotate_gflops: bool = False,
+    gflops_series: int | None = None,
     group_by_category: bool = False,
     hero_output: str | Path | None = None,
 ) -> None:
     """Plot speedups over torch eager for Torch Inductor and the given backends.
 
-    Each dataframe must have unique kernel_name values. If hero_output is given,
-    the same speedups are also saved there as a single-column line chart.
+    Each dataframe must have unique kernel_name values. If gflops_series is given,
+    the bars of that series (0 for Torch Inductor, N for the N-th backend) are
+    labelled with their absolute GFLOPS. If hero_output is given, the same speedups
+    are also saved there as a single-column line chart.
     """
     if len(backends) > len(BACKEND_COLORS):
         raise ValueError(f"At most {len(BACKEND_COLORS)} backends are supported.")
@@ -527,24 +530,29 @@ def plot_speedups(
     bar_width = group_width / len(series)
 
     fig, ax = plt.subplots(figsize=(24, 8))
+    gflops_labels = []
     for i, (values, gflops, label, color) in enumerate(series):
         y = np.asarray(values, dtype=float)
         offsets = x - group_width / 2 + (i + 0.5) * bar_width
-        ax.bar(offsets, y, width=bar_width, label=label, color=color)
-        if not annotate_gflops:
+        bars = ax.bar(offsets, y, width=bar_width, label=label, color=color)
+        if i != gflops_series:
             continue
-        for xi, yi, gi in zip(offsets, y, np.asarray(gflops, dtype=float)):
-            ax.annotate(
+        luminance = np.dot(to_rgb(color), (0.299, 0.587, 0.114))
+        for bar, xi, yi, gi in zip(bars, offsets, y, np.asarray(gflops, dtype=float)):
+            text = ax.annotate(
                 f"{gi:.0f}",
                 (xi, yi),
                 textcoords="offset points",
-                xytext=(0, 3),
-                ha="center",
-                va="bottom",
+                xytext=(0, -3),
+                # Aligned before rotating, to centre the digits without descender.
+                ha="right",
+                va="center_baseline",
                 rotation=90,
+                rotation_mode="anchor",
                 fontsize=9,
-                color=color,
+                color="black" if luminance > 0.5 else "white",
             )
+            gflops_labels.append((bar, text))
 
     ax.axhline(1.0, color="black", linewidth=1.0, linestyle="--", alpha=0.7)
     for xi in x[::2]:
@@ -584,6 +592,12 @@ def plot_speedups(
     ax.grid(axis="y", which="minor", linestyle=":", alpha=0.3)
 
     fig.tight_layout()
+    # Labels that do not fit inside their bar go on top of it instead.
+    renderer = fig.canvas.get_renderer()
+    for bar, text in gflops_labels:
+        if text.get_window_extent(renderer).y0 < bar.get_window_extent(renderer).y0:
+            text.set(ha="left", color=bar.get_facecolor())
+            text.xyann = (0, 3)
     fig.savefig(output, dpi=200)
     plt.close(fig)
     print(f"Saved {output}")
@@ -682,8 +696,10 @@ def main() -> None:
     parser.add_argument(
         "-a",
         "--absolute",
-        action="store_true",
-        help="Annotate each bar with its absolute throughput in GFLOPS.",
+        type=int,
+        metavar="N",
+        help="Label the bars of the N-th backend (in -b order, 0 for Torch Inductor) "
+        "with their absolute throughput in GFLOPS.",
     )
     parser.add_argument(
         "-c",
@@ -733,6 +749,8 @@ def main() -> None:
     if args.table and len(args.directories) > 1:
         # The CSVs lack the data to merge per-iteration statistics across runs.
         parser.error("--table requires a single run directory")
+    if args.absolute is not None and not 0 <= args.absolute <= len(args.backend):
+        parser.error(f"--absolute must be between 0 and {len(args.backend)}")
     warnings: list[str] = []
     try:
         torch, compile_, compile_max_at = (
@@ -751,7 +769,7 @@ def main() -> None:
             backend_frames,
             output=args.output,
             sort_by_intensity=args.sort,
-            annotate_gflops=args.absolute,
+            gflops_series=args.absolute,
             group_by_category=args.categories,
             hero_output=args.hero,
         )
