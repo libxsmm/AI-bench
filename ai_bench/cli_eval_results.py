@@ -539,12 +539,12 @@ def plot_speedups(
     for i, (values, gflops, label, color) in enumerate(series):
         y = np.asarray(values, dtype=float)
         offsets = x - group_width / 2 + (i + 0.5) * bar_width
-        bars = ax.bar(offsets, y, width=bar_width, label=label, color=color)
+        ax.bar(offsets, y, width=bar_width, label=label, color=color)
         if i != gflops_series:
             continue
         luminance = np.dot(to_rgb(color), (0.299, 0.587, 0.114))
-        for bar, xi, yi, gi in zip(bars, offsets, y, np.asarray(gflops, dtype=float)):
-            text = ax.annotate(
+        for xi, yi, gi in zip(offsets, y, np.asarray(gflops, dtype=float)):
+            ax.annotate(
                 f"{gi:.0f}",
                 (xi, yi),
                 textcoords="offset points",
