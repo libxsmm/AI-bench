@@ -357,7 +357,7 @@ Environment variables used for project configuration:
 | `AIBENCH_SYCL_FLAGS` | Extra compiler flags (space-separated) |
 | `AIBENCH_WARMUP` | Override number of warmup iterations |
 | `AIBENCH_REP` | Override number of timed iterations |
-| `AIBENCH_CPU_MIN_CACHE_NUKE_MIB` | Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU |
+| `AIBENCH_CPU_CACHE_SIZE_MIB` | Target nominal combined input/output footprint between CPU input reuses (MiB). Dense inputs rotate; outputs are retained for allocator-dependent reuse, not preallocated. Weights and scratch are shared; cache eviction is not guaranteed. Rings exceeding 10,000 sets are rejected; `0` disables rotation. |
 | `AIBENCH_OUTPUT_POOL` | Maximum bytes of free buffers kept for reuse by the CPU kernels' output buffer pool; `0` disables the pool (default: the smaller of 2 GiB and 1/8 of memory) |
 | `AIBENCH_GPU_TIMER=wallclock\|events` | GPU timing strategy (default: host `wallclock`) |
 

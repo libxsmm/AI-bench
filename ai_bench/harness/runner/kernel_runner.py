@@ -84,13 +84,16 @@ class KernelRunner:
 
         self.spec_type = spec_type
         self.device = device if device else torch.device("cpu")
-        self.min_cache_nuke_mib = 0
+        self.cache_size_mib = 0
         if self.is_cpu():
             self.warmup = 5
             self.rep = 20
-            self.min_cache_nuke_mib = int(
-                os.environ.get("AIBENCH_CPU_MIN_CACHE_NUKE_MIB", "0")
-            )
+            if "AIBENCH_CPU_MIN_CACHE_NUKE_MIB" in os.environ:
+                raise ValueError(
+                    "AIBENCH_CPU_MIN_CACHE_NUKE_MIB was replaced by "
+                    "AIBENCH_CPU_CACHE_SIZE_MIB"
+                )
+            self.cache_size_mib = int(os.environ.get("AIBENCH_CPU_CACHE_SIZE_MIB", "0"))
         elif self.is_gpu():
             self.warmup = 200
             self.rep = 100
@@ -286,7 +289,7 @@ class KernelRunner:
                 args,
                 warmup=self.warmup,
                 rep=self.rep,
-                min_cache_nuke_mib=self.min_cache_nuke_mib,
+                cache_size_mib=self.cache_size_mib,
                 device=self.device,
             )
         meas_us = time_stats.mean
