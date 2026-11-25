@@ -13,9 +13,10 @@ WORKDIR="/local_scratch/dsl-paper-eval-$SLURM_JOB_ID"
 mkdir -p $WORKDIR
 
 # OpenMP configuration for EMR
-export LD_PRELOAD=/lib64/libomp.so:$LD_PRELOAD
+export LD_PRELOAD=/lib64/libomp.so:/usr/lib64/libtcmalloc.so:$LD_PRELOAD
 export OMP_NUM_THREADS=64
 export KMP_AFFINITY=granularity=fine,compact,1,0
+export KMP_BLOCKTIME=1
 export NUMACTL_CMD="numactl -m 0 -C 0-63"
 
 # Allocate cache directories for TorchInductor and Triton in workdir
@@ -76,8 +77,10 @@ Running DSL paper evaluation with the following settings:
   SLURM_JOB_PARTITION: $SLURM_JOB_PARTITION
   HOST: $(hostname -s)
   NO_TURBO: $(cat /sys/devices/system/cpu/intel_pstate/no_turbo)
+  LD_PRELOAD: $LD_PRELOAD
   OMP_NUM_THREADS: $OMP_NUM_THREADS
   KMP_AFFINITY: $KMP_AFFINITY
+  KMP_BLOCKTIME: $KMP_BLOCKTIME
   NUMACTL_CMD: $NUMACTL_CMD
 
   TORCHINDUCTOR_CACHE_DIR: $TORCHINDUCTOR_CACHE_DIR
