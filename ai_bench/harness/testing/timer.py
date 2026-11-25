@@ -59,19 +59,17 @@ def _is_non_overlapping_and_dense(tensor: torch.Tensor) -> bool:
     return True
 
 
-def _validate_rotation_tensors(values, *, reject_views: bool = False):
+def _validate_rotation_tensors(values, *, is_input: bool = False):
     inputs = {}
     for leaf in tree_leaves(values):
         if isinstance(leaf, torch.Tensor):
-            if (
-                leaf.device.type != "cpu"
-                or leaf.layout != torch.strided
-                or not _is_non_overlapping_and_dense(leaf)
-            ):
+            if leaf.device.type != "cpu" or leaf.layout != torch.strided:
+                raise ValueError("Cache rotation requires strided CPU tensors")
+            if is_input and not _is_non_overlapping_and_dense(leaf):
                 raise ValueError(
-                    "Cache rotation requires dense, non-overlapping CPU tensors"
+                    "Cache rotation requires dense, non-overlapping CPU inputs"
                 )
-            if reject_views and leaf.numel():
+            if is_input and leaf.numel():
                 address = leaf.untyped_storage().data_ptr()
                 if inputs.setdefault(address, leaf) is not leaf:
                     raise ValueError(
@@ -80,7 +78,7 @@ def _validate_rotation_tensors(values, *, reject_views: bool = False):
 
 
 def _tensor_bytes(values) -> int:
-    """Conservative logical footprint, deduplicated by backing storage."""
+    """Logical bytes of the largest view in each storage."""
     storages = {}
     for leaf in tree_leaves(values):
         if isinstance(leaf, torch.Tensor):
@@ -113,33 +111,34 @@ def time_cpu(
 ) -> TimeStats:
     """Measure execution time of the provided function on CPU.
 
-    With a cache size, fn must return its output tensors. Inputs and outputs
-    must be dense, non-overlapping CPU tensors; distinct input views sharing
-    storage are unsupported. Repeated references to the same input are preserved.
-    fn must not mutate inputs or retain autograd graphs. Shapes and accessed
-    regions must be stable across calls, and all input elements must be read.
+    CPU rotation cycles through input copies sized from the logical input/output
+    footprint. The output ring is filled before timing. Each output reference is
+    released before its input set is reused, outside timing.
 
-    An untimed call sizes the nominal combined input/output footprint. Input
-    copies rotate round-robin, and an untimed round fills their output slots.
-    Output references are released outside timing, even with rotation disabled.
-    Output storage reuse remains allocator-dependent, including interference
-    from scratch or model-owned outputs. This is not guaranteed cache eviction;
-    weights and scratch are not rotated. Excessive ring sizes raise an error.
+    Rotation requires dense, non-overlapping CPU inputs and returned strided CPU
+    outputs. Repeated input references are preserved; distinct inputs sharing
+    storage are unsupported. Padded output views are allowed. fn must read all
+    input elements without mutating inputs or retaining autograd graphs. Shapes
+    and accessed regions must be stable.
+
+    Weights and scratch are not rotated. Output storage reuse depends on the
+    allocator and model; cache eviction is not guaranteed. The ring limit is
+    10,000 sets. Output release is untimed even with rotation disabled.
 
     Args:
         fn: Function to measure
         args: Arguments to pass to the function
         warmup: Warmup iterations on the original arguments
         rep: Measurement iterations
-        cache_size_mib: Target nominal intervening I/O footprint in MiB,
-            or 0 to disable rotation
+        cache_size_mib: Logical input/output working-set target in MiB;
+            0 disables rotation
     Returns:
         Runtime statistics in microseconds
     """
     if warmup < 0 or rep <= 0 or cache_size_mib < 0:
         raise ValueError("Require warmup >= 0, rep > 0 and cache_size_mib >= 0")
     if cache_size_mib > 0:
-        _validate_rotation_tensors(args, reject_views=True)
+        _validate_rotation_tensors(args, is_input=True)
 
     # Supress profiler's warning, no event accumulation is needed.
     warnings.filterwarnings(
@@ -155,7 +154,7 @@ def time_cpu(
 
     n_sets = 1
     if cache_size_mib > 0:
-        # Untimed call to measure the output size.
+        # Output sizing is untimed.
         out = fn(*args)
         if not any(isinstance(leaf, torch.Tensor) for leaf in tree_leaves(out)):
             raise ValueError("Cache rotation requires fn to return its output tensors")
@@ -175,7 +174,7 @@ def time_cpu(
     arg_sets = [args] + [_clone_args(args) for _ in range(n_sets - 1)]
     outs = [None] * n_sets
     if n_sets > 1:
-        # Untimed round in timed order: each timed call frees an output n_sets old.
+        # Output slots are primed in measurement order.
         for i in range(n_sets):
             idx = (i + 1) % n_sets
             outs[idx] = fn(*arg_sets[idx])
@@ -348,8 +347,8 @@ def time(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
-        cache_size_mib: Nominal intervening I/O footprint in MiB for CPU
-            input rotation and allocator-dependent output reuse, or 0 to disable
+        cache_size_mib: Logical input/output working-set target in MiB;
+            0 disables CPU rotation
         device: Device type to use
     Returns:
         Runtime statistics in microseconds
