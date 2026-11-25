@@ -18,7 +18,7 @@ ci:
       OUT_FEAT: 64
       SUB_VAL: 2.0
       MUL_VAL: 1.5
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 simple-cpu:
   - params: [X]
@@ -30,7 +30,7 @@ simple-cpu:
       SUB_VAL: 2.0
       MUL_VAL: 1.5
     atol: 1.5e-2  # rtol explodes for a handful of elements: if 0 is expected (relu!), but the Triton kernel returns a small positive number
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 mlir-cpu-bench:
   - params: [X]
@@ -42,7 +42,7 @@ mlir-cpu-bench:
       SUB_VAL: 2.0
       MUL_VAL: 1.5
     atol: 1.5e-2
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 bench-cpu:
   - params: [X]
@@ -54,7 +54,7 @@ bench-cpu:
       SUB_VAL: 2.0
       MUL_VAL: 1.5
     atol: 1.5e-2  # see comment in simple-cpu
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 mlir-gpu-bench:
   - params: [X]
@@ -66,7 +66,7 @@ mlir-gpu-bench:
       SUB_VAL: 2.0
       MUL_VAL: 1.5
     atol: 1.5e-2
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 bench-gpu:
   - params: [X]
@@ -77,6 +77,6 @@ bench-gpu:
       OUT_FEAT: 4096
       SUB_VAL: 2.0
       MUL_VAL: 1.5
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 2*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
     rtol: 1.0e-03
     atol: 1.0e-05

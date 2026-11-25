@@ -16,7 +16,7 @@ ci:
       IN_FEATURES: 32
       OUT_FEATURES: 32
       SCALING_FACTOR: 0.5
-    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES + 2*BATCH_SIZE*OUT_FEATURES"
+    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES"
 
 simple-cpu:
   - params: [X]
@@ -26,7 +26,7 @@ simple-cpu:
       IN_FEATURES: 1024
       OUT_FEATURES: 1024
       SCALING_FACTOR: 0.5
-    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES + 2*BATCH_SIZE*OUT_FEATURES"
+    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES"
 
 mlir-cpu-bench:
   - params: [X]
@@ -37,7 +37,7 @@ mlir-cpu-bench:
       OUT_FEATURES: 4096
       SCALING_FACTOR: 0.5
     atol: 4.e-2
-    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES + 2*BATCH_SIZE*OUT_FEATURES"
+    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES"
 
 bench-cpu:
   - params: [X]
@@ -47,7 +47,7 @@ bench-cpu:
       IN_FEATURES: 4096
       OUT_FEATURES: 4096
       SCALING_FACTOR: 0.5
-    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES + 2*BATCH_SIZE*OUT_FEATURES"
+    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES"
 
 mlir-gpu-bench:
   - params: [X]
@@ -57,4 +57,4 @@ mlir-gpu-bench:
       IN_FEATURES: 4096
       OUT_FEATURES: 4096
       SCALING_FACTOR: 0.5
-    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES + 2*BATCH_SIZE*OUT_FEATURES"
+    flop: "2*BATCH_SIZE*IN_FEATURES*OUT_FEATURES"

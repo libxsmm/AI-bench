@@ -18,7 +18,7 @@ ci:
       OUT_FEAT: 64
       MUL: 2.0
       NEG_SLOPE: 0.1
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 mlir-cpu-bench:
   - params: [X]
@@ -30,7 +30,7 @@ mlir-cpu-bench:
       MUL: 2.0
       NEG_SLOPE: 0.1
     atol: 4.e-2
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 bench-cpu:
   - params: [X]
@@ -41,7 +41,7 @@ bench-cpu:
       OUT_FEAT: 8192
       MUL: 2.0
       NEG_SLOPE: 0.1
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 mlir-gpu-bench:
   - params: [X]
@@ -52,7 +52,7 @@ mlir-gpu-bench:
       OUT_FEAT: 8192
       MUL: 2.0
       NEG_SLOPE: 0.1
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
 
 bench-gpu:
   - params: [X]
@@ -63,6 +63,6 @@ bench-gpu:
       OUT_FEAT: 4096
       MUL: 2.0
       NEG_SLOPE: 0.1
-    flop: "2*BATCH*IN_FEAT*OUT_FEAT + 4*BATCH*OUT_FEAT"
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
     rtol: 1.3e-03
     atol: 9.6e-04
