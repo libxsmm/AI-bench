@@ -745,7 +745,25 @@ def main() -> None:
         action="store_true",
         help="Print the statistics of the per-run mean runtimes across the runs.",
     )
+    parser.add_argument(
+        "--paper-artifacts",
+        action="store_true",
+        help="Produce the plots and the geomean table of the paper with their fixed "
+        "backends and settings.",
+    )
     args = parser.parse_args()
+    if args.paper_artifacts:
+        args.backend = [
+            ("Triton CPU", "triton.csv"),
+            ("cuTile CPU", "cutile.csv"),
+            ("Helion MLIR", "helion-mlir.csv"),
+            ("Lighthouse", "mlir.csv"),
+        ]
+        args.output = Path("overall-results-by-cat.pdf")
+        args.hero = Path("hero.pdf")
+        args.geomean = Path("geomean.tex")
+        args.categories = True
+        args.absolute = 3
     if args.table and len(args.directories) > 1:
         # The CSVs lack the data to merge per-iteration statistics across runs.
         parser.error("--table requires a single run directory")
