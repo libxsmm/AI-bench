@@ -93,9 +93,10 @@ helion-mlir = [
   "ml-dtypes",
   "helion-mlir-cpu-utils", # Local kernel helper package (see: backends/utils).
 ]
-# Plotting dependencies for ai-bench-eval-results.
+# Plotting and export dependencies for ai-bench-eval-results.
 eval-results = [
   "matplotlib",
+  "openpyxl",
   "pandas",
 ]
 
