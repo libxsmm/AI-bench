@@ -12,6 +12,9 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 
+# Embed TrueType instead of Type 3 fonts in PDFs; some venues reject the latter.
+plt.rcParams["pdf.fonttype"] = 42
+
 # Keys in the input_values dict that map to each matmul dimension.
 M_KEYS = ("BATCH_SIZE", "BATCH")
 N_KEYS = ("OUT_FEATURES", "HIDDEN_SIZE", "OUTPUT_SIZE", "OUT_FEAT")
@@ -533,7 +536,6 @@ def plot_speedups(
     bar_width = group_width / len(series)
 
     fig, ax = plt.subplots(figsize=(24, 8))
-    gflops_labels = []
     for i, (values, gflops, label, color) in enumerate(series):
         y = np.asarray(values, dtype=float)
         offsets = x - group_width / 2 + (i + 0.5) * bar_width
@@ -555,7 +557,6 @@ def plot_speedups(
                 fontsize=9,
                 color="black" if luminance > 0.5 else "white",
             )
-            gflops_labels.append((bar, text))
 
     ax.axhline(1.0, color="black", linewidth=1.0, linestyle="--", alpha=0.7)
     for xi in x[::2]:
@@ -595,12 +596,6 @@ def plot_speedups(
     ax.grid(axis="y", which="minor", linestyle=":", alpha=0.3)
 
     fig.tight_layout()
-    # Labels that do not fit inside their bar go on top of it instead.
-    renderer = fig.canvas.get_renderer()
-    for bar, text in gflops_labels:
-        if text.get_window_extent(renderer).y0 < bar.get_window_extent(renderer).y0:
-            text.set(ha="left", color=bar.get_facecolor())
-            text.xyann = (0, 3)
     fig.savefig(output, dpi=200)
     plt.close(fig)
     print(f"Saved {output}")
@@ -678,7 +673,8 @@ def main() -> None:
         "--output",
         type=Path,
         default=Path("dsl-paper-eval-speedup.png"),
-        help="Output image path (default: %(default)s).",
+        help="Output plot path; the extension selects the format, e.g. .png or .pdf "
+        "(default: %(default)s).",
     )
     parser.add_argument(
         "-b",
@@ -716,7 +712,8 @@ def main() -> None:
         "--hero",
         type=Path,
         metavar="PATH",
-        help="Also save a single-column line chart of the speedups to PATH.",
+        help="Also save a single-column line chart of the speedups to PATH; the "
+        "extension selects the format, as for --output.",
     )
     parser.add_argument(
         "-t",
