@@ -74,10 +74,10 @@ def time_cpu(
 
     nuke_a, nuke_b, nuke_c = None, None, None
     if min_cache_nuke_mib > 0:
-        nuke_size = 2048
-        n_layers = math.ceil(
-            min_cache_nuke_mib * 1024 * 1024 / (3 * nuke_size * nuke_size * 2)
-        )  # 3 matrices, 2 bytes per bfloat16
+        n_layers = torch.get_num_threads()  # ensure all cores are utilized
+        nuke_size = math.ceil(
+            math.sqrt(min_cache_nuke_mib * 1024 * 1024 / (3 * n_layers * 2))
+        )  # 3 matrices per layer, 2 bytes per bfloat16
         nuke_a = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
         nuke_b = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
         nuke_c = torch.empty((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
