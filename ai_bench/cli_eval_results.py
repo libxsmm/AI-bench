@@ -155,6 +155,12 @@ def parse_backend(spec: str) -> tuple[str, str]:
     label, sep, filename = spec.partition(":")
     if not sep or not label or not filename:
         raise argparse.ArgumentTypeError(f"expected LABEL:CSV, got {spec!r}")
+    # Keeps the labels free of characters that are special in LaTeX.
+    if not re.fullmatch(r"[A-Za-z0-9 ().-]+", label):
+        raise argparse.ArgumentTypeError(
+            f"label {label!r} may only contain letters, digits, spaces, dots, "
+            "hyphens and parentheses"
+        )
     return label, filename
 
 
@@ -290,8 +296,8 @@ def best_of(first: pd.DataFrame, second: pd.DataFrame) -> pd.DataFrame:
     return best.loc[first.index].reset_index()
 
 
-def _tex_escape(text: str) -> str:
-    return re.sub(r"([&%$#_{}])", r"\\\1", text)
+def _tex_escape(kernel_name: str) -> str:
+    return kernel_name.replace("_", "\\_")
 
 
 def _write_latex_document(output: Path, body: list[str]) -> None:
@@ -338,8 +344,7 @@ def write_geomean_table(
         vs_eager = geomean(torch_time_us / time_us)
         vs_inductor = geomean(inductor_time_us / time_us)
         lines.append(
-            f"{_tex_escape(label)} & {vs_eager:.2f}$\\times$ & "
-            f"{vs_inductor:.2f}$\\times$ \\\\"
+            f"{label} & {vs_eager:.2f}$\\times$ & {vs_inductor:.2f}$\\times$ \\\\"
         )
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{center}", ""]
     _write_latex_document(output, lines)
@@ -396,7 +401,7 @@ def write_latex_tables(
             "\\centering",
             "\\footnotesize",
             "\\setlength{\\tabcolsep}{4pt}",
-            f"\\caption{{{_tex_escape(label)}. Runtime statistics over the timed "
+            f"\\caption{{{label}. Runtime statistics over the timed "
             "iterations of a single run; throughput of the $2MNK$ matmul flops at "
             "the mean runtime.}",
             "\\begin{tabular}{@{}lrrrrrrrr@{}}",
@@ -413,7 +418,7 @@ def write_latex_tables(
             if group_by_category and (category := kernel_category(kernel)) != previous:
                 if previous is not None:
                     lines.append("\\addlinespace")
-                name = _tex_escape(categories[category])
+                name = categories[category]
                 lines.append(f"\\multicolumn{{9}}{{@{{}}l}}{{\\textit{{{name}}}}} \\\\")
                 previous = category
             m, n, k = matmul_dims(row["input_values"])
