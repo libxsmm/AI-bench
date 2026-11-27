@@ -355,6 +355,10 @@ _PANEL_PAIRS = 16
 # EMR: a panel past 1 MiB loses, and so does K = 8192 even at a 1 MiB panel.
 _SINGLE_CHUNK_PANEL_BYTES = 1 << 20
 _SINGLE_CHUNK_K = 4096
+# Half of L2 for a thread's own rows of A; the weight streams through the rest.
+_PRIVATE_A_BYTES = 1 << 20
+# f32 accumulator elements of a prepacked VNNI tile (1 MiB).
+_PREPACKED_ACC_ELEMENTS = 1 << 18
 
 
 def _single_k_chunk(panel: int, k: int) -> bool:
@@ -547,8 +551,12 @@ def _matmul_prepacked_vnni(
     ``[M, K]`` viewed as K pairs ``[M, K/2, 2]``, and ``b4``, B in contiguous
     column panels of AMX's VNNI layout ``[N/P, K/2, P, 2]``
     (:func:`pack_b_vnni_t`); ``bias2``, ``scale2`` and ``shift2`` are
-    ``[N/P, P]`` or ``None``. Tiles are one panel wide; written into ``out``
-    (``[M, N/P, P]``) if given.
+    ``[N/P, P]`` or ``None``. Written into ``out`` (``[M, N/P, P]``) if given.
+
+    Tiles span one or more panels (a block size) and run them one at a time:
+    several panels in one accumulator keep the GEMM off AMX. Tiles of all
+    panels give each thread whole output rows, so its rows of A stay private
+    and in L2 while the threads share the weight, which stays in cache.
 
     AMX loads both operands' tiles in place: nothing is packed per call. K
     pairs run in chunks up to ``pairs_chunked``, one chunk of the rest up to
@@ -569,24 +577,25 @@ def _matmul_prepacked_vnni(
         result = output_pool.empty((m, panels, panel), dtype=a3.dtype, device=a3.device)
     else:
         result = out
-    for tile_m, tile_p in hl.tile([m, panels]):
-        acc = hl.zeros([tile_m, tile_p, panel], dtype=torch.float32)
-        if pairs_chunked > 0:
-            for tile_kp in hl.tile(pairs_chunked):
-                acc = acc + _panel_dot(a3, b4, tile_m, tile_p, tile_kp)
-        if pairs_even > pairs_chunked:
-            for tile_rest in hl.tile(pairs_chunked, pairs_even):
-                acc = acc + _panel_dot(a3, b4, tile_m, tile_p, tile_rest)
-        if pairs > pairs_even:
-            for tile_tail in hl.tile(pairs_even, pairs_even + 32, block_size=32):
-                acc = acc + _panel_dot(a3, b4, tile_m, tile_p, tile_tail)
-        if bias2 is not None:
-            acc = acc + bias2[tile_p, :]
-        if scale2 is not None:
-            acc = acc * scale2[tile_p, :]
-        if shift2 is not None:
-            acc = acc + shift2[tile_p, :]
-        result[tile_m, tile_p, :] = epilogue(acc).to(a3.dtype)
+    for tile_m, tile_s in hl.tile([m, panels]):
+        for tile_p in hl.tile(tile_s.begin, tile_s.end, block_size=1):
+            acc = hl.zeros([tile_m, tile_p, panel], dtype=torch.float32)
+            if pairs_chunked > 0:
+                for tile_kp in hl.tile(pairs_chunked):
+                    acc = acc + _panel_dot(a3, b4, tile_m, tile_p, tile_kp)
+            if pairs_even > pairs_chunked:
+                for tile_rest in hl.tile(pairs_chunked, pairs_even):
+                    acc = acc + _panel_dot(a3, b4, tile_m, tile_p, tile_rest)
+            if pairs > pairs_even:
+                for tile_tail in hl.tile(pairs_even, pairs_even + 32, block_size=32):
+                    acc = acc + _panel_dot(a3, b4, tile_m, tile_p, tile_tail)
+            if bias2 is not None:
+                acc = acc + bias2[tile_p, :]
+            if scale2 is not None:
+                acc = acc * scale2[tile_p, :]
+            if shift2 is not None:
+                acc = acc + shift2[tile_p, :]
+            result[tile_m, tile_p, :] = epilogue(acc).to(a3.dtype)
     return result
 
 
@@ -762,7 +771,7 @@ def _matmul_prepacked_vnni_call(
 
     bias2, scale2, shift2 = panels2(bias), panels2(scale), panels2(shift)
     operands = (b4, bias2, scale2, shift2, epilogue)
-    tile_m = _prepacked_tile_m(m, panels, panel)
+    tile_m = _prepacked_tile_m(m, panels, panel, k)
     bulk = m // tile_m * tile_m
     if bulk == m:
         bound, consts = _prepacked_bound(a3, *operands, tile_m)
@@ -786,16 +795,56 @@ def _matmul_prepacked_vnni_call(
     return out if n == n_pad else out[:, :n]
 
 
-def _prepacked_tile_m(m: int, panels: int, panel: int) -> int:
+def _private_row_tile(m: int, k: int) -> int | None:
+    """Rows of whole-row tiles: the most whose bf16 rows of A fit
+    ``_PRIVATE_A_BYTES``, if such tiles split ``m`` evenly over the threads;
+    else ``None``. No two threads then read the same rows of A, which matters
+    when A is new on every call."""
+    threads = int(os.environ.get("OMP_NUM_THREADS", os.cpu_count() or 1))
+    k_pad = _round_up(k, 2 * _PANEL_PAIRS)
+    rows = _PRIVATE_A_BYTES // (2 * k_pad) // BLOCK_M * BLOCK_M
+    if threads < 1 or rows < BLOCK_M or m % rows or (m // rows) % threads:
+        return None
+    return rows
+
+
+def _prepacked_span(m: int, k: int, panels: int, panel: int, tile_m: int) -> int:
+    """Panels per tile, a tunable block size: all for whole-row tiles, two for
+    paired-row tiles, else one."""
+    if panel == BLOCK_N and tile_m == _private_row_tile(m, k):
+        return panels
+    if tile_m == _paired_rows(m, panels, panel):
+        return 2
+    return 1
+
+
+def _paired_rows(m: int, panels: int, panel: int) -> int | None:
+    """Half the default rows where the default tile's accumulator is at its cap
+    and the halves and panel pairs are whole; else ``None``. With two panels per
+    tile the tile count stays and half as many threads read each row of A."""
+    rows = _prepacked_tile_m(m, panels, panel)
+    if rows * panel < _PREPACKED_ACC_ELEMENTS or rows % (2 * BLOCK_M) or panels % 2:
+        return None
+    if m % (rows // 2):
+        return None
+    return rows // 2
+
+
+def _prepacked_tile_m(m: int, panels: int, panel: int, k: int | None = None) -> int:
     """Rows of a :func:`_matmul_prepacked_vnni` tile: every thread a tile, the
     f32 accumulator within 1 MiB, whole register tiles (a ragged row tile loses
-    AMX: 768-column panels gave 341 rows)."""
+    AMX: 768-column panels gave 341 rows). Given ``k``: whole-row or
+    paired-row tiles where those apply."""
+    if k is not None and panel == BLOCK_N and (rows := _private_row_tile(m, k)):
+        return rows
+    if k is not None and (rows := _paired_rows(m, panels, panel)):
+        return rows
     threads = int(os.environ.get("OMP_NUM_THREADS", os.cpu_count() or 1))
     tiles_m = max(1, threads // panels)
     return min(
         _round_up(-(-m // tiles_m), BLOCK_M),
         max(m // BLOCK_M * BLOCK_M, BLOCK_M),
-        max((1 << 18) // panel // BLOCK_M * BLOCK_M, BLOCK_M),
+        max(_PREPACKED_ACC_ELEMENTS // panel // BLOCK_M * BLOCK_M, BLOCK_M),
     )
 
 
@@ -828,6 +877,7 @@ def _prepacked_bound(
     the fused kernel."""
     m, pairs, _ = map(int, a3.shape)
     panels, _, panel, _ = map(int, b4.shape)
+    span = _prepacked_span(m, 2 * pairs, panels, panel, tile_m)
     key = (
         "prepacked",
         m,
@@ -841,12 +891,13 @@ def _prepacked_bound(
         shift2 is None,
         os.environ.get("OMP_NUM_THREADS"),
         epilogue,
+        span,
     )
     if (cached := _FUSED_PACK_BOUND.get(key)) is None:
         pairs_even = pairs // BLOCK_K * BLOCK_K
         chunk = _prepacked_k_chunk(pairs_even, panel, tile_m)
         pairs_chunked = pairs_even // chunk * chunk
-        tiles = (tile_m, 1, chunk, max(pairs_even - pairs_chunked, BLOCK_K))
+        tiles = (tile_m, span, chunk, max(pairs_even - pairs_chunked, BLOCK_K))
         consts = (hl.constexpr(pairs_chunked), hl.constexpr(pairs_even))
         bound = _matmul_prepacked_vnni(tiles).bind(
             (a3, b4, bias2, scale2, shift2, epilogue, *consts, out)
@@ -978,7 +1029,8 @@ def _pack_b_vnni_panels_kernel_t(b3_t: Tensor, panel: hl.constexpr) -> Tensor:
     out = output_pool.empty(
         (n // panel, pairs, panel, vnni), dtype=b3_t.dtype, device=b3_t.device
     )
-    for tp, tn in hl.tile([pairs, n]):
+    # One panel per column tile (fixed: the store indexes panels by tile id).
+    for tp, tn in hl.tile([pairs, n], block_size=[None, panel]):
         out[tn.id, tp, :, :] = b3_t[tn, tp, :].permute(1, 0, 2)
     return out
 
@@ -1064,8 +1116,12 @@ def vnni_panel(m: int, n: int, k: int | None = None) -> int:
     (:func:`_one_tile_per_thread_panel`). Where no panel gives every thread
     tiles of ``_MIN_SHARED_ROWS`` rows: 64 columns, unless a wider panel that
     adds no rest rows and no padding saves a quarter of the operand bytes per
-    tile, or removes 64 columns' rest rows."""
+    tile, or removes 64 columns' rest rows. Where whole-row tiles apply and
+    ``n`` is whole 32-column panels: 32 columns."""
     threads = int(os.environ.get("OMP_NUM_THREADS", os.cpu_count() or 1))
+    if k is not None and not n % BLOCK_N and _private_row_tile(m, k) is not None:
+        # Whole-row tiles: narrow panels stream past each thread's rows of A.
+        return BLOCK_N
 
     # Each tile reads all K of its rows of A and of its panel, so its operand
     # bytes grow with rows + columns; rows count twice, as A is read by every
@@ -1152,7 +1208,7 @@ def pack_b_vnni_t(b_t: Tensor, panel: int = _VNNI_PANEL) -> Tensor:
     b_t = b_t.contiguous()
     if (n_pad, k_pad) != (n, k):
         b_t = pad_2d(b_t, n_pad, k_pad)
-    return _pack_b_vnni_panels_kernel_t((_PANEL_PAIRS, panel))(
+    return _pack_b_vnni_panels_kernel_t((_PANEL_PAIRS,))(
         b_t.view(n_pad, k_pad // 2, 2), hl.constexpr(panel)
     )
 
@@ -1716,7 +1772,7 @@ def prepacked_b_call(
         panels, pairs_b, panel, _ = map(int, b4.shape)
         n_pad = panels * panel
         if tile_m is None:
-            tile_m = _prepacked_tile_m(m, panels, panel)
+            tile_m = _prepacked_tile_m(m, panels, panel, k)
         elif tile_m <= 0 or tile_m % BLOCK_M:
             raise ValueError(f"tile_m must be a positive multiple of {BLOCK_M}")
         if (
