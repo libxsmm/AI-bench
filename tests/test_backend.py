@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 from unittest import mock
+import weakref
 
 import pytest
 import torch
@@ -12,6 +13,7 @@ import torch._inductor.config as inductor_config
 from ai_bench.harness import core as ai_hc
 from ai_bench.harness import runner
 from ai_bench.harness import testing
+from ai_bench.harness.testing import timer
 
 
 class TestBackendEnum:
@@ -1186,6 +1188,132 @@ class TestTimerFunctions:
 
         # Times should be within 10x of each other (very loose bound).
         assert max(times) / min(times) < 10
+
+    @pytest.mark.parametrize(
+        "shape, permutation, use_profiler, out_kib, n_sets",
+        [
+            ((1024, 256), (1, 0), True, 256, 5),
+            ((1024, 256), (1, 0), True, None, 5),
+            ((16, 32, 32, 16), (0, 3, 1, 2), True, 1024, 3),
+            ((32, 16, 512), (2, 0, 1), False, 3072, 2),
+        ],
+    )
+    def test_time_cpu_rotates_inputs(
+        self, monkeypatch, shape, permutation, use_profiler, out_kib, n_sets
+    ):
+        """Input copies preserve values, strides, aliases and round-robin order."""
+        if not use_profiler:
+
+            def no_kineto(*args, **kwargs):
+                raise RuntimeError("Kineto unavailable")
+
+            monkeypatch.setattr(timer, "profile", no_kineto)
+
+        calls = []
+
+        def fn(x, repeated):
+            assert x is repeated
+            calls.append(x)
+            if out_kib is None:
+                return torch.empty(64, 64, dtype=torch.float32)[:60, :37]
+            return torch.empty(out_kib * 256)
+
+        # 1 MiB view of a 2 MiB storage, including channels-last layouts.
+        x = torch.randn(512 * 1024)[: 256 * 1024].reshape(shape).permute(permutation)
+        rep = 2 * n_sets + 1
+        testing.time_cpu(fn, (x, x), warmup=2, rep=rep, cache_size_mib=4)
+
+        # Warmup and sizing use the original input; priming and timing rotate.
+        untimed, rotated = calls[:3], calls[3:]
+        assert all(t is x for t in untimed)
+        n_calls = n_sets + rep
+        assert len(rotated) == n_calls
+        assert [t is x for t in rotated] == [
+            (i + 1) % n_sets == 0 for i in range(n_calls)
+        ]
+        assert [id(t) for t in rotated] == [
+            id(rotated[i % n_sets]) for i in range(n_calls)
+        ]
+        copies = rotated[: n_sets - 1]
+        assert len({t.data_ptr() for t in copies} | {x.data_ptr()}) == n_sets
+        for copy in copies:
+            assert copy.stride() == x.stride()
+            assert torch.equal(copy, x)
+
+    def test_time_cpu_rotation_fallback_continues_cursor(self, monkeypatch):
+        class FailingProfiler:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                raise RuntimeError("Kineto unavailable on exit")
+
+        monkeypatch.setattr(timer, "profile", lambda **kwargs: FailingProfiler())
+        calls = []
+
+        def fn(value):
+            calls.append(value.data_ptr())
+            return value + 1
+
+        testing.time_cpu(
+            fn, (torch.ones(256 * 1024),), warmup=0, rep=4, cache_size_mib=4
+        )
+        rotated = calls[1:]
+        assert len(rotated) == 11
+        assert rotated == [rotated[index % 3] for index in range(11)]
+
+    def test_time_cpu_rotation_disabled(self):
+        """Disabled rotation uses the original inputs."""
+        calls = []
+
+        def fn(x):
+            calls.append(x)
+            return x + 1
+
+        x = torch.randn(100)
+        testing.time_cpu(fn, (x,), warmup=2, rep=5)
+
+        assert len(calls) == 7
+        assert all(t is x for t in calls)
+
+    @pytest.mark.parametrize("cache_size_mib, alive", [(0, 0), (4, 2)])
+    def test_time_cpu_output_lifetime(self, cache_size_mib, alive):
+        """Outputs stay alive until their input set is reused."""
+        outputs = []
+        alive_counts = []
+
+        def fn(x):
+            alive_counts.append(sum(ref() is not None for ref in outputs))
+            out = torch.empty_like(x)
+            outputs.append(weakref.ref(out))
+            return out
+
+        # Three 1 MiB input/output pairs, with two outputs retained during calls.
+        x = torch.randn(256 * 1024)
+        testing.time_cpu(fn, (x,), warmup=1, rep=6, cache_size_mib=cache_size_mib)
+
+        assert alive_counts[-6:] == [alive] * 6
+
+    def test_time_cpu_pooled_outputs_rotate(self, monkeypatch):
+        """Single-output allocations recycle the released ring slot."""
+        pool = pytest.importorskip("shared_cpu_utils.output_pool")
+        monkeypatch.setattr(pool, "_max_bytes", pool.DEFAULT_MAX_BYTES)
+        ptrs = []
+
+        def fn(x):
+            out = pool.empty(x.shape, dtype=x.dtype, device=x.device)
+            ptrs.append(out.data_ptr())
+            return out
+
+        # Three sets of 4 MiB inputs and outputs.
+        x = torch.randn(1024 * 1024)
+        rep = 6
+        testing.time_cpu(fn, (x,), warmup=1, rep=rep, cache_size_mib=16)
+
+        # Priming and timed outputs share the same address cycle.
+        rotated = ptrs[-(3 + rep) :]
+        assert len(set(rotated)) == 3
+        assert rotated == [rotated[i % 3] for i in range(3 + rep)]
 
     def test_time_dispatcher(self):
         """Test time() dispatches to correct function based on device."""

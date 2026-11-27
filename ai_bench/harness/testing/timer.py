@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-import math
 import os
 import time as pytime
 import warnings
@@ -9,6 +8,10 @@ import torch
 from torch.profiler import ProfilerActivity
 from torch.profiler import profile
 from torch.profiler import record_function
+from torch.utils._pytree import tree_leaves
+from torch.utils._pytree import tree_map
+
+_MAX_ROTATION_SETS = 10_000
 
 
 @dataclass
@@ -46,23 +49,97 @@ def _summarize(times: torch.Tensor) -> TimeStats:
     )
 
 
+def _is_non_overlapping_and_dense(tensor: torch.Tensor) -> bool:
+    expected_stride = 1
+    for stride, size in sorted(zip(tensor.stride(), tensor.shape)):
+        if size > 1:
+            if stride != expected_stride:
+                return False
+            expected_stride *= size
+    return True
+
+
+def _validate_rotation_tensors(values, *, is_input: bool = False):
+    inputs = {}
+    for leaf in tree_leaves(values):
+        if isinstance(leaf, torch.Tensor):
+            if leaf.device.type != "cpu" or leaf.layout != torch.strided:
+                raise ValueError("Cache rotation requires strided CPU tensors")
+            if is_input and not _is_non_overlapping_and_dense(leaf):
+                raise ValueError(
+                    "Cache rotation requires dense, non-overlapping CPU inputs"
+                )
+            if is_input and leaf.numel():
+                address = leaf.untyped_storage().data_ptr()
+                if inputs.setdefault(address, leaf) is not leaf:
+                    raise ValueError(
+                        "Cache rotation does not support distinct input views sharing storage"
+                    )
+
+
+def _tensor_bytes(values) -> int:
+    """Logical bytes of the largest view in each storage."""
+    storages = {}
+    for leaf in tree_leaves(values):
+        if isinstance(leaf, torch.Tensor):
+            address = leaf.untyped_storage().data_ptr()
+            storages[address] = max(storages.get(address, 0), leaf.nbytes)
+    return sum(storages.values())
+
+
+def _clone_args(args):
+    copies = {}
+
+    def clone(value):
+        if not isinstance(value, torch.Tensor):
+            return value
+        if id(value) not in copies:
+            copies[id(value)] = value.clone()
+            if copies[id(value)].stride() != value.stride():
+                raise ValueError("Cannot preserve this input's strides")
+        return copies[id(value)]
+
+    return tree_map(clone, args)
+
+
 def time_cpu(
     fn: Callable,
     args: tuple,
     warmup: int = 25,
     rep: int = 100,
-    min_cache_nuke_mib: int = 0,
+    cache_size_mib: int = 0,
 ) -> TimeStats:
     """Measure execution time of the provided function on CPU.
+
+    CPU rotation cycles through input copies sized from the logical input/output
+    footprint. The output ring is filled before timing. Each output reference is
+    released before its input set is reused, outside timing.
+
+    Rotation requires dense, non-overlapping CPU inputs and returned strided CPU
+    outputs. Repeated input references are preserved; distinct inputs sharing
+    storage are unsupported. Padded output views are allowed. fn must read all
+    input elements without mutating inputs or retaining autograd graphs. Shapes
+    and accessed regions must be stable.
+
+    Weights and scratch are not rotated. Output storage reuse depends on the
+    allocator and model; cache eviction is not guaranteed. The ring limit is
+    10,000 sets. Output release is untimed even with rotation disabled.
+
     Args:
         fn: Function to measure
         args: Arguments to pass to the function
-        warmup: Warmup iterations
+        warmup: Warmup iterations on the original arguments
         rep: Measurement iterations
-        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations, or 0 to disable
+        cache_size_mib: Logical input/output working-set target in MiB;
+            0 disables rotation
     Returns:
         Runtime statistics in microseconds
     """
+    if warmup < 0 or rep <= 0 or cache_size_mib < 0:
+        raise ValueError("Require warmup >= 0, rep > 0 and cache_size_mib >= 0")
+    if cache_size_mib > 0:
+        _validate_rotation_tensors(args, is_input=True)
+
     # Supress profiler's warning, no event accumulation is needed.
     warnings.filterwarnings(
         "ignore",
@@ -72,27 +149,45 @@ def time_cpu(
     # Supress Kineto logging.
     os.environ["KINETO_LOG_LEVEL"] = "99"
 
-    nuke_a, nuke_b, nuke_c = None, None, None
-    if min_cache_nuke_mib > 0:
-        n_layers = torch.get_num_threads()  # ensure all cores are utilized
-        nuke_size = math.ceil(
-            math.sqrt(min_cache_nuke_mib * 1024 * 1024 / (3 * n_layers * 2))
-        )  # 3 matrices per layer, 2 bytes per bfloat16
-        nuke_a = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
-        nuke_b = torch.rand((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
-        nuke_c = torch.empty((n_layers, nuke_size, nuke_size), dtype=torch.bfloat16)
-
     for _ in range(warmup):
         fn(*args)
 
+    n_sets = 1
+    if cache_size_mib > 0:
+        # Output sizing is untimed.
+        out = fn(*args)
+        if not any(isinstance(leaf, torch.Tensor) for leaf in tree_leaves(out)):
+            raise ValueError("Cache rotation requires fn to return its output tensors")
+        _validate_rotation_tensors(out)
+        footprint = _tensor_bytes((args, out))
+        del out
+        if footprint == 0:
+            raise ValueError("Cache rotation requires a nonzero tensor footprint")
+        cache_bytes = cache_size_mib * 1024 * 1024
+        n_sets = (cache_bytes + footprint - 1) // footprint + 1
+        if n_sets > _MAX_ROTATION_SETS:
+            raise ValueError(
+                f"Cache rotation needs {n_sets} sets; limit is {_MAX_ROTATION_SETS}. "
+                "Reduce cache_size_mib or use larger inputs."
+            )
+
+    arg_sets = [args] + [_clone_args(args) for _ in range(n_sets - 1)]
+    outs = [None] * n_sets
+    if n_sets > 1:
+        # Output slots are primed in measurement order.
+        for i in range(n_sets):
+            idx = (i + 1) % n_sets
+            outs[idx] = fn(*arg_sets[idx])
+
+    idx = 0
     try:
         with profile(activities=[ProfilerActivity.CPU], acc_events=False) as prof:
             for _ in range(rep):
-                if min_cache_nuke_mib > 0:
-                    torch.bmm(nuke_a, nuke_b, out=nuke_c)
+                idx = (idx + 1) % n_sets
+                outs[idx] = None
 
                 with record_function("profiled_fn"):
-                    fn(*args)
+                    outs[idx] = fn(*arg_sets[idx])
 
         events = [e for e in prof.events() if e.name.startswith("profiled_fn")]
         times = torch.tensor([e.cpu_time for e in events], dtype=torch.float)
@@ -106,10 +201,10 @@ def time_cpu(
 
         fallback_times = []
         for _ in range(rep):
-            if min_cache_nuke_mib > 0:
-                torch.bmm(nuke_a, nuke_b, out=nuke_c)
+            idx = (idx + 1) % n_sets
+            outs[idx] = None
             start = pytime.perf_counter_ns()
-            fn(*args)
+            outs[idx] = fn(*arg_sets[idx])
             end = pytime.perf_counter_ns()
             fallback_times.append((end - start) / 1e3)
         times = torch.tensor(fallback_times, dtype=torch.float)
@@ -243,7 +338,7 @@ def time(
     args: tuple,
     warmup: int = 25,
     rep: int = 100,
-    min_cache_nuke_mib: int = 0,
+    cache_size_mib: int = 0,
     device: torch.device | None = None,
 ) -> TimeStats:
     """Measure execution time of the provided function.
@@ -252,15 +347,14 @@ def time(
         args: Arguments to pass to the function
         warmup: Warmup iterations
         rep: Measurement iterations
-        min_cache_nuke_mib: Minimum memory size (in MiB) for a cache-nuking GEMM between timed iterations on CPU, or 0 to disable
+        cache_size_mib: Logical input/output working-set target in MiB;
+            0 disables CPU rotation
         device: Device type to use
     Returns:
         Runtime statistics in microseconds
     """
     if not device or device.type == "cpu":
-        return time_cpu(
-            fn, args, warmup=warmup, rep=rep, min_cache_nuke_mib=min_cache_nuke_mib
-        )
+        return time_cpu(fn, args, warmup=warmup, rep=rep, cache_size_mib=cache_size_mib)
     if device.type == "xpu" or device.type == "cuda":
         return time_gpu(device, fn, args, warmup=warmup, rep=rep)
     raise ValueError(f"Unsupported device for timing: {device.type}")
