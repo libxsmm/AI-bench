@@ -227,28 +227,60 @@ def _sfc_matmul_kernel(
                         c_desc.store([block_m, block_n, 0, 0], c)
 
 
-def _prune_autotune_configs(configs, named_args, **kwargs):
-    def is_useful(config):
-        blocking_factor_k = config.kwargs["BLOCKING_FACTOR_K"]
-        if blocking_factor_k == 1:
-            # The segment size only matters for K-blocking
-            return config.kwargs["progs_per_thread"] == 1
-        # Don't split K into overly short passes
-        return named_args["K"] // blocking_factor_k >= 1024
-
-    return [config for config in configs if is_useful(config)]
+def _select_tile_map(args, tile_map):
+    block_sizes = args["BLOCK_SIZE_M"], args["BLOCK_SIZE_N"], args["BLOCK_SIZE_K"]
+    block_size_m, block_size_n, block_size_k = block_sizes
+    blocks_m = args["M"] // block_size_m
+    blocks_n = args["N"] // block_size_n
+    blocks_k = args["K"] // block_size_k
+    programs = args["grid"](args)[0]
+    blocks_k_per_pass = triton.cdiv(blocks_k, args["BLOCKING_FACTOR_K"])
+    tiles = tile_map(
+        blocks_m,
+        blocks_n,
+        programs,
+        blocks_k_per_pass,
+        args["a_ptr"].element_size(),
+        block_sizes,
+    )
+    return _make_sfc_tensor(blocks_m, blocks_n) if tiles is None else tiles
 
 
 # One autotuner per thread, as it keeps per-call state. Benchmarking reruns
 # the kernel, which is safe as it only overwrites its outputs.
 @thread_lru_cache()
-def _autotuned_kernel():
+def _autotuned_kernel(
+    num_cpu_threads=0, tile_map=None, blocking_factor_k=None, progs_per_thread=None
+):
     candidates = (1, 2, 4, 8, 16)
+    blocking_factors = candidates if blocking_factor_k is None else (blocking_factor_k,)
+    program_counts = candidates if progs_per_thread is None else (progs_per_thread,)
+    kernel = _sfc_matmul_kernel
+    if tile_map is not None:
+        kernel = triton.heuristics(
+            {"sfc_map_ptr": lambda args: _select_tile_map(args, tile_map)}
+        )(kernel)
+
+    def prune_configs(configs, named_args, *, K, **kwargs):
+        def is_useful(config):
+            factor = config.kwargs["BLOCKING_FACTOR_K"]
+            if factor == 1:
+                return (
+                    progs_per_thread is not None
+                    or config.kwargs["progs_per_thread"] == 1
+                )
+            return blocking_factor_k is not None or K // factor >= 1024
+
+        return [config for config in configs if is_useful(config)]
+
     return triton.autotune(
         configs=[
-            triton.Config({"BLOCKING_FACTOR_K": f, "progs_per_thread": n})
-            for f in candidates
-            for n in candidates
+            triton.Config(
+                {"BLOCKING_FACTOR_K": factor, "progs_per_thread": programs},
+                num_cpu_threads=num_cpu_threads,
+            )
+            for factor in blocking_factors
+            for programs in program_counts
         ],
         key=[
             "M",
@@ -267,8 +299,8 @@ def _autotuned_kernel():
             "REDUCTION_BLOCK_OP",
             "SOFTMAX_LAST_DIM",
         ],
-        prune_configs_by={"early_config_prune": _prune_autotune_configs},
-    )(_sfc_matmul_kernel)
+        prune_configs_by={"early_config_prune": prune_configs},
+    )(kernel)
 
 
 @triton.jit
@@ -475,6 +507,10 @@ def sfc_matmul(
     BLOCK_SIZE_M=32,
     BLOCK_SIZE_N=32,
     BLOCK_SIZE_K=32,
+    *,
+    blocking_factor_k=None,
+    progs_per_thread=None,
+    _tile_map=None,
 ) -> torch.Tensor:
     assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
     assert a.device.type == "cpu" and b.device.type == "cpu", "A and B must be on CPU"
@@ -499,8 +535,6 @@ def sfc_matmul(
     BLOCKS_M = M // BLOCK_SIZE_M
     BLOCKS_N = N // BLOCK_SIZE_N
 
-    sfc_map_mn = _make_sfc_tensor(BLOCKS_M, BLOCKS_N)
-
     accum_dtype = _get_accum_dtype(a.dtype)
     out_dtype = a.dtype if trunc_output else accum_dtype
 
@@ -521,14 +555,25 @@ def sfc_matmul(
         c = output_pool.empty((M,), device=a.device, dtype=out_dtype)
 
     num_threads = torch.get_num_threads()
+    kernel = _autotuned_kernel(
+        num_threads if _tile_map is not None else 0,
+        _tile_map,
+        blocking_factor_k,
+        progs_per_thread,
+    )
+    map_args = (
+        {"sfc_map_ptr": _make_sfc_tensor(BLOCKS_M, BLOCKS_N)}
+        if _tile_map is None
+        else {}
+    )
 
-    # Each program handles a contiguous segment of the SFC, and each thread
+    # Each program handles a contiguous segment of the tile map, and each thread
     # runs `progs_per_thread` consecutive programs (static scheduling)
     def grid(meta):
         return (min(BLOCKS_M * BLOCKS_N, meta["progs_per_thread"] * num_threads),)
 
     # `BLOCKING_FACTOR_K` and `progs_per_thread` are autotuned
-    _autotuned_kernel()[grid](
+    kernel[grid](
         a,
         b,
         c,
@@ -536,10 +581,9 @@ def sfc_matmul(
         cred,
         bias,
         post_op_arg,
-        sfc_map_mn,
-        M,
-        N,
-        K,
+        M=M,
+        N=N,
+        K=K,
         BLOCK_SIZE_M=BLOCK_SIZE_M,
         BLOCK_SIZE_N=BLOCK_SIZE_N,
         BLOCK_SIZE_K=BLOCK_SIZE_K,
@@ -554,6 +598,7 @@ def sfc_matmul(
         REDUCTION_BLOCK_OP=reduction_block_op or _default_reduction_op,
         SOFTMAX_LAST_DIM=softmax_last_dim,
         assume_in_bounds=True,
+        **map_args,
     )
 
     if reduce_last_dim:
@@ -589,6 +634,29 @@ def sfc_matmul(
     return c
 
 
+def get_matmul_block_sizes(dtype: torch.dtype):
+    caps = torch.cpu.get_capabilities()
+    if dtype == torch.bfloat16:
+        if caps["amx_bf16"]:
+            return 32, 32, 32
+        if caps["avx512_bf16"]:
+            return 32, 64, 2
+        if caps["avx_ne_convert"]:
+            return 32, 32, 2
+    elif dtype == torch.int8:
+        if caps["amx_int8"]:
+            return 32, 32, 64
+        if caps["avx_vnni_int8"]:
+            return 32, 32, 4
+    elif dtype == torch.float32:
+        if caps["avx512_f"]:
+            return 16, 16, 1
+        if caps["avx2"]:
+            return 8, 8, 1
+
+    raise ValueError(f"Unsupported dtype: {dtype}")
+
+
 class SFCMatmulHelper:
     """
     Helper class to implement a nn.Linear layer using the SFC matmul approach.
@@ -618,28 +686,7 @@ class SFCMatmulHelper:
         )
         self.bias = bias
 
-    @staticmethod
-    def get_block_sizes(dtype: torch.dtype):
-        caps = torch.cpu.get_capabilities()
-        if dtype == torch.bfloat16:
-            if caps["amx_bf16"]:
-                return 32, 32, 32
-            if caps["avx512_bf16"]:
-                return 32, 64, 2
-            if caps["avx_ne_convert"]:
-                return 32, 32, 2
-        elif dtype == torch.int8:
-            if caps["amx_int8"]:
-                return 32, 32, 64
-            if caps["avx_vnni_int8"]:
-                return 32, 32, 4
-        elif dtype == torch.float32:
-            if caps["avx512_f"]:
-                return 16, 16, 1
-            if caps["avx2"]:
-                return 8, 8, 1
-
-        raise ValueError(f"Unsupported dtype: {dtype}")
+    get_block_sizes = staticmethod(get_matmul_block_sizes)
 
     def __call__(
         self,
