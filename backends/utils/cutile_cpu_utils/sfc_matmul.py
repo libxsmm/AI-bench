@@ -730,11 +730,7 @@ def sfc_matmul(
     _tile_map=None,
     _extra_tile_maps=(),
 ) -> torch.Tensor:
-    if (
-        blocking_factor_k is None
-        or progs_per_thread is None
-        or _extra_tile_maps
-    ):
+    if blocking_factor_k is None or progs_per_thread is None or _extra_tile_maps:
         K = a.shape[1]
         blocking_factors = (
             (blocking_factor_k,)
