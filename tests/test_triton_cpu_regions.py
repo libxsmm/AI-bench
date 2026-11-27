@@ -72,6 +72,33 @@ def test_autotuner_uses_map_for_candidate_and_cached_winner(monkeypatch):
 @pytest.mark.skipif(
     not torch.cpu.get_capabilities().get("amx_bf16"), reason="requires AMX BF16"
 )
+@pytest.mark.parametrize(("rows", "expected_grid"), [(256, (4, 1)), (160, None)])
+def test_requested_grid_uses_even_tile_partitions(monkeypatch, rows, expected_grid):
+    monkeypatch.setattr(triton.runtime.driver, "_active", cpu_backend.driver())
+    monkeypatch.setattr(torch, "get_num_threads", lambda: 2)
+    make_region_tensor = region._make_region_tensor
+    grids = []
+
+    def record(*args, grid=None):
+        grids.append(grid)
+        return make_region_tensor(*args, grid=grid)
+
+    monkeypatch.setattr(region, "_make_region_tensor", record)
+    torch.manual_seed(0)
+    inputs = torch.randn((rows, 128), dtype=torch.bfloat16)
+    weights = torch.randn((128, 128), dtype=torch.bfloat16)
+    output = region.region_matmul(
+        inputs, weights, region_grid=(4, 1), blocking_factor_k=2, progs_per_thread=2
+    )
+    assert set(grids) == {expected_grid}
+    torch.testing.assert_close(
+        output, (inputs.float() @ weights.float()).to(output.dtype)
+    )
+
+
+@pytest.mark.skipif(
+    not torch.cpu.get_capabilities().get("amx_bf16"), reason="requires AMX BF16"
+)
 @pytest.mark.parametrize(
     ("problem", "init_args", "factor"),
     [(39, ((128,),), 1), (40, (-1.5,), 2), (41, (), 2)],

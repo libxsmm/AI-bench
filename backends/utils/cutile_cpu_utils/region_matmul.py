@@ -54,20 +54,25 @@ def _region_grid(blocks_m, blocks_n, programs):
     )
 
 
+def _grid_fits(blocks_m, blocks_n, programs, grid):
+    regions_m, regions_n = grid
+    return (
+        regions_m > 0
+        and regions_n > 0
+        and regions_m * regions_n == programs
+        and blocks_m % regions_m == 0
+        and blocks_n % regions_n == 0
+    )
+
+
 @_thread_lru_cache()
 def _make_region_tensor(blocks_m, blocks_n, programs, group_m, *, grid=None):
     """Tiles of equal per-program output regions, swept by groups of row blocks."""
     if grid is None:
         grid = _region_grid(blocks_m, blocks_n, programs)
-    if grid is None:
+    if grid is None or not _grid_fits(blocks_m, blocks_n, programs, grid):
         return None
     regions_m, regions_n = grid
-    if (
-        regions_m * regions_n != programs
-        or blocks_m % regions_m
-        or blocks_n % regions_n
-    ):
-        return None
     rows, columns = blocks_m // regions_m, blocks_n // regions_n
     tiles = []
     for program in range(programs):
@@ -100,27 +105,41 @@ _WIDE_REGION_MAPS = {
 def region_matmul(a, b, *, region_grid=None, tune_region_grid=False, **kwargs):
     """Use one equal output region per program, or SFC order if none exists.
 
-    The optional wide grid pins full K and one program per worker on eligible
-    launches. Other launches retain the default region schedule and tuning.
+    An explicit grid defaults to full K and one program per worker. If it
+    cannot evenly partition the output tiles across the requested programs,
+    use the normal region scheduler and launch tuning instead.
     """
-    if region_grid is not None and region_grid not in _WIDE_REGION_MAPS:
-        raise ValueError(f"Unsupported region grid: {region_grid}")
-    extra_tile_maps = ()
-    if (
-        (region_grid is not None or tune_region_grid)
-        and kwargs.get("b_is_prepacked")
-        and kwargs.get("blocking_factor_k") in (None, 1)
-        and kwargs.get("progs_per_thread") in (None, 1)
-        and a.shape == (16384, 4096)
-        and b.shape == (4096, 4096)
-        and a.dtype == b.dtype == torch.bfloat16
-        and _worker_count(kwargs.get("options")) == 64
-        and _group_m(4096 // _BLOCK_SIZE_K, a.element_size()) == 4
-    ):
+    if region_grid is not None or tune_region_grid:
+        blocks_m = a.shape[0] // _BLOCK_SIZE_M
+        blocks_n = b.shape[1] // _BLOCK_SIZE_N
+        workers = _worker_count(kwargs.get("options"))
+        progs_per_thread = kwargs.get("progs_per_thread")
+        if progs_per_thread is None:
+            progs_per_thread = 1
         if region_grid is not None:
-            kwargs.update(blocking_factor_k=1, progs_per_thread=1)
-            return sfc_matmul(a, b, _tile_map=_WIDE_REGION_MAPS[region_grid], **kwargs)
-        extra_tile_maps = tuple(_WIDE_REGION_MAPS.values())
-    return sfc_matmul(
-        a, b, _tile_map=_tile_map, _extra_tile_maps=extra_tile_maps, **kwargs
-    )
+            if workers and _grid_fits(
+                blocks_m, blocks_n, workers * progs_per_thread, region_grid
+            ):
+                if kwargs.get("blocking_factor_k") is None:
+                    kwargs["blocking_factor_k"] = 1
+                kwargs["progs_per_thread"] = progs_per_thread
+                return sfc_matmul(
+                    a,
+                    b,
+                    _tile_map=functools.partial(_tile_map, grid=region_grid),
+                    **kwargs,
+                )
+        elif (
+            workers
+            and progs_per_thread == 1
+            and kwargs.get("blocking_factor_k") in (None, 1)
+        ):
+            extra_tile_maps = tuple(
+                tile_map
+                for grid, tile_map in _WIDE_REGION_MAPS.items()
+                if _grid_fits(blocks_m, blocks_n, workers, grid)
+            )
+            return sfc_matmul(
+                a, b, _tile_map=_tile_map, _extra_tile_maps=extra_tile_maps, **kwargs
+            )
+    return sfc_matmul(a, b, _tile_map=_tile_map, **kwargs)

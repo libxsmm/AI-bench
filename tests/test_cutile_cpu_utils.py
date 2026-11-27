@@ -109,6 +109,26 @@ def test_region_order_matches_sfc_order_bitwise(kwargs):
 
 
 @kernel_test
+@pytest.mark.parametrize(("rows", "expected_grid"), [(256, (4, 1)), (160, None)])
+def test_requested_grid_uses_even_tile_partitions(rows, expected_grid):
+    inputs, weights, _ = _inputs(m=rows, n=256, k=512)
+    with patch(
+        "cutile_cpu_utils.region_matmul._make_region_tensor", wraps=_make_region_tensor
+    ) as make_region:
+        output = region_matmul(
+            inputs,
+            weights.T.contiguous(),
+            region_grid=(4, 1),
+            options={"num_cpu_threads": 4},
+        )
+    assert {call.kwargs.get("grid") for call in make_region.call_args_list} == {
+        expected_grid
+    }
+    reference = (inputs.float() @ weights.float().T).to(torch.bfloat16)
+    torch.testing.assert_close(output, reference)
+
+
+@kernel_test
 @pytest.mark.parametrize(
     ("problem", "extra_args", "workers", "fixed_grid"),
     [
