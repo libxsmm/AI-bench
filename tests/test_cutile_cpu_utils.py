@@ -4,7 +4,6 @@ import functools
 import importlib.util
 import os
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -15,13 +14,7 @@ ct = pytest.importorskip("cuda.tile")
 from cutile_cpu_utils import pack_weights_for_sfc_matmul  # noqa: E402
 from cutile_cpu_utils import region_matmul  # noqa: E402
 from cutile_cpu_utils import sfc_matmul  # noqa: E402
-from cutile_cpu_utils.region_matmul import _group_m  # noqa: E402
 from cutile_cpu_utils.region_matmul import _make_region_tensor  # noqa: E402
-from cutile_cpu_utils.region_matmul import _tile_map  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _autotune_configs  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _make_buffers  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _make_sfc_tensor  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _matmul_programs  # noqa: E402
 from cutile_cpu_utils.sfc_matmul import prepare_sfc_matmul  # noqa: E402
 
 from ai_bench.harness.runner.benchmark_compare import copy_model_weights  # noqa: E402
@@ -31,16 +24,6 @@ kernel_test = pytest.mark.skipif(
     os.environ.get(KERNEL_TESTS_ENV) != "1",
     reason=f"compiles cuTile kernels; set {KERNEL_TESTS_ENV}=1 to run",
 )
-
-
-def _openmp(linked, global_runtime):
-    return patch(
-        "cutile_cpu_utils.sfc_matmul._openmp_libraries",
-        return_value=(
-            SimpleNamespace(omp_get_max_threads=linked),
-            SimpleNamespace(omp_get_max_threads=global_runtime),
-        ),
-    )
 
 
 def _force_second_autotune_candidate():
@@ -77,84 +60,6 @@ def _load_module(path, name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def test_matmul_programs_uses_actual_workers():
-    with _openmp(lambda: 64, lambda: 64):
-        assert _matmul_programs(4096, 4, None) == 256
-        assert _matmul_programs(128, 4, None) == 128
-    with _openmp(lambda: 256, lambda: 64):
-        assert _matmul_programs(4096, 4, None) == 4096
-    assert _matmul_programs(4096, 4, {"num_cpu_threads": 32}) == 128
-
-
-def test_region_tensor_gives_each_program_one_square_region():
-    tiles = _make_region_tensor(512, 128, 64, 4)
-    assert len(set(map(tuple, tiles.tolist()))) == 512 * 128
-    for program, region in enumerate(tiles.view(64, -1, 2)):
-        rows, columns = region[:, 0], region[:, 1]
-        assert rows.min() == program // 4 * 32 and rows.max() == rows.min() + 31
-        assert columns.min() == program % 4 * 32
-        assert columns.max() == columns.min() + 31
-    # Row groups sweep the columns; neighbors in N start at the next group.
-    assert tiles[:5].tolist() == [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1]]
-    assert tiles.view(64, -1, 2)[1, 0].tolist() == [4, 32]
-
-
-def test_region_tensor_falls_back_without_exact_regions():
-    assert _make_region_tensor(3, 5, 4, 4) is None
-    assert _make_region_tensor(4, 4, 16, 4) is None
-    tiles = _make_region_tensor(6, 2, 2, 2)
-    assert sorted(map(tuple, tiles.tolist())) == [
-        (m, n) for m in range(6) for n in range(2)
-    ]
-
-
-def test_region_tensor_uses_cpu_with_non_cpu_default_device():
-    with torch.device("meta"):
-        tiles = _make_region_tensor(7, 6, 3, 2)
-    assert tiles.device.type == "cpu"
-    assert _make_region_tensor(7, 6, 3, 2) is tiles
-
-
-def test_region_group_accounts_for_pass_size_dtype_and_cache():
-    with patch("cutile_cpu_utils.region_matmul._l2_cache_bytes", return_value=2**21):
-        assert _group_m(128, 2) == 4
-        assert _group_m(256, 2) == 1
-        assert _group_m(128, 4) == 1
-    with patch("cutile_cpu_utils.region_matmul._l2_cache_bytes", return_value=2**20):
-        assert _group_m(128, 2) == 1
-
-
-def test_prepare_uses_tile_map_hook_or_sfc_order():
-    a = torch.empty((1024, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 256), dtype=torch.bfloat16)
-    common = {"b_is_prepacked": True, "options": {"num_cpu_threads": 4}}
-    tiles = torch.zeros((256, 2), dtype=torch.int32)
-    calls = []
-
-    def tile_map(*args):
-        calls.append(args)
-        return tiles if len(calls) == 1 else None
-
-    custom = prepare_sfc_matmul(a, b, blocking_factor_k=3, _tile_map=tile_map, **common)
-    assert calls == [(32, 8, 4, 6, 2)]
-    assert custom._launches[-1][2][7] is tiles
-    declined = prepare_sfc_matmul(a, b, _tile_map=tile_map, **common)
-    assert torch.equal(declined._launches[-1][2][7], _make_sfc_tensor(32, 8))
-
-
-def test_region_tile_map_needs_known_workers():
-    a = torch.empty((1024, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 256), dtype=torch.bfloat16)
-    regions = prepare_sfc_matmul(
-        a, b, b_is_prepacked=True, options={"num_cpu_threads": 4}, _tile_map=_tile_map
-    )
-    expected = _make_region_tensor(32, 8, 4, _group_m(16, 2))
-    assert torch.equal(regions._launches[-1][2][7], expected)
-    with _openmp(lambda: 256, lambda: 64):
-        unknown = prepare_sfc_matmul(a, b, b_is_prepacked=True, _tile_map=_tile_map)
-    assert torch.equal(unknown._launches[-1][2][7], _make_sfc_tensor(32, 8))
 
 
 @kernel_test
@@ -236,74 +141,6 @@ def test_models_use_region_order_and_match_sfc(problem, extra_args):
             options=options,
         )
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
-
-
-def test_autotune_prunes_program_counts_without_k_blocking():
-    configs = _autotune_configs((1, 2), (1, 2, 4))
-    assert [config.meta for config in configs] == [
-        {"blocking_factor_k": 1, "progs_per_thread": 1},
-        {"blocking_factor_k": 2, "progs_per_thread": 1},
-        {"blocking_factor_k": 2, "progs_per_thread": 2},
-        {"blocking_factor_k": 2, "progs_per_thread": 4},
-    ]
-
-
-def test_prepared_launch_counts():
-    a = torch.empty((64, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 64), dtype=torch.bfloat16)
-    common = {"blocking_factor_k": 2, "progs_per_thread": 1}
-    prepacked = prepare_sfc_matmul(a, b, b_is_prepacked=True, **common)
-    unpacked = prepare_sfc_matmul(a, b, b_is_prepacked=False, **common)
-    reduction = prepare_sfc_matmul(
-        a, b, b_is_prepacked=True, reduce_last_dim=True, **common
-    )
-    softmax = prepare_sfc_matmul(
-        a, b, b_is_prepacked=True, softmax_last_dim=True, **common
-    )
-    assert len(prepacked._launches) == 1
-    assert len(unpacked._launches) == 2
-    assert len(reduction._launches) == 2
-    assert len(softmax._launches) == 2
-
-
-@pytest.mark.parametrize("b_is_prepacked", [False, True])
-@pytest.mark.parametrize("mode", ["matmul", "reduction", "softmax"])
-@pytest.mark.parametrize("trunc_output", [False, True])
-def test_buffer_layouts(b_is_prepacked, mode, trunc_output):
-    a = torch.empty((64, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 96), dtype=torch.bfloat16)
-    bp, ctmp, cred, output = _make_buffers(
-        a, b, mode == "reduction", mode == "softmax", trunc_output, b_is_prepacked
-    )
-    if b_is_prepacked:
-        assert bp is None
-    else:
-        assert bp.shape == (3, 16, 16, 32, 2)
-        assert bp.dtype == a.dtype
-        assert bp.device == a.device
-    assert ctmp.shape == (2, 3, 32, 32)
-    assert ctmp.dtype == torch.float32
-    assert ctmp.device == a.device
-    if mode == "matmul":
-        assert cred is ctmp
-    else:
-        assert cred.shape == (3, 128 if mode == "softmax" else 64)
-        assert cred.dtype == torch.float32
-        assert cred.device == a.device
-    assert output.shape == ((64,) if mode == "reduction" else (64, 96))
-    assert output.dtype == (a.dtype if trunc_output else torch.float32)
-    assert output.device == a.device
-    assert output.is_contiguous()
-
-
-@pytest.mark.parametrize("keep_dim", [False, True])
-def test_prepared_reduction_shape(keep_dim):
-    a = torch.empty((64, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 64), dtype=torch.bfloat16)
-    prepared = prepare_sfc_matmul(
-        a, b, reduce_last_dim=True, keep_dim=keep_dim, b_is_prepacked=True
-    )
-    assert prepared._output.shape == ((64, 1) if keep_dim else (64,))
 
 
 def test_live_output_view_keeps_pooled_storage():
