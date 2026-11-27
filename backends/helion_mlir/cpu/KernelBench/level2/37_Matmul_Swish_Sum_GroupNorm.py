@@ -157,6 +157,28 @@ def _block_sizes(m: int, pairs: int, groups: int, group_size: int) -> list[int]:
     return [tile_m, 1, pairs]
 
 
+# Half of L2 for a bf16 tile's rows of A, its group's weight panel and its f32
+# accumulator. The accumulator cap alone allows tiles whose rows of A no longer
+# stay in L2.
+_TILE_L2_BYTES = 1 << 20
+
+
+def _l2_tile_rows(tile_m: int, pairs: int, group_size: int) -> int:
+    """Halve ``tile_m`` until the tile fits ``_TILE_L2_BYTES``, keeping whole
+    32-row AMX blocks and a divisor of M."""
+
+    def fits(rows: int) -> bool:
+        # 4 bytes per element: A and the weight as bf16 pairs, the f32 accumulator.
+        return (
+            4 * (rows * pairs + pairs * group_size + rows * group_size)
+            <= _TILE_L2_BYTES
+        )
+
+    while not fits(tile_m) and tile_m % 64 == 0:
+        tile_m //= 2
+    return tile_m
+
+
 # K rows per chunk of the f32 kernel: its weight panel chunk stays in L2.
 _F32_K_CHUNK = 256
 
@@ -238,6 +260,7 @@ class Model(nn.Module):
             return out.view(m, n)
         if bf16:
             block_sizes = _block_sizes(m, k // 2, groups, group_size)
+            block_sizes[0] = _l2_tile_rows(block_sizes[0], k // 2, group_size)
             out = _kernel(_gemm_swish_group_norm, block_sizes)(
                 x.contiguous().view(m, k // 2, 2), packed, params, eps
             )
