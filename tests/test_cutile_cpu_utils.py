@@ -1,5 +1,6 @@
 """Focused tests for the cuTile CPU SFC matmul helper."""
 
+import functools
 import importlib.util
 import os
 from pathlib import Path
@@ -12,9 +13,14 @@ import torch
 ct = pytest.importorskip("cuda.tile")
 
 from cutile_cpu_utils import pack_weights_for_sfc_matmul  # noqa: E402
+from cutile_cpu_utils import region_matmul  # noqa: E402
 from cutile_cpu_utils import sfc_matmul  # noqa: E402
+from cutile_cpu_utils.region_matmul import _group_m  # noqa: E402
+from cutile_cpu_utils.region_matmul import _make_region_tensor  # noqa: E402
+from cutile_cpu_utils.region_matmul import _tile_map  # noqa: E402
 from cutile_cpu_utils.sfc_matmul import _autotune_configs  # noqa: E402
 from cutile_cpu_utils.sfc_matmul import _make_buffers  # noqa: E402
+from cutile_cpu_utils.sfc_matmul import _make_sfc_tensor  # noqa: E402
 from cutile_cpu_utils.sfc_matmul import _matmul_programs  # noqa: E402
 from cutile_cpu_utils.sfc_matmul import prepare_sfc_matmul  # noqa: E402
 
@@ -80,6 +86,156 @@ def test_matmul_programs_uses_actual_workers():
     with _openmp(lambda: 256, lambda: 64):
         assert _matmul_programs(4096, 4, None) == 4096
     assert _matmul_programs(4096, 4, {"num_cpu_threads": 32}) == 128
+
+
+def test_region_tensor_gives_each_program_one_square_region():
+    tiles = _make_region_tensor(512, 128, 64, 4)
+    assert len(set(map(tuple, tiles.tolist()))) == 512 * 128
+    for program, region in enumerate(tiles.view(64, -1, 2)):
+        rows, columns = region[:, 0], region[:, 1]
+        assert rows.min() == program // 4 * 32 and rows.max() == rows.min() + 31
+        assert columns.min() == program % 4 * 32
+        assert columns.max() == columns.min() + 31
+    # Row groups sweep the columns; neighbors in N start at the next group.
+    assert tiles[:5].tolist() == [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1]]
+    assert tiles.view(64, -1, 2)[1, 0].tolist() == [4, 32]
+
+
+def test_region_tensor_falls_back_without_exact_regions():
+    assert _make_region_tensor(3, 5, 4, 4) is None
+    assert _make_region_tensor(4, 4, 16, 4) is None
+    tiles = _make_region_tensor(6, 2, 2, 2)
+    assert sorted(map(tuple, tiles.tolist())) == [
+        (m, n) for m in range(6) for n in range(2)
+    ]
+
+
+def test_region_tensor_uses_cpu_with_non_cpu_default_device():
+    with torch.device("meta"):
+        tiles = _make_region_tensor(7, 6, 3, 2)
+    assert tiles.device.type == "cpu"
+    assert _make_region_tensor(7, 6, 3, 2) is tiles
+
+
+def test_region_group_accounts_for_pass_size_dtype_and_cache():
+    with patch("cutile_cpu_utils.region_matmul._l2_cache_bytes", return_value=2**21):
+        assert _group_m(128, 2) == 4
+        assert _group_m(256, 2) == 1
+        assert _group_m(128, 4) == 1
+    with patch("cutile_cpu_utils.region_matmul._l2_cache_bytes", return_value=2**20):
+        assert _group_m(128, 2) == 1
+
+
+def test_prepare_uses_tile_map_hook_or_sfc_order():
+    a = torch.empty((1024, 512), dtype=torch.bfloat16)
+    b = torch.empty((512, 256), dtype=torch.bfloat16)
+    common = {"b_is_prepacked": True, "options": {"num_cpu_threads": 4}}
+    tiles = torch.zeros((256, 2), dtype=torch.int32)
+    calls = []
+
+    def tile_map(*args):
+        calls.append(args)
+        return tiles if len(calls) == 1 else None
+
+    custom = prepare_sfc_matmul(a, b, blocking_factor_k=3, _tile_map=tile_map, **common)
+    assert calls == [(32, 8, 4, 6, 2)]
+    assert custom._launches[-1][2][7] is tiles
+    declined = prepare_sfc_matmul(a, b, _tile_map=tile_map, **common)
+    assert torch.equal(declined._launches[-1][2][7], _make_sfc_tensor(32, 8))
+
+
+def test_region_tile_map_needs_known_workers():
+    a = torch.empty((1024, 512), dtype=torch.bfloat16)
+    b = torch.empty((512, 256), dtype=torch.bfloat16)
+    regions = prepare_sfc_matmul(
+        a, b, b_is_prepacked=True, options={"num_cpu_threads": 4}, _tile_map=_tile_map
+    )
+    expected = _make_region_tensor(32, 8, 4, _group_m(16, 2))
+    assert torch.equal(regions._launches[-1][2][7], expected)
+    with _openmp(lambda: 256, lambda: 64):
+        unknown = prepare_sfc_matmul(a, b, b_is_prepacked=True, _tile_map=_tile_map)
+    assert torch.equal(unknown._launches[-1][2][7], _make_sfc_tensor(32, 8))
+
+
+@kernel_test
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"post_op": _subtract_column_sum},
+        {"blocking_factor_k": 2, "progs_per_thread": 2},
+        {"reduce_last_dim": True, "trunc_output": False},
+        {"softmax_last_dim": True},
+    ],
+)
+def test_region_order_matches_sfc_order_bitwise(kwargs):
+    a, _, packed = _inputs(m=512, n=256, k=1024)
+    common = {
+        "bias": torch.randn(256, dtype=torch.bfloat16),
+        "b_is_prepacked": True,
+        "blocking_factor_k": 1,
+        "progs_per_thread": 1,
+        "options": {"num_cpu_threads": 4},
+        **kwargs,
+    }
+    assert _make_region_tensor(16, 8, 4 * common["progs_per_thread"], 4) is not None
+    expected = sfc_matmul(a, packed, **common).clone()
+    actual = region_matmul(a, packed, **common)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+@kernel_test
+@pytest.mark.parametrize(
+    ("problem", "extra_args"),
+    [
+        ("39_Gemm_Scale_BatchNorm", ((4096,),)),
+        ("40_Matmul_Scaling_ResidualAdd", (-1.5,)),
+        ("41_Gemm_BatchNorm_GELU_ReLU", ()),
+    ],
+)
+def test_models_use_region_order_and_match_sfc(problem, extra_args):
+    root = Path(__file__).resolve().parents[1]
+    model_module = _load_module(
+        root / "backends/cutile/cpu/KernelBench/level2" / f"{problem}.py",
+        f"regions_{problem}",
+    )
+    torch.manual_seed(0)
+    model = model_module.Model(4096, 4096, *extra_args).to(torch.bfloat16).eval()
+    if problem.startswith("39"):
+        with torch.no_grad():
+            model.scale.copy_(torch.linspace(-1, 1, 4096, dtype=torch.bfloat16))
+            model.scale[::3] = 0
+    inputs = torch.randn(16384, 4096, dtype=torch.bfloat16)
+    maps = []
+    options = {"num_cpu_threads": 16}
+
+    def recording(*args):
+        maps.append(_make_region_tensor(*args))
+        return maps[-1]
+
+    with (
+        torch.no_grad(),
+        patch.object(
+            model_module,
+            "region_matmul",
+            functools.partial(model_module.region_matmul, options=options),
+        ),
+        patch("cutile_cpu_utils.region_matmul._make_region_tensor", recording),
+    ):
+        actual = model(inputs).clone()
+    assert maps and all(tiles is not None for tiles in maps)
+    with torch.no_grad():
+        expected = sfc_matmul(
+            inputs,
+            model._weight_packed,
+            bias=model._bias,
+            post_op=model._epilogue_fun
+            if problem.startswith("40")
+            else model_module._epilogue,
+            post_op_arg=model._scale if problem.startswith("39") else None,
+            b_is_prepacked=True,
+            options=options,
+        )
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
 def test_autotune_prunes_program_counts_without_k_blocking():

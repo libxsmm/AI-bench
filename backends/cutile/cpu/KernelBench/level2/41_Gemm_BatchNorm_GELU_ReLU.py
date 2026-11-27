@@ -6,7 +6,7 @@
 import cuda.tile as ct
 from cutile_cpu_utils import gelu
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
-from cutile_cpu_utils import sfc_matmul
+from cutile_cpu_utils import region_matmul
 import torch.nn as nn
 
 ct.set_backend("cpu")
@@ -36,7 +36,7 @@ class Model(nn.Module):
             self._bias = self.gemm.bias.data.to(dtype=x.dtype).contiguous()
             assert self.bn.affine, "BatchNorm must have affine=True"
 
-        return sfc_matmul(
+        return region_matmul(
             x,
             self._weight_packed,
             bias=self._bias,
