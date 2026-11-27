@@ -50,4 +50,5 @@ class Model(nn.Module):
             post_op=_epilogue,
             post_op_arg=self._scale,
             b_is_prepacked=True,
+            region_grid=(64, 1),
         )

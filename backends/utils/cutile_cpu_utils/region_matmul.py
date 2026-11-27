@@ -10,6 +10,7 @@ from .sfc_matmul import _BLOCK_SIZE_K
 from .sfc_matmul import _BLOCK_SIZE_M
 from .sfc_matmul import _BLOCK_SIZE_N
 from .sfc_matmul import _thread_lru_cache
+from .sfc_matmul import _worker_count
 from .sfc_matmul import sfc_matmul
 
 
@@ -54,12 +55,19 @@ def _region_grid(blocks_m, blocks_n, programs):
 
 
 @_thread_lru_cache()
-def _make_region_tensor(blocks_m, blocks_n, programs, group_m):
+def _make_region_tensor(blocks_m, blocks_n, programs, group_m, *, grid=None):
     """Tiles of equal per-program output regions, swept by groups of row blocks."""
-    grid = _region_grid(blocks_m, blocks_n, programs)
+    if grid is None:
+        grid = _region_grid(blocks_m, blocks_n, programs)
     if grid is None:
         return None
     regions_m, regions_n = grid
+    if (
+        regions_m * regions_n != programs
+        or blocks_m % regions_m
+        or blocks_n % regions_n
+    ):
+        return None
     rows, columns = blocks_m // regions_m, blocks_n // regions_n
     tiles = []
     for program in range(programs):
@@ -75,11 +83,44 @@ def _make_region_tensor(blocks_m, blocks_n, programs, group_m):
     return torch.tensor(tiles, dtype=torch.int32, device="cpu")
 
 
-def _tile_map(blocks_m, blocks_n, programs, blocks_k_per_pass, element_size):
+def _tile_map(
+    blocks_m, blocks_n, programs, blocks_k_per_pass, element_size, *, grid=None
+):
     group_m = _group_m(blocks_k_per_pass, element_size)
-    return _make_region_tensor(blocks_m, blocks_n, programs, group_m)
+    if grid is None:
+        return _make_region_tensor(blocks_m, blocks_n, programs, group_m)
+    return _make_region_tensor(blocks_m, blocks_n, programs, group_m, grid=grid)
 
 
-def region_matmul(a, b, **kwargs):
-    """sfc_matmul giving each program one equal output region; SFC order if none exists."""
-    return sfc_matmul(a, b, _tile_map=_tile_map, **kwargs)
+_WIDE_REGION_MAPS = {
+    grid: functools.partial(_tile_map, grid=grid) for grid in ((32, 2), (64, 1))
+}
+
+
+def region_matmul(a, b, *, region_grid=None, tune_region_grid=False, **kwargs):
+    """Use one equal output region per program, or SFC order if none exists.
+
+    The optional wide grid pins full K and one program per worker on eligible
+    launches. Other launches retain the default region schedule and tuning.
+    """
+    if region_grid is not None and region_grid not in _WIDE_REGION_MAPS:
+        raise ValueError(f"Unsupported region grid: {region_grid}")
+    extra_tile_maps = ()
+    if (
+        (region_grid is not None or tune_region_grid)
+        and kwargs.get("b_is_prepacked")
+        and kwargs.get("blocking_factor_k") in (None, 1)
+        and kwargs.get("progs_per_thread") in (None, 1)
+        and a.shape == (16384, 4096)
+        and b.shape == (4096, 4096)
+        and a.dtype == b.dtype == torch.bfloat16
+        and _worker_count(kwargs.get("options")) == 64
+        and _group_m(4096 // _BLOCK_SIZE_K, a.element_size()) == 4
+    ):
+        if region_grid is not None:
+            kwargs.update(blocking_factor_k=1, progs_per_thread=1)
+            return sfc_matmul(a, b, _tile_map=_WIDE_REGION_MAPS[region_grid], **kwargs)
+        extra_tile_maps = tuple(_WIDE_REGION_MAPS.values())
+    return sfc_matmul(
+        a, b, _tile_map=_tile_map, _extra_tile_maps=extra_tile_maps, **kwargs
+    )

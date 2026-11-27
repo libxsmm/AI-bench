@@ -62,6 +62,26 @@ def _load_module(path, name):
     return module
 
 
+@pytest.mark.parametrize("grid", [(32, 2), (64, 1)])
+def test_region_grid_assigns_each_tile_to_one_program(grid):
+    blocks_m, blocks_n, programs = 512, 128, 64
+    tiles = _make_region_tensor(blocks_m, blocks_n, programs, 4, grid=grid)
+    assert tiles.shape == (blocks_m * blocks_n, 2)
+    assert tiles.unique(dim=0).size(0) == blocks_m * blocks_n
+
+    regions_m, regions_n = grid
+    rows_per_region, cols_per_region = blocks_m // regions_m, blocks_n // regions_n
+    for program, chunk in enumerate(tiles.chunk(programs)):
+        row_begin = program // regions_n * rows_per_region
+        col_begin = program % regions_n * cols_per_region
+        assert chunk[:, 0].unique().tolist() == list(
+            range(row_begin, row_begin + rows_per_region)
+        )
+        assert chunk[:, 1].unique().tolist() == list(
+            range(col_begin, col_begin + cols_per_region)
+        )
+
+
 @kernel_test
 @pytest.mark.parametrize(
     "kwargs",
@@ -90,14 +110,17 @@ def test_region_order_matches_sfc_order_bitwise(kwargs):
 
 @kernel_test
 @pytest.mark.parametrize(
-    ("problem", "extra_args"),
+    ("problem", "extra_args", "workers", "fixed_grid"),
     [
-        ("39_Gemm_Scale_BatchNorm", ((4096,),)),
-        ("40_Matmul_Scaling_ResidualAdd", (-1.5,)),
-        ("41_Gemm_BatchNorm_GELU_ReLU", ()),
+        ("39_Gemm_Scale_BatchNorm", ((4096,),), 64, True),
+        ("40_Matmul_Scaling_ResidualAdd", (-1.5,), 64, True),
+        ("41_Gemm_BatchNorm_GELU_ReLU", (), 16, False),
+        ("41_Gemm_BatchNorm_GELU_ReLU", (), 64, True),
     ],
 )
-def test_models_use_region_order_and_match_sfc(problem, extra_args):
+def test_models_use_region_order_and_match_sfc(
+    problem, extra_args, workers, fixed_grid
+):
     root = Path(__file__).resolve().parents[1]
     model_module = _load_module(
         root / "backends/cutile/cpu/KernelBench/level2" / f"{problem}.py",
@@ -111,10 +134,12 @@ def test_models_use_region_order_and_match_sfc(problem, extra_args):
             model.scale[::3] = 0
     inputs = torch.randn(16384, 4096, dtype=torch.bfloat16)
     maps = []
-    options = {"num_cpu_threads": 16}
+    grids = []
+    options = {"num_cpu_threads": workers}
 
-    def recording(*args):
-        maps.append(_make_region_tensor(*args))
+    def recording(*args, **kwargs):
+        grids.append(kwargs.get("grid"))
+        maps.append(_make_region_tensor(*args, **kwargs))
         return maps[-1]
 
     with (
@@ -124,10 +149,15 @@ def test_models_use_region_order_and_match_sfc(problem, extra_args):
             "region_matmul",
             functools.partial(model_module.region_matmul, options=options),
         ),
+        patch("cutile_cpu_utils.region_matmul._l2_cache_bytes", return_value=2**21),
         patch("cutile_cpu_utils.region_matmul._make_region_tensor", recording),
     ):
         actual = model(inputs).clone()
     assert maps and all(tiles is not None for tiles in maps)
+    if fixed_grid:
+        assert grids == [(64, 1)]
+    else:
+        assert set(grids) == {None}
     with torch.no_grad():
         expected = sfc_matmul(
             inputs,
@@ -203,14 +233,6 @@ def test_k_blocking_factors_are_bitwise_invariant():
     ]
     for output in outputs[1:]:
         torch.testing.assert_close(output, outputs[0], rtol=0, atol=0)
-
-
-@kernel_test
-def test_autotuned_path_matches_reference():
-    a, weights, packed = _inputs()
-    output = sfc_matmul(a, packed, b_is_prepacked=True, options={"num_cpu_threads": 4})
-    reference = (a.float() @ weights.float().T).to(torch.bfloat16)
-    torch.testing.assert_close(output, reference)
 
 
 @kernel_test

@@ -44,4 +44,5 @@ class Model(nn.Module):
             bias=self._bias,
             post_op=self._epilogue_fun,
             b_is_prepacked=True,
+            region_grid=(64, 1),
         )

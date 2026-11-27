@@ -615,28 +615,48 @@ def prepare_sfc_matmul(
     return PreparedSFCMatmul(launches, output, options)
 
 
-def _autotune_configs(blocking_factors, programs_per_thread):
-    return [
+def _autotune_configs(blocking_factors, programs_per_thread, extra_tile_maps):
+    tune_tile_map = (
+        bool(extra_tile_maps) and 1 in blocking_factors and 1 in programs_per_thread
+    )
+    configs = [
         ct.tune.Config(
             {
                 "blocking_factor_k": blocking_factor,
                 "progs_per_thread": programs,
+                **({"tile_map_index": 0} if tune_tile_map else {}),
             }
         )
         for blocking_factor in blocking_factors
         for programs in programs_per_thread
         if blocking_factor != 1 or programs == 1 or 1 not in programs_per_thread
     ]
+    if tune_tile_map:
+        configs.extend(
+            ct.tune.Config(
+                {"blocking_factor_k": 1, "progs_per_thread": 1, "tile_map_index": index}
+            )
+            for index in range(1, len(extra_tile_maps) + 1)
+        )
+    return configs
 
 
 @_thread_lru_cache()
 def _make_autotuned_sfc_matmul(
-    blocking_factors, programs_per_thread, options_key, tile_map, _specialization_key
+    blocking_factors,
+    programs_per_thread,
+    options_key,
+    tile_map,
+    _specialization_key,
+    extra_tile_maps,
 ):
     options = dict(options_key)
+    tile_maps = (tile_map, *extra_tile_maps)
 
     @ct.autotune(
-        configs=_autotune_configs(blocking_factors, programs_per_thread),
+        configs=_autotune_configs(
+            blocking_factors, programs_per_thread, extra_tile_maps
+        ),
         key=(
             "reduce_last_dim",
             "keep_dim",
@@ -662,6 +682,7 @@ def _make_autotuned_sfc_matmul(
         _buffers=None,
         blocking_factor_k=1,
         progs_per_thread=1,
+        tile_map_index=0,
     ):
         return prepare_sfc_matmul(
             a,
@@ -681,7 +702,7 @@ def _make_autotuned_sfc_matmul(
             blocking_factor_k=blocking_factor_k,
             progs_per_thread=progs_per_thread,
             options=options,
-            _tile_map=tile_map,
+            _tile_map=tile_maps[tile_map_index],
             _buffers=_buffers,
         )
 
@@ -707,6 +728,7 @@ def sfc_matmul(
     progs_per_thread=None,
     options=None,
     _tile_map=None,
+    _extra_tile_maps=(),
 ) -> torch.Tensor:
     if blocking_factor_k is None or progs_per_thread is None:
         K = a.shape[1]
@@ -739,6 +761,7 @@ def sfc_matmul(
                 reduction_combine_op,
                 reduction_post_op,
             ),
+            _extra_tile_maps,
         )
         return autotuned(
             a,
