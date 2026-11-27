@@ -7,8 +7,10 @@ import torch.nn as nn
 import triton
 import triton.language as tl
 
-from triton_cpu_utils import SFCMatmulHelper
 from triton_cpu_utils import gelu
+from triton_cpu_utils import get_matmul_block_sizes
+from triton_cpu_utils import pack_weights_for_sfc_matmul
+from triton_cpu_utils import region_matmul
 
 
 @triton.jit
@@ -27,18 +29,32 @@ class Model(nn.Module):
             out_features,
         )
 
-        self._matmul_helper = None
+        self._weight_packed = None
+        self._bias = None
+        self._block_sizes = None
 
     def forward(self, x):
-        if self._matmul_helper is None:
-            self._matmul_helper = SFCMatmulHelper(
+        x = x.contiguous()
+        if self._weight_packed is None or self._weight_packed.dtype != x.dtype:
+            self._block_sizes = get_matmul_block_sizes(x.dtype)
+            _, block_size_n, block_size_k = self._block_sizes
+            self._weight_packed = pack_weights_for_sfc_matmul(
                 self.gemm.weight.data.to(dtype=x.dtype),
-                self.gemm.bias.data.to(dtype=x.dtype),
+                BLOCK_SIZE_N=block_size_n,
+                BLOCK_SIZE_K=block_size_k,
             )
+            self._bias = self.gemm.bias.data.to(dtype=x.dtype).contiguous()
             assert self.bn.affine, "BatchNorm must have affine=True"
 
-        # eval()-mode BatchNorm1d merged into epilogue, see above.
-        return self._matmul_helper(
+        block_size_m, block_size_n, block_size_k = self._block_sizes
+        return region_matmul(
             x,
+            self._weight_packed,
+            bias=self._bias,
             post_op=_epilogue,
+            b_is_prepacked=True,
+            region_grid=(64, 1),
+            BLOCK_SIZE_M=block_size_m,
+            BLOCK_SIZE_N=block_size_n,
+            BLOCK_SIZE_K=block_size_k,
         )

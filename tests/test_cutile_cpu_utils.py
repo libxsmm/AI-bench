@@ -1,9 +1,9 @@
 """Focused tests for the cuTile CPU SFC matmul helper."""
 
+import functools
 import importlib.util
 import os
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -12,10 +12,9 @@ import torch
 ct = pytest.importorskip("cuda.tile")
 
 from cutile_cpu_utils import pack_weights_for_sfc_matmul  # noqa: E402
+from cutile_cpu_utils import region_matmul  # noqa: E402
 from cutile_cpu_utils import sfc_matmul  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _autotune_configs  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _make_buffers  # noqa: E402
-from cutile_cpu_utils.sfc_matmul import _matmul_programs  # noqa: E402
+from cutile_cpu_utils.region_matmul import _make_region_tensor  # noqa: E402
 from cutile_cpu_utils.sfc_matmul import prepare_sfc_matmul  # noqa: E402
 
 from ai_bench.harness.runner.benchmark_compare import copy_model_weights  # noqa: E402
@@ -25,16 +24,6 @@ kernel_test = pytest.mark.skipif(
     os.environ.get(KERNEL_TESTS_ENV) != "1",
     reason=f"compiles cuTile kernels; set {KERNEL_TESTS_ENV}=1 to run",
 )
-
-
-def _openmp(linked, global_runtime):
-    return patch(
-        "cutile_cpu_utils.sfc_matmul._openmp_libraries",
-        return_value=(
-            SimpleNamespace(omp_get_max_threads=linked),
-            SimpleNamespace(omp_get_max_threads=global_runtime),
-        ),
-    )
 
 
 def _force_second_autotune_candidate():
@@ -73,81 +62,135 @@ def _load_module(path, name):
     return module
 
 
-def test_matmul_programs_uses_actual_workers():
-    with _openmp(lambda: 64, lambda: 64):
-        assert _matmul_programs(4096, 4, None) == 256
-        assert _matmul_programs(128, 4, None) == 128
-    with _openmp(lambda: 256, lambda: 64):
-        assert _matmul_programs(4096, 4, None) == 4096
-    assert _matmul_programs(4096, 4, {"num_cpu_threads": 32}) == 128
+@pytest.mark.parametrize("grid", [(32, 2), (64, 1)])
+def test_region_grid_assigns_each_tile_to_one_program(grid):
+    blocks_m, blocks_n, programs = 512, 128, 64
+    tiles = _make_region_tensor(blocks_m, blocks_n, programs, 4, grid=grid)
+    assert tiles.shape == (blocks_m * blocks_n, 2)
+    assert tiles.unique(dim=0).size(0) == blocks_m * blocks_n
+
+    regions_m, regions_n = grid
+    rows_per_region, cols_per_region = blocks_m // regions_m, blocks_n // regions_n
+    for program, chunk in enumerate(tiles.chunk(programs)):
+        row_begin = program // regions_n * rows_per_region
+        col_begin = program % regions_n * cols_per_region
+        assert chunk[:, 0].unique().tolist() == list(
+            range(row_begin, row_begin + rows_per_region)
+        )
+        assert chunk[:, 1].unique().tolist() == list(
+            range(col_begin, col_begin + cols_per_region)
+        )
 
 
-def test_autotune_prunes_program_counts_without_k_blocking():
-    configs = _autotune_configs((1, 2), (1, 2, 4))
-    assert [config.meta for config in configs] == [
-        {"blocking_factor_k": 1, "progs_per_thread": 1},
-        {"blocking_factor_k": 2, "progs_per_thread": 1},
+@kernel_test
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"post_op": _subtract_column_sum},
         {"blocking_factor_k": 2, "progs_per_thread": 2},
-        {"blocking_factor_k": 2, "progs_per_thread": 4},
-    ]
+        {"reduce_last_dim": True, "trunc_output": False},
+        {"softmax_last_dim": True},
+    ],
+)
+def test_region_order_matches_sfc_order_bitwise(kwargs):
+    a, _, packed = _inputs(m=512, n=256, k=1024)
+    common = {
+        "bias": torch.randn(256, dtype=torch.bfloat16),
+        "b_is_prepacked": True,
+        "blocking_factor_k": 1,
+        "progs_per_thread": 1,
+        "options": {"num_cpu_threads": 4},
+        **kwargs,
+    }
+    assert _make_region_tensor(16, 8, 4 * common["progs_per_thread"], 4) is not None
+    expected = sfc_matmul(a, packed, **common).clone()
+    actual = region_matmul(a, packed, **common)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
-def test_prepared_launch_counts():
-    a = torch.empty((64, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 64), dtype=torch.bfloat16)
-    common = {"blocking_factor_k": 2, "progs_per_thread": 1}
-    prepacked = prepare_sfc_matmul(a, b, b_is_prepacked=True, **common)
-    unpacked = prepare_sfc_matmul(a, b, b_is_prepacked=False, **common)
-    reduction = prepare_sfc_matmul(
-        a, b, b_is_prepacked=True, reduce_last_dim=True, **common
+@kernel_test
+@pytest.mark.parametrize(("rows", "expected_grid"), [(256, (4, 1)), (160, None)])
+def test_requested_grid_uses_even_tile_partitions(rows, expected_grid):
+    inputs, weights, _ = _inputs(m=rows, n=256, k=512)
+    with patch(
+        "cutile_cpu_utils.region_matmul._make_region_tensor", wraps=_make_region_tensor
+    ) as make_region:
+        output = region_matmul(
+            inputs,
+            weights.T.contiguous(),
+            region_grid=(4, 1),
+            options={"num_cpu_threads": 4},
+        )
+    assert {call.kwargs.get("grid") for call in make_region.call_args_list} == {
+        expected_grid
+    }
+    reference = (inputs.float() @ weights.float().T).to(torch.bfloat16)
+    torch.testing.assert_close(output, reference)
+
+
+@kernel_test
+@pytest.mark.parametrize(
+    ("problem", "extra_args", "workers", "fixed_grid"),
+    [
+        ("39_Gemm_Scale_BatchNorm", ((4096,),), 64, True),
+        ("40_Matmul_Scaling_ResidualAdd", (-1.5,), 64, True),
+        ("41_Gemm_BatchNorm_GELU_ReLU", (), 16, False),
+        ("41_Gemm_BatchNorm_GELU_ReLU", (), 64, True),
+    ],
+)
+def test_models_use_region_order_and_match_sfc(
+    problem, extra_args, workers, fixed_grid
+):
+    root = Path(__file__).resolve().parents[1]
+    model_module = _load_module(
+        root / "backends/cutile/cpu/KernelBench/level2" / f"{problem}.py",
+        f"regions_{problem}",
     )
-    softmax = prepare_sfc_matmul(
-        a, b, b_is_prepacked=True, softmax_last_dim=True, **common
-    )
-    assert len(prepacked._launches) == 1
-    assert len(unpacked._launches) == 2
-    assert len(reduction._launches) == 2
-    assert len(softmax._launches) == 2
+    torch.manual_seed(0)
+    model = model_module.Model(4096, 4096, *extra_args).to(torch.bfloat16).eval()
+    if problem.startswith("39"):
+        with torch.no_grad():
+            model.scale.copy_(torch.linspace(-1, 1, 4096, dtype=torch.bfloat16))
+            model.scale[::3] = 0
+    inputs = torch.randn(16384, 4096, dtype=torch.bfloat16)
+    maps = []
+    grids = []
+    options = {"num_cpu_threads": workers}
 
+    def recording(*args, **kwargs):
+        grids.append(kwargs.get("grid"))
+        maps.append(_make_region_tensor(*args, **kwargs))
+        return maps[-1]
 
-@pytest.mark.parametrize("b_is_prepacked", [False, True])
-@pytest.mark.parametrize("mode", ["matmul", "reduction", "softmax"])
-@pytest.mark.parametrize("trunc_output", [False, True])
-def test_buffer_layouts(b_is_prepacked, mode, trunc_output):
-    a = torch.empty((64, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 96), dtype=torch.bfloat16)
-    bp, ctmp, cred, output = _make_buffers(
-        a, b, mode == "reduction", mode == "softmax", trunc_output, b_is_prepacked
-    )
-    if b_is_prepacked:
-        assert bp is None
+    with (
+        torch.no_grad(),
+        patch.object(
+            model_module,
+            "region_matmul",
+            functools.partial(model_module.region_matmul, options=options),
+        ),
+        patch("cutile_cpu_utils.region_matmul._l2_cache_bytes", return_value=2**21),
+        patch("cutile_cpu_utils.region_matmul._make_region_tensor", recording),
+    ):
+        actual = model(inputs).clone()
+    assert maps and all(tiles is not None for tiles in maps)
+    if fixed_grid:
+        assert grids == [(64, 1)]
     else:
-        assert bp.shape == (3, 16, 16, 32, 2)
-        assert bp.dtype == a.dtype
-        assert bp.device == a.device
-    assert ctmp.shape == (2, 3, 32, 32)
-    assert ctmp.dtype == torch.float32
-    assert ctmp.device == a.device
-    if mode == "matmul":
-        assert cred is ctmp
-    else:
-        assert cred.shape == (3, 128 if mode == "softmax" else 64)
-        assert cred.dtype == torch.float32
-        assert cred.device == a.device
-    assert output.shape == ((64,) if mode == "reduction" else (64, 96))
-    assert output.dtype == (a.dtype if trunc_output else torch.float32)
-    assert output.device == a.device
-    assert output.is_contiguous()
-
-
-@pytest.mark.parametrize("keep_dim", [False, True])
-def test_prepared_reduction_shape(keep_dim):
-    a = torch.empty((64, 512), dtype=torch.bfloat16)
-    b = torch.empty((512, 64), dtype=torch.bfloat16)
-    prepared = prepare_sfc_matmul(
-        a, b, reduce_last_dim=True, keep_dim=keep_dim, b_is_prepacked=True
-    )
-    assert prepared._output.shape == ((64, 1) if keep_dim else (64,))
+        assert set(grids) == {None}
+    with torch.no_grad():
+        expected = sfc_matmul(
+            inputs,
+            model._weight_packed,
+            bias=model._bias,
+            post_op=model._epilogue_fun
+            if problem.startswith("40")
+            else model_module._epilogue,
+            post_op_arg=model._scale if problem.startswith("39") else None,
+            b_is_prepacked=True,
+            options=options,
+        )
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
 def test_live_output_view_keeps_pooled_storage():
@@ -210,14 +253,6 @@ def test_k_blocking_factors_are_bitwise_invariant():
     ]
     for output in outputs[1:]:
         torch.testing.assert_close(output, outputs[0], rtol=0, atol=0)
-
-
-@kernel_test
-def test_autotuned_path_matches_reference():
-    a, weights, packed = _inputs()
-    output = sfc_matmul(a, packed, b_is_prepacked=True, options={"num_cpu_threads": 4})
-    reference = (a.float() @ weights.float().T).to(torch.bfloat16)
-    torch.testing.assert_close(output, reference)
 
 
 @kernel_test

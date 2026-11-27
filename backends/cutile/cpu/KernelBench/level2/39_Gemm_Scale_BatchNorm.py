@@ -5,7 +5,7 @@
 
 import cuda.tile as ct
 from cutile_cpu_utils import pack_weights_for_sfc_matmul
-from cutile_cpu_utils import sfc_matmul
+from cutile_cpu_utils import region_matmul
 import torch
 import torch.nn as nn
 
@@ -43,11 +43,12 @@ class Model(nn.Module):
             self._scale = self.scale.data.to(dtype=x.dtype).contiguous()
             assert self.bn.affine, "BatchNorm must have affine=True"
 
-        return sfc_matmul(
+        return region_matmul(
             x,
             self._weight_packed,
             bias=self._bias,
             post_op=_epilogue,
             post_op_arg=self._scale,
             b_is_prepacked=True,
+            region_grid=(64, 1),
         )
